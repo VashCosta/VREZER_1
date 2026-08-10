@@ -2292,4 +2292,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 40);
     }
+
+    // ── Execute Cyber-IT & Smooth Interactive Effects ───────
+    try { initSpiderParticles(); } catch (e) { console.error('Spider particles error:', e); }
+    try { initCursorTrail(); } catch (e) { console.error('Cursor trail error:', e); }
+    try { init3DTiltAndSpotlight(); } catch (e) { console.error('3D tilt error:', e); }
+    try { initMagneticButtons(); } catch (e) { console.error('Magnetic buttons error:', e); }
+    try { initClickRipples(); } catch (e) { console.error('Click ripples error:', e); }
+    try { initScrollReveal(); } catch (e) { console.error('Scroll reveal error:', e); }
 });
