@@ -116,4 +116,13 @@ public class AiAnalysisController {
         Map<String, Object> result = aiAnalysisService.optimizeLinkedin(resumeText, headline, about);
         return ResponseEntity.ok(ApiResponse.ok("LinkedIn Optimization completed", result));
     }
+
+    @PostMapping("/chat")
+    public ResponseEntity<ApiResponse<Map<String, String>>> chat(@RequestBody Map<String, Object> request) {
+        String prompt = String.valueOf(request.getOrDefault("prompt", "")).trim();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> candidateContext = (Map<String, Object>) request.get("candidateContext");
+        String answer = aiAnalysisService.generateAtsAudit(prompt, Collections.emptyList()).toString();
+        return ResponseEntity.ok(ApiResponse.ok("Chatbot reply generated", Map.of("reply", "Based on your career dossier: " + answer)));
+    }
 }

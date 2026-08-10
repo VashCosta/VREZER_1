@@ -16,7 +16,7 @@ public class AiChatController {
     @Autowired
     private VrezerAiAgentService vrezerAiAgentService;
 
-    @PostMapping("/ask")
+    @PostMapping({"/ask", "/chat", ""})
     public ResponseEntity<ApiResponse<Map<String, String>>> askChatbot(
             @RequestBody Map<String, Object> request,
             @RequestHeader(value = "X-GEMINI-API-KEY", required = false) String headerApiKey) {

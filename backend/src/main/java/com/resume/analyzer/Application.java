@@ -7,8 +7,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+
 @SpringBootApplication
 @EnableCaching
+@EntityScan("com.resume.analyzer")
+@EnableJpaRepositories("com.resume.analyzer")
 public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);
