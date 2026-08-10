@@ -171,8 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
 
         let stepIdx = 0;
+        const loadPhase = $('load-phase');
         const iv = setInterval(() => {
             if (stepIdx < steps.length) {
+                if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
                 if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
                 const stepEl = $(steps[stepIdx].id);
                 if (stepEl) stepEl.classList.add('active');
