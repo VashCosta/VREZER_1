@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="VREZER — Premium AI Career Intelligence Platform. Instant ATS score, skill gap analysis, live job matching, and interactive mock interview studio.">
+    <title>VREZER | AI Career Intelligence Platform — Land Your Dream Job</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/style.css?v=8.0.0">
+</head>
+
+<body class="dark">
+    <!-- Live Particle Canvas -->
+    <canvas id="particles-canvas" class="particles-canvas"></canvas>
+    <div class="hero-ambient-glow"></div>
+
+    <!-- ══════════ TOP BAR ══════════ -->
+    <header class="topbar" id="topbar">
+        <div class="topbar-left">
+            <a href="/" class="logo">V R E Z E R</a>
+            <span class="system-status"><span class="sdot"></span>CORE AI ONLINE</span>
+        </div>
+        <div class="topbar-right">
+            <span class="live-clock" id="live-time"></span>
+
+            <button id="theme-toggle" class="theme-toggle" title="Toggle Light/Dark Mode">
+                <i class="fa-solid fa-moon" id="theme-icon"></i>
+            </button>
+            <button id="export-btn" class="btn-browse"
+                style="padding:0.45rem 1.1rem; font-size:0.78rem; display:none; align-items:center; gap:0.5rem;"><i
+                    class="fa-solid fa-download"></i> Export Dossier</button>
+            <button id="reset-btn" class="btn-browse"
+                style="padding:0.45rem 1.1rem; font-size:0.78rem; display:none; background:rgba(255,0,60,0.15); border-color:rgba(255,0,60,0.4);"><i
+                    class="fa-solid fa-rotate-right"></i> Reset</button>
+        </div>
+    </header>
+
+    <div class="app-container">
+        <main class="app-main-content">
+
+            <!-- ══════════ HERO LANDING SECTION ══════════ -->
+            <section id="upload-section" class="hero-screen">
+                <div class="hero-container">
+                    <div class="hero-header-text">
+                        <div class="hero-badge">
+                            <span class="bdot"></span>✨ VREZER 3.0 — NEXT-GEN AI CAREER INTELLIGENCE
+                        </div>
+                        <h1 class="hero-title">
+                            Land Your Dream Job with <span>VREZER AI</span>
+                        </h1>
+                        <p class="hero-sub">
+                            Upload your resume → AI parses every detail → RAG retrieves live market data → GPT-powered
+                            13-section premium career intelligence dashboard in seconds.
+                        </p>
+                    </div>
+
+                    <div class="hero-centerpiece" id="hero-card-3d">
+                        <div class="hero-3d-card-glow"></div>
+                        <div class="upload-panel">
+                            <label for="file-input" class="drop-box" id="drop-zone">
+                                <input id="file-input" type="file" accept=".pdf,.docx,.doc" style="display: none;">
+                                <div class="scanning-laser" id="scanning-laser"></div>
+                                <div class="drop-icon-box" id="drop-icon-container">
+                                    <i class="fa-solid fa-cloud-arrow-up" id="drop-icon"></i>
+                                </div>
+                                <div class="drop-labels">
+                                    <strong id="drop-title" class="drop-title">Drop Resume Here</strong>
+                                    <span id="drop-subtitle" class="drop-sub">PDF · DOCX · DOC up to 20MB &nbsp;·&nbsp;
+                                        Drag &amp; Drop</span>
+                                </div>
+                                <div class="btn-group-hero">
+                                    <span class="btn-primary-hero" id="btn-browse-trigger">
+                                        <i class="fa-solid fa-bolt"></i> Analyze Resume Free
+                                    </span>
+                                    <button type="button" class="btn-secondary-hero" id="btn-demo-trigger">
+                                        <i class="fa-solid fa-circle-play"></i> View Demo
+                                    </button>
+                                </div>
+                                <div class="file-status" id="file-status" style="display: none;"></div>
+                            </label>
+
+                            <button id="analyse-btn" type="button" class="btn-analyse">
+                                <i class="fa-solid fa-rocket"></i> <span>Launch AI Career Analysis ⚡</span>
+                            </button>
+
+                            <div class="quick-samples">
+                                <span class="qs-label">OR QUICK-TEST SAMPLE PROFILES:</span>
+                                <div class="qs-buttons">
+                                    <button type="button" class="sample-resume-btn" data-sample="software"><i
+                                            class="fa-solid fa-code" style="color:#a855f7;"></i> Software SDE</button>
+                                    <button type="button" class="sample-resume-btn" data-sample="aiml"><i
+                                            class="fa-solid fa-robot" style="color:#38bdf8;"></i> AI / ML
+                                        Specialist</button>
+                                    <button type="button" class="sample-resume-btn" data-sample="cae"><i
+                                            class="fa-solid fa-car" style="color:#4ade80;"></i> Mechanical CAE</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="trusted-badges">
+                        <span class="t-badge"><i class="fa-solid fa-circle-check" style="color:#4ade80"></i> ATS
+                            Compatible</span>
+                        <span class="t-badge"><i class="fa-solid fa-circle-check" style="color:#a855f7"></i> RAG
+                            Powered</span>
+                        <span class="t-badge"><i class="fa-solid fa-circle-check" style="color:#38bdf8"></i> Secure
+                            Upload</span>
+                        <span class="t-badge"><i class="fa-solid fa-circle-check" style="color:#fbbf24"></i> Instant
+                            Analysis</span>
+                    </div>
+
+                    <div class="hero-stats">
+                        <div class="stat-card">
+                            <div class="stat-value">500K+</div>
+                            <div class="stat-label">Resumes Analyzed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">98%</div>
+                            <div class="stat-label">ATS Accuracy</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">50K+</div>
+                            <div class="stat-label">Jobs Matched</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">4.9★</div>
+                            <div class="stat-label">User Rating</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════ LOADING OVERLAY ══════════ -->
+            <section id="loading-section" class="load-screen hidden">
+                <div class="load-body">
+                    <div class="sonar-wrap">
+                        <div class="sonar-ring"></div>
+                        <div class="sonar-ring"></div>
+                        <div class="sonar-ring"></div>
+                        <div class="sonar-core"><i class="fa-solid fa-brain"></i></div>
+                    </div>
+                    <p class="load-phase" id="load-phase">Phase 1 / 5</p>
+                    <p id="load-msg" class="load-msg">Scanning resume with AI Neural Engine…</p>
+                    <div class="prog-track">
+                        <div class="prog-fill" id="prog-fill" style="width: 15%;"></div>
+                    </div>
+                    <p class="prog-pct" id="prog-pct">VREZER AI NEURAL ENGINE · 15% COMPLETE</p>
+
+                    <div class="load-pipeline">
+                        <div class="pipeline-step" id="ps-parse"><i class="fa-solid fa-file-lines"></i> Resume Parsing
+                        </div>
+                        <div class="pipeline-step" id="ps-rag"><i class="fa-solid fa-database"></i> RAG Retrieval</div>
+                        <div class="pipeline-step" id="ps-ai"><i class="fa-solid fa-brain"></i> AI Analysis</div>
+                        <div class="pipeline-step" id="ps-jobs"><i class="fa-solid fa-briefcase"></i> Job Matching</div>
+                        <div class="pipeline-step" id="ps-render"><i class="fa-solid fa-chart-pie"></i> Dashboard Build
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════ PREMIUM 13-TAB EXECUTIVE DASHBOARD ══════════ -->
+            <section id="dashboard-section" class="dashboard hidden">
+
+                <!-- TICKER BAR -->
+                <div class="ticker-bar" id="ticker-wrap">
+                    <span class="tb-label"><i class="fa-solid fa-bolt"></i> LIVE INTEL</span>
+                    <span id="ticker">ANALYSIS COMPLETE · VREZER AI ENGINE ONLINE</span>
+                </div>
+
+                <!-- HERO METRICS STRIP -->
+                <div class="hero-metrics-strip" id="hero-metrics">
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-ats">--</div>
+                            <div class="hm-label">ATS Score</div>
+                        </div>
+                    </div>
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-brain"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-ai-score">--</div>
+                            <div class="hm-label">AI Resume Score</div>
+                        </div>
+                    </div>
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-sitemap"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-domain">--</div>
+                            <div class="hm-label">Career Domain</div>
+                        </div>
+                    </div>
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-layer-group"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-level">--</div>
+                            <div class="hm-label">Experience Level</div>
+                        </div>
+                    </div>
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-circle-check"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-status" style="font-size:1rem;">--</div>
+                            <div class="hm-label">Resume Status</div>
+                        </div>
+                    </div>
+                    <div class="hm-card">
+                        <div class="hm-icon"><i class="fa-solid fa-percentage"></i></div>
+                        <div class="hm-data">
+                            <div class="hm-val" id="hm-confidence">--</div>
+                            <div class="hm-label">AI Confidence</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOP EXECUTIVE DOSSIER CARD -->
+                <div class="dossier-card">
+                    <div class="dossier-left">
+                        <div class="avatar" id="drc-avatar">AI</div>
+                        <div class="user-meta">
+                            <h2 class="name" id="drc-name">—</h2>
+                            <div class="role" id="drc-role">Analyzing…</div>
+                            <div class="tags">
+                                <span class="tag" id="drc-exp">—</span>
+                                <span class="tag" id="drc-edu">—</span>
+                                <span class="tag" id="drc-domain">—</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dossier-right">
+                        <div class="ai-box">
+                            <div class="ai-box-lbl"><i class="fa-solid fa-robot"></i> AI CAREER PREDICTION</div>
+                            <p id="ai-prediction">Processing candidate dossier...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DASHBOARD TAB NAVIGATION -->
+                <div class="dash-tabs" id="dash-tabs">
+                    <button class="dtab active" data-tab="tab-overview"><i class="fa-solid fa-chart-pie"></i>
+                        Overview</button>
+                    <button class="dtab" data-tab="tab-profile"><i class="fa-solid fa-user-tie"></i> AI Profile</button>
+                    <button class="dtab" data-tab="tab-ats"><i class="fa-solid fa-shield-halved"></i> ATS
+                        Intelligence</button>
+                    <button class="dtab" data-tab="tab-skills"><i class="fa-solid fa-crosshairs"></i> Skill
+                        Radar</button>
+                    <button class="dtab" data-tab="tab-jobs"><i class="fa-solid fa-briefcase"></i> Live Jobs & Target
+                        Employers</button>
+                    <button class="dtab" data-tab="tab-market"><i class="fa-solid fa-chart-line"></i> Market
+                        Intel</button>
+                    <button class="dtab" data-tab="tab-career"><i class="fa-solid fa-road"></i> Career Path</button>
+                    <button class="dtab" data-tab="tab-interview"><i class="fa-solid fa-comments"></i> Interview
+                        Prep</button>
+                    <button class="dtab" data-tab="tab-improvement"><i class="fa-solid fa-wand-magic-sparkles"></i>
+                        Resume AI</button>
+                    <button class="dtab" data-tab="tab-analytics"><i class="fa-solid fa-chart-column"></i>
+                        Analytics</button>
+                    <button class="dtab" data-tab="tab-downloads"><i class="fa-solid fa-file-pdf"></i>
+                        Downloads</button>
+                    <button class="dtab" data-tab="tab-debug"><i class="fa-solid fa-bug"></i> Developer Debug</button>
+                </div>
+
+                <!-- ════ TAB 1: OVERVIEW ════ -->
+                <div id="tab-overview" class="tab-content active">
+                    <div class="grid-row row-a">
+                        <div class="card c-ats">
+                            <div class="card-label"><i class="fa-solid fa-shield-halved"></i> ATS Score</div>
+                            <div class="gauge-wrap">
+                                <canvas id="ats-chart" style="max-height:190px"></canvas>
+                                <div class="gauge-center">
+                                    <span class="val" id="ats-val">--</span>
+                                    <span class="sub">/ 100</span>
+                                </div>
+                            </div>
+                            <div class="sub" id="ats-label">Analyzing…</div>
+                        </div>
+
+                        <div class="card c-sal">
+                            <div class="card-label"><i class="fa-solid fa-indian-rupee-sign"></i> Target Salary</div>
+                            <div class="gauge-wrap">
+                                <canvas id="sal-chart" style="max-height:190px"></canvas>
+                                <div class="gauge-center">
+                                    <span class="val" id="sal-val" style="font-size:1.4rem;">--</span>
+                                    <span class="du" id="sal-unit">LPA</span>
+                                </div>
+                            </div>
+                            <div class="sub" id="sal-usd">—</div>
+                        </div>
+
+                        <div class="card c-radar">
+                            <div class="card-label"><i class="fa-solid fa-crosshairs"></i> Skill Radar</div>
+                            <canvas id="radar-chart" style="max-height:190px"></canvas>
+                        </div>
+
+                        <div class="card c-bar">
+                            <div class="card-label"><i class="fa-solid fa-sliders"></i> Capability Metrics</div>
+                            <canvas id="bar-chart" style="max-height:190px"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- SWOT Matrix -->
+                    <div class="dash-section-label" style="margin-top:1.5rem;"><i class="fa-solid fa-swatchbook"></i>
+                        SWOT Intelligence Matrix</div>
+                    <div class="swot-grid">
+                        <div class="swot-box sb-s">
+                            <div class="sb-title">💪 STRENGTHS</div>
+                            <div id="swot-strengths" class="swot-items"></div>
+                        </div>
+                        <div class="swot-box sb-w">
+                            <div class="sb-title">⚠️ SKILL GAPS</div>
+                            <div id="swot-weaknesses" class="swot-items"></div>
+                        </div>
+                        <div class="swot-box sb-o">
+                            <div class="sb-title">🚀 OPPORTUNITIES</div>
+                            <div id="swot-opps" class="swot-items"></div>
+                        </div>
+                        <div class="swot-box sb-r">
+                            <div class="sb-title">⚡ IMPROVEMENTS</div>
+                            <div id="swot-risks" class="swot-items"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 2: AI PROFILE INTELLIGENCE ════ -->
+                <div id="tab-profile" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-user-tie"></i> AI Profile Intelligence</div>
+
+                    <!-- Summary Card -->
+                    <div class="card profile-summary-card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-id-badge"></i> Professional Summary</div>
+                        <p id="profile-summary" class="profile-text">Analyzing resume…</p>
+                        <div class="profile-meta-row">
+                            <div class="profile-meta-item">
+                                <span class="pmi-label">Career Domain</span>
+                                <span class="pmi-val" id="profile-domain">—</span>
+                            </div>
+                            <div class="profile-meta-item">
+                                <span class="pmi-label">Secondary Domain</span>
+                                <span class="pmi-val" id="profile-secondary-domain">—</span>
+                            </div>
+                            <div class="profile-meta-item">
+                                <span class="pmi-label">Experience Level</span>
+                                <span class="pmi-val" id="profile-level">—</span>
+                            </div>
+                            <div class="profile-meta-item">
+                                <span class="pmi-label">Industry</span>
+                                <span class="pmi-val" id="profile-industry">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <!-- Strongest Skills -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-star"></i> Strongest Skills</div>
+                            <div class="tag-cloud" id="profile-strongest-skills"></div>
+                        </div>
+                        <!-- Transferable Skills -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-arrows-turn-to-dots"></i> Transferable Skills
+                            </div>
+                            <div class="tag-cloud" id="profile-transferable-skills"></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Confidence Meter -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-gauge-high"></i> AI Confidence Meter</div>
+                        <div class="confidence-meter">
+                            <div class="conf-bar-track">
+                                <div class="conf-bar-fill" id="confidence-bar-fill"></div>
+                            </div>
+                            <div class="conf-meta">
+                                <span id="conf-score-lbl">—</span>
+                                <span id="conf-level-lbl">—</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Evidence Panel -->
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-magnifying-glass"></i> Resume Evidence Panel — Why
+                            Every Conclusion Was Made</div>
+                        <div id="evidence-panel" class="evidence-list"></div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 3: ATS INTELLIGENCE ════ -->
+                <div id="tab-ats" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-shield-halved"></i> ATS Intelligence — 8
+                        Explainable Scores</div>
+                    <div class="score-cards-grid" id="score-cards-container"></div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:1.5rem;">
+                        <!-- Formatting Analysis -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-file-code"></i> Formatting Analysis</div>
+                            <div id="formatting-analysis" class="check-list"></div>
+                        </div>
+                        <!-- Resume Structure -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-list-check"></i> Section Completeness</div>
+                            <div id="section-completeness" class="check-list"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-top:1.25rem;">
+                        <!-- Missing Keywords -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-key"></i> Missing Keywords</div>
+                            <div class="tag-cloud warning-tags" id="missing-keywords"></div>
+                        </div>
+                        <!-- Grammar Analysis -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-spell-check"></i> Grammar &amp; Readability
+                            </div>
+                            <div id="grammar-analysis" class="grammar-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Resume Red Flags -->
+                    <div class="card" style="margin-top:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;"></i>
+                            Resume Red Flags &amp; Fixes</div>
+                        <div id="red-flags-list" class="red-flags"></div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 4: SKILL INTELLIGENCE ════ -->
+                <div id="tab-skills" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-crosshairs"></i> Skill Intelligence — Full
+                        Competency Map</div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-triangle-exclamation"></i> Skill Gaps to
+                                Bridge</div>
+                            <div class="gap-tags" id="gap-list"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-lightbulb"></i> Top Strengths Detected</div>
+                            <div class="gap-tags" id="strengths-full-list"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <!-- Technical Skills with scores -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-code"></i> Technical Competency Scores</div>
+                            <div id="tech-skills-bars" class="skill-bars"></div>
+                        </div>
+                        <!-- Soft Skills -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-people-group"></i> Soft Skills Analysis</div>
+                            <div id="soft-skills-bars" class="skill-bars"></div>
+                        </div>
+                    </div>
+
+                    <!-- Emerging Skills -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-rocket"></i> Emerging Skills to Add in 2026</div>
+                        <div class="tag-cloud emerald-tags" id="emerging-skills"></div>
+                    </div>
+
+                    <!-- Skill Match % -->
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-percent"></i> Domain Fit &amp; Match Scores</div>
+                        <div class="domain-grid" id="domain-grid"></div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 5: LIVE JOB INTELLIGENCE ════ -->
+                <div id="tab-jobs" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-briefcase"></i> Live Job Intelligence — RAG +
+                        API Powered Matches</div>
+                    <div class="data-source-notice" id="jobs-source-notice">
+                        <i class="fa-solid fa-circle-info"></i> Data retrieved via RAG market intelligence. Job
+                        availability may vary.
+                    </div>
+                    <div class="job-cards-grid" id="job-cards-grid"></div>
+                    <!-- Tier Cards (backup view) -->
+                    <div class="dash-section-label" style="margin-top:2rem;"><i class="fa-solid fa-layer-group"></i>
+                        Target Companies — 3-Tier Trajectory</div>
+                    <div class="grid-row row-b">
+                        <div class="card tier-card tc-elite" id="card-t1">
+                            <div class="tier-glow"></div>
+                            <div class="tier-top">
+                                <span class="tier-badge tb-elite">TIER I · FAANG+</span>
+                                <i class="fa-solid fa-crown tier-icon ti-elite"></i>
+                            </div>
+                            <div class="tier-label">Dream Target · Staff Level</div>
+                            <div class="tier-role" id="t1-role">—</div>
+                            <div class="tier-metas">
+                                <div class="tm"><i class="fa-solid fa-building-columns"></i><span
+                                        id="t1-company">—</span></div>
+                                <div class="tm"><i class="fa-solid fa-location-dot"></i><span id="t1-loc">—</span></div>
+                            </div>
+                            <div class="tier-sal-row"><span class="tier-sal te-sal" id="t1-sal">—</span></div>
+                        </div>
+                        <div class="card tier-card tc-growth" id="card-t2">
+                            <div class="tier-glow"></div>
+                            <div class="tier-top">
+                                <span class="tier-badge tb-growth">TIER II · PRODUCT</span>
+                                <i class="fa-solid fa-chart-line tier-icon ti-growth"></i>
+                            </div>
+                            <div class="tier-label">High Conversion Match</div>
+                            <div class="tier-role" id="t2-role">—</div>
+                            <div class="tier-metas">
+                                <div class="tm"><i class="fa-solid fa-building-columns"></i><span
+                                        id="t2-company">—</span></div>
+                                <div class="tm"><i class="fa-solid fa-location-dot"></i><span id="t2-loc">—</span></div>
+                            </div>
+                            <div class="tier-sal-row"><span class="tier-sal tg-sal" id="t2-sal">—</span></div>
+                        </div>
+                        <div class="card tier-card tc-base" id="card-t3">
+                            <div class="tier-glow"></div>
+                            <div class="tier-top">
+                                <span class="tier-badge tb-base">TIER III · BASELINE</span>
+                                <i class="fa-solid fa-rocket tier-icon ti-base"></i>
+                            </div>
+                            <div class="tier-label">Immediate Offer Zone</div>
+                            <div class="tier-role" id="t3-role">—</div>
+                            <div class="tier-metas">
+                                <div class="tm"><i class="fa-solid fa-building-columns"></i><span
+                                        id="t3-company">—</span></div>
+                                <div class="tm"><i class="fa-solid fa-location-dot"></i><span id="t3-loc">—</span></div>
+                            </div>
+                            <div class="tier-sal-row"><span class="tier-sal tb-sal" id="t3-sal">—</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 6: MARKET INTELLIGENCE ENGINE ════ -->
+                <div id="tab-companies" class="tab-content hidden">
+
+                    <!-- Header Bar -->
+                    <div class="mi-header-bar">
+                        <div>
+                            <div class="dash-section-label" style="margin-bottom:0.2rem;"><i
+                                    class="fa-solid fa-building-2"></i> Market Intelligence Engine — Company Explorer
+                            </div>
+                            <p style="font-size:0.78rem; color:var(--text-3); margin:0;">Powered by Live Google Search
+                                Crawling + RAG + AI Classification Engine</p>
+                        </div>
+                        <div class="data-source-notice" style="margin:0;"><span class="sdot"
+                                style="background:#4ade80;"></span>&nbsp;LIVE INTEL ACTIVE</div>
+                    </div>
+
+                    <!-- ── ADVANCED FILTERS PANEL ── -->
+                    <div class="mi-filters-panel">
+                        <div class="mi-filter-row">
+                            <input type="text" id="mi-search" class="mi-search-input"
+                                placeholder="🔍 Search company, role, skill, or location…">
+                        </div>
+                        <div class="mi-filter-chips-row">
+                            <select id="mi-category" class="mi-chip-select">
+                                <option value="">🏷 All Categories</option>
+                                <option value="Global MNC">🌐 Global MNCs</option>
+                                <option value="Indian MNC">🇮🇳 Indian MNCs</option>
+                                <option value="Indian IT Services">💻 Indian IT Services</option>
+                                <option value="Product-Based">📦 Product-Based</option>
+                                <option value="SaaS">☁️ SaaS Companies</option>
+                                <option value="AI/ML">🤖 AI &amp; ML Companies</option>
+                                <option value="Cloud &amp; DevOps">⚙️ Cloud &amp; DevOps</option>
+                                <option value="Cybersecurity">🔐 Cybersecurity</option>
+                                <option value="FinTech">💳 FinTech</option>
+                                <option value="HealthTech">🏥 HealthTech</option>
+                                <option value="EdTech">📚 EdTech</option>
+                                <option value="E-Commerce">🛒 E-Commerce</option>
+                                <option value="Unicorn">🦄 Unicorns</option>
+                                <option value="Startup">🚀 Startups</option>
+                                <option value="High-Growth">📈 High-Growth</option>
+                                <option value="Government">🏛 Government</option>
+                                <option value="Consulting">🧭 Consulting</option>
+                                <option value="Manufacturing">🏭 Manufacturing</option>
+                                <option value="Telecom">📡 Telecom</option>
+                                <option value="Automotive">🚗 Automotive</option>
+                                <option value="Semiconductor">🔬 Semiconductor</option>
+                                <option value="Gaming">🎮 Gaming</option>
+                                <option value="Digital Marketing">📣 Digital Marketing</option>
+                                <option value="Media &amp; Content">📺 Media &amp; Content</option>
+                            </select>
+                            <select id="mi-workmode" class="mi-chip-select">
+                                <option value="">🖥 Work Mode</option>
+                                <option value="Remote">🏠 Remote</option>
+                                <option value="Hybrid">🔄 Hybrid</option>
+                                <option value="Onsite">🏢 Onsite</option>
+                            </select>
+                            <select id="mi-city" class="mi-chip-select">
+                                <option value="">📍 All Cities</option>
+                                <option value="Bengaluru">Bengaluru</option>
+                                <option value="Hyderabad">Hyderabad</option>
+                                <option value="Pune">Pune</option>
+                                <option value="Mumbai">Mumbai</option>
+                                <option value="Chennai">Chennai</option>
+                                <option value="Noida">Noida</option>
+                                <option value="Gurgaon">Gurgaon</option>
+                                <option value="Kolkata">Kolkata</option>
+                                <option value="Remote">Remote / WFH</option>
+                            </select>
+                            <select id="mi-size" class="mi-chip-select">
+                                <option value="">🏢 Company Size</option>
+                                <option value="Startup">Startup (&lt;500)</option>
+                                <option value="Mid-Size">Mid-Size (500-5k)</option>
+                                <option value="Large">Large (5k-50k)</option>
+                                <option value="Enterprise">Enterprise (50k+)</option>
+                            </select>
+                            <select id="mi-exp" class="mi-chip-select">
+                                <option value="">🎓 Experience</option>
+                                <option value="Fresher">Fresher (0-1 yr)</option>
+                                <option value="Junior">Junior (1-3 yrs)</option>
+                                <option value="Mid">Mid (3-6 yrs)</option>
+                                <option value="Senior">Senior (6-10 yrs)</option>
+                                <option value="Lead">Lead/Principal (10+)</option>
+                            </select>
+                            <button id="mi-reset" class="mi-reset-btn"><i class="fa-solid fa-rotate-right"></i>
+                                Reset</button>
+                        </div>
+                        <div class="mi-active-filter-tags" id="mi-active-tags"></div>
+                    </div>
+
+                    <!-- ── QUICK ACCESS SECTIONS ── -->
+                    <div class="mi-quick-sections" id="mi-quick-sections">
+                        <!-- Dynamically populated by JS -->
+                    </div>
+
+                    <!-- ── ALL COMPANIES GRID ── -->
+                    <div class="mi-all-section-header">
+                        <div class="dash-section-label" style="margin:0;">
+                            <i class="fa-solid fa-grid-2"></i> All Matching Companies
+                        </div>
+                        <span class="mi-result-count" id="mi-result-count">Loading…</span>
+                    </div>
+                    <div class="mi-company-grid" id="mi-company-grid"></div>
+                </div>
+
+                <!-- ════ TAB 7: MARKET INTELLIGENCE ════ -->
+                <div id="tab-market" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-chart-line"></i> Market Intelligence — Live
+                        Industry Insights</div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr 1fr; gap:1.25rem; margin-bottom:1.5rem;">
+                        <div class="card market-kpi">
+                            <div class="mkpi-icon"><i class="fa-solid fa-fire"></i></div>
+                            <div class="mkpi-val" id="market-demand">—</div>
+                            <div class="mkpi-label">Domain Demand</div>
+                        </div>
+                        <div class="card market-kpi">
+                            <div class="mkpi-icon"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                            <div class="mkpi-val" id="market-growth">—</div>
+                            <div class="mkpi-label">Industry Growth</div>
+                        </div>
+                        <div class="card market-kpi">
+                            <div class="mkpi-icon"><i class="fa-solid fa-laptop-house"></i></div>
+                            <div class="mkpi-val" id="market-remote">—</div>
+                            <div class="mkpi-label">Remote Available</div>
+                        </div>
+                    </div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-bolt"></i> Trending Technologies</div>
+                            <div class="tag-cloud amber-tags" id="trending-tech"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-star"></i> High Demand Skills</div>
+                            <div class="tag-cloud" id="high-demand-skills"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-telescope"></i> Future Career Outlook &amp; AI
+                            Insights</div>
+                        <div id="market-outlook" class="market-outlook-text">Analyzing market data…</div>
+                        <div class="data-source-notice" style="margin-top:1rem;">
+                            <i class="fa-solid fa-circle-info"></i> <span id="market-data-sources">Retrieved via RAG
+                                market intelligence pipeline.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 8: CAREER RECOMMENDATIONS ════ -->
+                <div id="tab-career" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-road"></i> Career Recommendations &amp; Growth
+                        Roadmap</div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-bullseye"></i> Best Matching Roles</div>
+                            <div id="best-roles-list"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-shuffle"></i> Alternative Career Paths</div>
+                            <div id="alt-paths-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Career Growth Timeline -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-timeline"></i> Career Growth Timeline</div>
+                        <div id="career-timeline" class="timeline-list"></div>
+                    </div>
+
+                    <!-- Learning Roadmap -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-map"></i> AI Learning Roadmap</div>
+                        <div id="learning-roadmap" class="roadmap-list"></div>
+                    </div>
+
+                    <!-- Certification Recommendations -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-certificate"></i> Certification Recommendations
+                        </div>
+                        <div class="tag-cloud" id="cert-recommendations"></div>
+                    </div>
+
+                    <!-- Weekly Learning Plan -->
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-calendar-week"></i> Personalized Weekly Learning
+                            Plan</div>
+                        <div id="weekly-plan" class="weekly-plan-grid"></div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 9: INTERVIEW INTELLIGENCE ════ -->
+                <div id="tab-interview" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-comments"></i> Interview Intelligence — AI
+                        Prep Kit</div>
+
+                    <!-- Interview Readiness Score -->
+                    <div class="interview-readiness-banner" id="interview-readiness-banner">
+                        <div class="irb-score" id="irb-score">—</div>
+                        <div class="irb-label">Interview Readiness Score</div>
+                        <div class="irb-tips" id="irb-tips"></div>
+                    </div>
+
+                    <!-- Question Type Tabs -->
+                    <div class="sub-tabs">
+                        <button class="stab active" data-subtab="stab-technical">Technical</button>
+                        <button class="stab" data-subtab="stab-hr">HR / Behavioral</button>
+                        <button class="stab" data-subtab="stab-project">Project-Based</button>
+                        <button class="stab" data-subtab="stab-tips">AI Interview Tips</button>
+                    </div>
+
+                    <div id="stab-technical" class="stab-content active">
+                        <div class="interview-grid" id="technical-questions"></div>
+                    </div>
+                    <div id="stab-hr" class="stab-content hidden">
+                        <div class="interview-grid" id="hr-questions"></div>
+                    </div>
+                    <div id="stab-project" class="stab-content hidden">
+                        <div class="interview-grid" id="project-questions"></div>
+                    </div>
+                    <div id="stab-tips" class="stab-content hidden">
+                        <div class="card" id="interview-tips-panel">
+                            <div class="card-label"><i class="fa-solid fa-lightbulb"></i> AI Interview Tips for Your
+                                Profile</div>
+                            <div id="interview-tips-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 10: RESUME IMPROVEMENT ════ -->
+                <div id="tab-improvement" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Resume
+                        Improvement Engine</div>
+
+                    <!-- Recruiter Feedback -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-user-check"></i> Recruiter Style Feedback</div>
+                        <p id="recruiter-feedback" class="profile-text">Analyzing…</p>
+                    </div>
+
+                    <!-- Bullet Point Rewrites -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-pen-to-square"></i> AI Bullet Point Rewrites</div>
+                        <div id="bullet-rewrites"></div>
+                    </div>
+
+                    <!-- Improvement Suggestions -->
+                    <div class="card" style="margin-bottom:1.25rem;">
+                        <div class="card-label"><i class="fa-solid fa-list-check"></i> Improvement Suggestions</div>
+                        <ul class="hint-list" id="improvements-list"></ul>
+                    </div>
+
+                    <!-- Missing Sections -->
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-plus-circle"></i> Missing Sections</div>
+                            <div class="tag-cloud warning-tags" id="missing-sections"></div>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-trophy"></i> Missing Achievements</div>
+                            <div id="missing-achievements" class="check-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Cover Letter -->
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-envelope"></i> AI Generated Cover Letter</div>
+                        <div id="cover-letter-box" class="cover-letter-box">Cover letter will appear after analysis…
+                        </div>
+                        <button class="btn-browse" style="margin-top:1rem; width:auto; padding:0.6rem 1.5rem;"
+                            onclick="navigator.clipboard.writeText(document.getElementById('cover-letter-box').innerText)">
+                            <i class="fa-solid fa-copy"></i> Copy Cover Letter
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 11: ANALYTICS ════ -->
+                <div id="tab-analytics" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-chart-column"></i> Analytics Dashboard —
+                        Career Progress Metrics</div>
+
+                    <div class="grid-row" style="grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-chart-line"></i> ATS Score Breakdown Trend
+                            </div>
+                            <canvas id="analytics-ats-chart" style="max-height:200px;"></canvas>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-chart-bar"></i> Skill Coverage Analysis</div>
+                            <canvas id="analytics-skills-chart" style="max-height:200px;"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-label"><i class="fa-solid fa-code-compare"></i> Score Component Comparison
+                        </div>
+                        <canvas id="analytics-compare-chart" style="max-height:220px;"></canvas>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 13: DOWNLOAD CENTER ════ -->
+                <div id="tab-downloads" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-file-pdf"></i> Executive Download Center — 9
+                        AI Reports</div>
+                    <div class="download-grid" id="download-center-grid"></div>
+                </div>
+
+                <!-- ════ TAB 14: DEVELOPER DEBUG PANEL ════ -->
+                <div id="tab-debug" class="tab-content hidden">
+                    <div class="dash-section-label"><i class="fa-solid fa-bug"></i> Developer Debug Panel &amp; Pipeline
+                        Logs</div>
+                    <div class="debug-grid" style="display:grid; grid-template-columns:1fr; gap:1.5rem;">
+
+                        <!-- Generated Job Query -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-search"></i> Generated Boolean Job Search
+                                Query</div>
+                            <pre id="debug-query"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); color:#38bdf8;"></pre>
+                        </div>
+
+                        <!-- Candidate Profile -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-user-circle"></i> Candidate Profile (28
+                                Attributes Extracted)</div>
+                            <pre id="debug-profile"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); overflow-x:auto; color:#a855f7;"></pre>
+                        </div>
+
+                        <!-- Parsed Resume -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-file-code"></i> Parsed Resume Json
+                                (Tika/PDFBox Extracted)</div>
+                            <pre id="debug-parsed"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); overflow-x:auto; color:#38bdf8;"></pre>
+                        </div>
+
+                        <!-- Ranking Scores -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-star"></i> Job Similarity &amp; Weighted
+                                Ranking Scores</div>
+                            <pre id="debug-ranking"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); overflow-x:auto; color:#fbbf24;"></pre>
+                        </div>
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-paper-plane"></i> Gemini Reasoning Engine
+                                Request Prompt</div>
+                            <pre id="debug-request"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); color:#e2e8f0;"></pre>
+                        </div>
+
+                        <!-- Gemini Response -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-reply"></i> Gemini Reasoning Engine Raw
+                                Response</div>
+                            <pre id="debug-response"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); color:#4ade80;"></pre>
+                        </div>
+
+                        <!-- ATS Breakdown -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-list-check"></i> ATS Match score breakdown
+                                details</div>
+                            <pre id="debug-ats"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); color:#f43f5e;"></pre>
+                        </div>
+
+                        <!-- Combined Dashboard JSON -->
+                        <div class="card">
+                            <div class="card-label"><i class="fa-solid fa-sitemap"></i> Combined Dashboard JSON</div>
+                            <pre id="debug-json"
+                                style="background:var(--surface-2); padding:1rem; border-radius:8px; font-family:var(--mono); font-size:0.8rem; white-space:pre-wrap; margin:0; border:1px solid var(--border); overflow-x:auto; color:#a855f7;"></pre>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <script src="/script.js?v=8.0.0"></script>
+</body>
+
+</html>

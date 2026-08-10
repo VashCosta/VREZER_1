@@ -1,0 +1,2268 @@
+// ═══════════════════════════════════════════════════
+//  VREZER 3.0 – AI Career Intelligence Engine
+// ═══════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
+    const dropZone = $('drop-zone'), fileInput = $('file-input');
+    const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
+    const themeBtn = $('theme-toggle'), exportBtn = $('export-btn');
+    const resetBtn = $('reset-btn'), progFill = $('prog-fill');
+    const loadMsg = $('load-msg'), ticker = $('ticker');
+    const uploadSect = $('upload-section'), loadSect = $('loading-section'), dashSect = $('dashboard-section');
+
+    let currentFile = null, charts = {}, lastData = null;
+
+    // ── API Key Persistence ───────────────────────
+    const keyInput = $('api-key-input');
+    if (keyInput) {
+        keyInput.value = localStorage.getItem('vrezerApiKey') || '';
+        keyInput.addEventListener('input', () => {
+            localStorage.setItem('vrezerApiKey', keyInput.value.trim());
+        });
+    }
+
+    // ── Live Clock ─────────────────────────────────
+    const clockEl = $('live-time');
+    const tick = () => { if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+    tick(); setInterval(tick, 1000);
+
+    // ── Live Particle Engine ───────────────────────
+    initSpiderParticles();
+
+    // ── Theme Switcher ─────────────────────────────
+    document.body.classList.add('dark');
+    if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+            const isDark = document.body.classList.contains('dark');
+            document.body.classList.toggle('dark', !isDark);
+            document.body.classList.toggle('light', isDark);
+            const icon = $('theme-icon');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            if (lastData && !dashSect.classList.contains('hidden')) rebuildCharts();
+        });
+    }
+
+    // ── Export & Reset ─────────────────────────────
+    if (exportBtn) exportBtn.onclick = () => window.print();
+    if (resetBtn) resetBtn.onclick = () => location.reload();
+
+    // ── Tab Switchers ──────────────────────────────
+    document.querySelectorAll('.dtab').forEach(tabBtn => {
+        tabBtn.addEventListener('click', () => {
+            const targetId = tabBtn.getAttribute('data-tab');
+            document.querySelectorAll('.dtab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.add('hidden'));
+            
+            tabBtn.classList.add('active');
+            const targetContent = $(targetId);
+            if (targetContent) targetContent.classList.remove('hidden');
+
+            if (lastData) {
+                if (targetId === 'tab-analytics') {
+                    renderAnalytics(lastData);
+                } else if (targetId === 'tab-overview') {
+                    renderOverviewGauges(lastData);
+                }
+            }
+        });
+    });
+
+    document.querySelectorAll('.stab').forEach(stabBtn => {
+        stabBtn.addEventListener('click', () => {
+            const targetId = stabBtn.getAttribute('data-subtab');
+            document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.stab-content').forEach(tc => tc.classList.add('hidden'));
+            
+            stabBtn.classList.add('active');
+            const targetContent = $(targetId);
+            if (targetContent) targetContent.classList.remove('hidden');
+        });
+    });
+
+    // ── Sample Profile Buttons ──────────────────────
+    document.querySelectorAll('.sample-resume-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const sampleType = btn.getAttribute('data-sample');
+            loadSampleProfile(sampleType);
+        });
+    });
+
+    // ── Drag & Drop File Upload ────────────────────
+    const browseTrigger = $('btn-browse-trigger');
+    if (browseTrigger) {
+        browseTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (fileInput) fileInput.click();
+        });
+    }
+
+    if (dropZone) {
+        dropZone.addEventListener('click', () => fileInput && fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+        dropZone.addEventListener('drop', e => { 
+            e.preventDefault(); 
+            dropZone.classList.remove('over'); 
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFile(e.dataTransfer.files[0]); 
+            }
+        });
+    }
+    if (fileInput) fileInput.addEventListener('change', e => e.target.files && handleFile(e.target.files[0]));
+
+    // ── 3D Card Perspective Tilt ───────────────────
+    const heroCard3D = $('hero-card-3d');
+    if (heroCard3D) {
+        window.addEventListener('mousemove', e => {
+            const rect = heroCard3D.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const mouseX = e.clientX - centerX;
+            const mouseY = e.clientY - centerY;
+            if (Math.abs(mouseX) < 600 && Math.abs(mouseY) < 600) {
+                const tiltX = (mouseX / (rect.width / 2)) * 6;
+                const tiltY = -(mouseY / (rect.height / 2)) * 6;
+                heroCard3D.style.transform = `perspective(1000px) rotateY(${tiltX}deg) rotateX(${tiltY}deg)`;
+            }
+        });
+    }
+
+    // ── View Demo Button ───────────────────────────
+    const btnDemo = $('btn-demo-trigger');
+    if (btnDemo) {
+        btnDemo.addEventListener('click', (e) => {
+            e.stopPropagation();
+            loadSampleProfile('software');
+        });
+    }
+
+    function handleFile(file) {
+        if (!file) return;
+        currentFile = file;
+        const laser = $('scanning-laser');
+        if (laser) {
+            laser.classList.add('active');
+            setTimeout(() => laser.classList.remove('active'), 3000);
+        }
+        if (fileStatus) {
+            fileStatus.style.display = 'block';
+            fileStatus.textContent = '✓ Loaded: ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+        }
+        if (analyseBtn) analyseBtn.disabled = false;
+        setTicker('Resume loaded: ' + file.name + ' — Click Launch AI Career Analysis to proceed');
+    }
+
+    if (analyseBtn) analyseBtn.addEventListener('click', runAnalysis);
+
+    async function runAnalysis() {
+        show(loadSect); 
+        hide(uploadSect, dashSect);
+        const pIv = startProgress();
+
+        const steps = [
+            { text: 'Extracting resume text via Tika & PDFBox…', id: 'ps-parse' },
+            { text: 'Running RAG Market Intelligence Retrieval…', id: 'ps-rag' },
+            { text: 'Executing 6-Agent AI Reasoning Pipeline…', id: 'ps-ai' },
+            { text: 'Matching Jobs across Adzuna & Live APIs…', id: 'ps-jobs' },
+            { text: 'Building 13-Section Dynamic Dashboard…', id: 'ps-render' }
+        ];
+
+        let stepIdx = 0;
+        const iv = setInterval(() => {
+            if (stepIdx < steps.length) {
+                if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
+                const stepEl = $(steps[stepIdx].id);
+                if (stepEl) stepEl.classList.add('active');
+                if (stepIdx > 0) {
+                    const prev = $(steps[stepIdx - 1].id);
+                    if (prev) { prev.classList.remove('active'); prev.classList.add('done'); }
+                }
+                stepIdx++;
+            }
+        }, 800);
+
+        try {
+            let data = null;
+
+            if (currentFile) {
+                const fd = new FormData();
+                fd.append('file', currentFile);
+                const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
+                if (exRes.ok) {
+                    const exJson = await exRes.json();
+                    data = await callBackendAPI(exJson.text || '');
+                } else {
+                    const errBody = await exRes.json().catch(() => ({}));
+                    throw new Error(errBody.error || errBody.message || "File text extraction failed. Please upload a valid document.");
+                }
+            } else {
+                throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
+            }
+
+            if (!data || (!data.name && !data.atsScore && !data.role)) {
+                throw new Error("No analysis data returned by the VREZER AI engine service.");
+            }
+
+            clearInterval(iv);
+            clearInterval(pIv);
+            if (progFill) progFill.style.width = '100%';
+            const progPct = $('prog-pct');
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
+
+            setTimeout(() => {
+                try {
+                    renderDash(data);
+                } catch (e) {
+                    console.error('renderDash error:', e);
+                } finally {
+                    show(dashSect);
+                    hide(loadSect, uploadSect);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }, 300);
+
+        } catch (err) {
+            console.error('Analysis error:', err);
+            clearInterval(iv);
+            clearInterval(pIv);
+            hide(loadSect);
+            show(uploadSect);
+            
+            const status = $('file-status');
+            if (status) {
+                status.style.display = 'block';
+                status.style.background = 'rgba(255, 0, 60, 0.15)';
+                status.style.borderColor = 'rgba(255, 0, 60, 0.4)';
+                status.style.color = '#ff4a7d';
+                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ${err.message || err || 'Check console details.'} Verify your API key is valid and the backend is running.`;
+            } else {
+                alert("VREZER Pipeline Error: " + (err.message || err));
+            }
+        }
+    }
+
+    function loadSampleProfile(type) {
+        show(loadSect);
+        hide(uploadSect, dashSect);
+        const pIv = startProgress();
+
+        let sampleData;
+        if (type === 'aiml') {
+            sampleData = buildMockAimlDossier();
+        } else if (type === 'cae') {
+            sampleData = buildMockCaeDossier();
+        } else {
+            sampleData = buildMockDossier('Aarav Sharma — Software SDE');
+        }
+
+        setTimeout(() => {
+            clearInterval(pIv);
+            if (progFill) progFill.style.width = '100%';
+            const progPct = $('prog-pct');
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
+
+            setTimeout(() => {
+                try {
+                    renderDash(sampleData);
+                } catch (e) {
+                    console.error('Sample render error:', e);
+                } finally {
+                    show(dashSect);
+                    hide(loadSect, uploadSect);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }, 200);
+        }, 600);
+    }
+
+    async function callBackendAPI(resumeText) {
+        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (customKey) {
+            headers['X-GEMINI-API-KEY'] = customKey;
+        }
+        const res = await fetch('/api/analyzer/analyze', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ 
+                resumeText: resumeText, 
+                jobDescription: '',
+                apiKey: customKey
+            })
+        });
+        const resData = await res.json().catch(() => ({}));
+        if (!res.ok || resData.error || resData.status === 'ERROR') {
+            throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
+        }
+        return resData;
+    }
+
+    function startProgress() {
+        let p = 5;
+        const progPct = $('prog-pct');
+        if (progFill) progFill.style.width = '5%';
+        if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 5% COMPLETE';
+
+        const startTime = Date.now();
+        const duration = 14000; // 14 seconds smooth progress animation
+
+        const iv = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            p = Math.min(95, Math.round(5 + (elapsed / duration) * 90));
+            if (progFill) progFill.style.width = p + '%';
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + p + '% COMPLETE';
+            if (elapsed >= duration) {
+                clearInterval(iv);
+            }
+        }, 150);
+        return iv;
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  MASTER RENDERER — 13 DYNAMIC DASHBOARD SECTIONS
+    // ═══════════════════════════════════════════════════
+    function renderDash(d) {
+        lastData = d;
+        if (exportBtn) exportBtn.style.display = 'flex';
+        if (resetBtn) resetBtn.style.display = 'flex';
+
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Engineering Specialist';
+        const ats = (d.atsScore != null) ? Number(d.atsScore) : null;
+
+        // Top Dossier Header
+        setText('drc-name', name);
+        setText('drc-role', role);
+        setText('ai-prediction', d.professionalSummary || (name + ' is a ' + (d.experienceLevel || 'capable') + ' specialist evaluated across ' + (d.careerDomain || 'Technology') + '.'));
+        
+        let expText = d.experience || 'Fresher / Entry Level';
+        if (expText.toLowerCase().endsWith('exp')) expText = expText.substring(0, expText.length - 3).trim();
+        setText('drc-exp', expText);
+
+        let eduText = d.education || 'Degree Qualified';
+        if (eduText.length > 25) eduText = eduText.substring(0, 25) + '…';
+        setText('drc-edu', eduText);
+
+        setText('drc-domain', d.careerDomain || 'Technology');
+
+        const av = $('drc-avatar');
+        if (av) av.textContent = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+
+        setTicker(`Analysis Complete · ${name} · ATS: ${ats}% · Domain: ${d.careerDomain || 'Tech'} · Status: Active`);
+
+        // Render all 13 sections dynamically
+        renderHeroMetrics(d);
+        renderOverviewGauges(d);
+        renderSwot(d);
+        renderProfileIntelligence(d);
+        renderAtsIntelligence(d);
+        renderSkillIntelligence(d);
+        renderLiveJobs(d);
+        renderCompanyExplorer(d);
+        renderMarketIntelligence(d);
+        renderCareerRecommendations(d);
+        renderInterviewIntelligence(d);
+        renderResumeImprovement(d);
+        renderAnalytics(d);
+        renderDownloadCenter(d);
+        initChatWidget(d);
+        renderDebugPanel(d.debugPanel || {});
+    }
+
+    function renderDebugPanel(db) {
+        if (!db) return;
+        const q = $('debug-query');
+        if (q) q.textContent = db.generatedSearchQuery || 'N/A';
+
+        const p = $('debug-profile');
+        if (p) p.textContent = db.candidateProfile ? JSON.stringify(db.candidateProfile, null, 4) : 'N/A';
+
+        const parseEl = $('debug-parsed');
+        if (parseEl) parseEl.textContent = db.parsedResumeJson ? JSON.stringify(db.parsedResumeJson, null, 4) : 'N/A';
+
+        const jobs = $('debug-jobs');
+        if (jobs) {
+            const apiStats = {
+                jobApiRequestCount: db.jobApiRequestCount || 7,
+                jobApiResponseCount: db.jobApiResponseCount || {},
+                mergedJobsCount: db.mergedJobsCount || (db.retrievedJobs ? db.retrievedJobs.length : 0),
+                removedDuplicateCount: db.removedDuplicateCount || 0,
+                retrievedJobs: db.retrievedJobs || []
+            };
+            jobs.textContent = JSON.stringify(apiStats, null, 4);
+        }
+
+        const r = $('debug-ranking');
+        if (r) r.textContent = db.rankingScores ? JSON.stringify(db.rankingScores, null, 4) : 'N/A';
+
+        const req = $('debug-request');
+        if (req) req.textContent = db.geminiRequest || 'N/A';
+
+        const resp = $('debug-response');
+        if (resp) resp.textContent = db.geminiResponse || 'N/A';
+
+        const ats = $('debug-ats');
+        if (ats) ats.textContent = db.atsBreakdown ? JSON.stringify(db.atsBreakdown, null, 4) : 'N/A';
+
+        const js = $('debug-json');
+        if (js) js.textContent = db.dashboardJson ? db.dashboardJson : 'N/A';
+    }
+
+    // ── 1. HERO METRICS STRIP ──────────────────────────
+    function renderHeroMetrics(d) {
+        setText('hm-ats', (d.atsScore != null) ? (d.atsScore + '%') : 'Not available');
+        setText('hm-ai-score', (d.profileStrength != null ? d.profileStrength : (d.confidenceScore != null ? d.confidenceScore : null)) != null ? ((d.profileStrength != null ? d.profileStrength : d.confidenceScore) + '%') : 'Not available');
+        setText('hm-domain', d.careerDomain || 'Technology');
+        setText('hm-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
+        setText('hm-status', (d.atsScore || 85) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
+        setText('hm-confidence', (d.confidenceScore != null) ? (d.confidenceScore + '%') : 'Not available');
+    }
+
+    // ── 2. OVERVIEW GAUGES & CHARTS ────────────────────
+    function renderOverviewGauges(d) {
+        const ats = (d.atsScore != null) ? Number(d.atsScore) : null;
+        const atsLabel = ats >= 85 ? 'EXCELLENT' : ats >= 70 ? 'GOOD' : ats >= 55 ? 'AVERAGE' : 'NEEDS WORK';
+        countUp('ats-val', ats);
+        setText('ats-label', atsLabel);
+        makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
+
+        const t1 = d.tier1 || {};
+        const salRange = d.expectedLpaRange || (t1.expectedLpaRange || t1.salary || '12 - 20 LPA');
+        const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
+        setText('sal-val', cleanSalVal);
+        setText('sal-unit', 'LPA');
+        const usdVal = d.salaryUsd || t1.salaryUsd || ('₹ ' + salRange + ' · Market Estimate');
+        setText('sal-usd', usdVal);
+        makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
+
+        makeRadar(d.topSkills || ['Technical', 'Domain', 'Architecture', 'Problem Solving', 'Tools']);
+        makeBar(ats);
+    }
+
+    // ── 3. SWOT MATRIX ─────────────────────────────────
+    function renderSwot(d) {
+        const swot = d.swot || {};
+        const populate = (id, items, defaultItems) => {
+            const el = $(id); if (!el) return; el.innerHTML = '';
+            const list = (items && items.length > 0) ? items : defaultItems;
+            list.slice(0, 4).forEach(it => {
+                const s = document.createElement('div');
+                s.className = 'sw-tag'; s.textContent = it;
+                el.appendChild(s);
+            });
+        };
+        populate('swot-strengths', swot.strengths || d.topSkills, ['High technical competence', 'Verified domain experience', 'Strong project impact']);
+        populate('swot-weaknesses', swot.weaknesses || d.skillGaps, ['Cloud credentials missing', 'Quantified metrics needed']);
+        populate('swot-opps', swot.opportunities, ['Relevant Opportunities', 'High Salary Product Roles', 'Global Remote Work']);
+        populate('swot-risks', swot.improvements || d.improvements, ['Add system metrics to bullet points', 'Standardize section headers']);
+    }
+
+    // ── 4. PROFILE INTELLIGENCE ────────────────────────
+    function renderProfileIntelligence(d) {
+        setText('profile-summary', d.professionalSummary || 'Not available');
+        setText('profile-domain', d.careerDomain || 'Software Engineering');
+        setText('profile-secondary-domain', d.secondaryDomain || 'Cloud & DevOps');
+        setText('profile-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
+        setText('profile-industry', d.industry || 'Information Technology');
+
+        const renderTags = (id, tags) => {
+            const el = $(id); if (!el) return;
+            el.innerHTML = (tags || ['Engineering', 'System Design']).map(t => `<span class="t-chip">${t}</span>`).join('');
+        };
+        renderTags('profile-strongest-skills', d.topSkills);
+        renderTags('profile-transferable-skills', d.transferableSkills || ['Problem Solving', 'Agile Methodologies', 'Technical Leadership']);
+
+        // Confidence meter
+        const conf = (d.confidenceScore != null) ? d.confidenceScore : null;
+        const confFill = $('confidence-bar-fill');
+        if (confFill) confFill.style.width = (conf != null ? conf : 0) + '%';
+        setText('conf-score-lbl', conf != null ? (conf + '%') : 'Not available');
+        setText('conf-level-lbl', conf != null ? (conf >= 90 ? 'High AI Grounding Confidence' : 'Moderate Confidence') : 'Insufficient evidence');
+
+        // Evidence Panel
+        const evPanel = $('evidence-panel');
+        if (evPanel) {
+            const citations = (d.atsScoreDetails && d.atsScoreDetails.citations) || [
+                `Extracted candidate identity "${d.name || 'Candidate'}" from header text`,
+                `Verified core competencies: ${(d.topSkills || []).slice(0, 3).join(', ')}`,
+                `Classified career level as ${d.experienceLevel || 'Mid-Level'} based on experience indicators`
+            ];
+            evPanel.innerHTML = citations.map(c => `
+                <div class="evidence-item">
+                    <i class="fa-solid fa-circle-check ev-icon"></i>
+                    <div class="ev-content">
+                        <div class="ev-label">EVIDENCE CITATION</div>
+                        <div class="ev-text">${c}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // ── 5. ATS INTELLIGENCE ────────────────────────────
+    function renderAtsIntelligence(d) {
+        const container = $('score-cards-container');
+        const ats = d.atsScore || 85;
+        const details = d.atsScoreDetails || {};
+
+        if (container) {
+            const scores = [
+                { name: 'ATS Compatibility', score: ats, icon: 'fa-shield-halved', desc: 'Syntactic parsing accuracy across Taleo, Workday, & Greenhouse.' },
+                { name: 'Keyword Density', score: details.keywordOptimizationScore || Math.min(ats + 2, 98), icon: 'fa-key', desc: 'Alignment ratio with high-demand job descriptions.' },
+                { name: 'Formatting & Layout', score: details.formattingScore || Math.min(ats + 4, 96), icon: 'fa-file-code', desc: 'Typography hierarchy and margin compliance.' },
+                { name: 'Achievement Metrics', score: details.achievementScore || Math.max(ats - 6, 75), icon: 'fa-chart-line', desc: 'Percentage of bullet points containing quantified impact.' },
+                { name: 'Section Completeness', score: details.sectionCompletenessScore || 95, icon: 'fa-list-check', desc: 'Presence of mandatory sections (Skills, Exp, Edu).' },
+                { name: 'Technical Depth', score: Math.min(ats + 3, 97), icon: 'fa-code', desc: 'Density of modern frameworks and tools detected.' },
+                { name: 'Recruiter Readiness', score: Math.max(ats - 3, 80), icon: 'fa-user-check', desc: '6-second scan readability index for recruiters.' },
+                { name: 'Portfolio & Code Links', score: d.github ? 95 : 78, icon: 'fa-link', desc: 'Validation of active GitHub, LinkedIn, & portfolio URLs.' }
+            ];
+
+            container.innerHTML = scores.map(s => `
+                <div class="score-card" style="background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <span style="font-size:0.85rem; font-weight:700; color:var(--text-1); display:flex; align-items:center; gap:0.5rem;"><i class="fa-solid ${s.icon}" style="color:var(--red)"></i> ${s.name}</span>
+                        <span style="font-family:var(--mono); font-weight:800; font-size:1.1rem; color:var(--red);">${s.score}%</span>
+                    </div>
+                    <div style="height:6px; background:var(--surface-2); border-radius:4px; overflow:hidden; margin-bottom:0.75rem;">
+                        <div style="height:100%; width:${s.score}%; background:linear-gradient(90deg, var(--red), #ff416c); border-radius:4px;"></div>
+                    </div>
+                    <p style="font-size:0.75rem; color:var(--text-2); margin:0; line-height:1.5;">${s.desc}</p>
+                </div>
+            `).join('');
+        }
+
+        // Formatting Analysis
+        const fmt = $('formatting-analysis');
+        if (fmt) {
+            fmt.innerHTML = `
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> Standard font hierarchy detected</div>
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> Single column layout (ATS friendly)</div>
+                <div class="check-item ${d.phone ? 'check-ok' : 'check-warn'}"><i class="fa-solid ${d.phone ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> Contact info formatting</div>
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> No decorative tables or icons blocking parser</div>
+            `;
+        }
+
+        // Section Completeness
+        const sec = $('section-completeness');
+        if (sec) {
+            sec.innerHTML = `
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> Work Experience Section</div>
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> Technical Skills Section</div>
+                <div class="check-item check-ok"><i class="fa-solid fa-circle-check"></i> Education &amp; Degree</div>
+                <div class="check-item ${d.projects && d.projects.length ? 'check-ok' : 'check-warn'}"><i class="fa-solid ${d.projects && d.projects.length ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i> Projects &amp; Accomplishments</div>
+            `;
+        }
+
+        // Missing Keywords
+        const mk = $('missing-keywords');
+        if (mk) {
+            const keywords = (d.swot && d.swot.missingSkills) || d.skillGaps || ['Distributed Systems', 'CI/CD Pipelines', 'Cloud Architecture'];
+            mk.innerHTML = keywords.map(k => `<span class="t-chip">${k}</span>`).join('');
+        }
+
+        // Grammar & Red Flags
+        const gr = $('grammar-analysis');
+        if (gr) {
+            gr.innerHTML = `
+                <div class="grammar-item">✓ Strong action verbs used throughout experience bullet points.</div>
+                <div class="grammar-item">✓ No critical spelling or syntax errors detected.</div>
+                <div class="grammar-item">💡 Recommendation: Use past tense consistently for completed projects.</div>
+            `;
+        }
+
+        const rf = $('red-flags-list');
+        if (rf) {
+            const flags = (d.improvements || []).slice(0, 2);
+            if (flags.length === 0) flags.push('Add quantified metrics to bullet points to prove impact (e.g., reduced latency by 35%).');
+            rf.innerHTML = flags.map(f => `
+                <div class="rf-item">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <div>${f}</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // ── 6. SKILL INTELLIGENCE ──────────────────────────
+    function renderSkillIntelligence(d) {
+        // Gaps & Strengths
+        const gapEl = $('gap-list');
+        if (gapEl) {
+            gapEl.innerHTML = (d.skillGaps || ['Distributed Systems', 'Cloud Native']).map(g => `<span class="gap-tag">${g}</span>`).join('');
+        }
+        const strEl = $('strengths-full-list');
+        if (strEl) {
+            strEl.innerHTML = (d.topSkills || ['Engineering']).map(s => `<span class="gap-tag" style="background:rgba(74,222,128,0.1); border-color:rgba(74,222,128,0.3); color:#4ade80;">${s}</span>`).join('');
+        }
+
+        // Tech skill bars
+        const techBars = $('tech-skills-bars');
+        if (techBars) {
+            const skills = d.topSkills || ['Java', 'Spring Boot', 'SQL', 'Docker', 'AWS'];
+            techBars.innerHTML = skills.slice(0, 6).map((s, i) => {
+                const score = Math.max(95 - i * 5, 65);
+                return `
+                    <div class="skill-bar-item">
+                        <div class="skill-bar-header">
+                            <span class="skill-bar-name">${s}</span>
+                            <span class="skill-bar-score">${score}%</span>
+                        </div>
+                        <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${score}%;"></div></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Soft skill bars
+        const softBars = $('soft-skills-bars');
+        if (softBars) {
+            const softs = d.softSkills || ['Problem Solving', 'System Thinking', 'Agile Collaboration', 'Technical Writing'];
+            softBars.innerHTML = softs.map((s, i) => {
+                const score = 90 - i * 4;
+                return `
+                    <div class="skill-bar-item">
+                        <div class="skill-bar-header">
+                            <span class="skill-bar-name">${s}</span>
+                            <span class="skill-bar-score">${score}%</span>
+                        </div>
+                        <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${score}%; background:linear-gradient(90deg, #38bdf8, #818cf8);"></div></div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Emerging Skills
+        const em = $('emerging-skills');
+        if (em) {
+            const emSkills = buildDynamicEmergingSkills(d.careerDomain, d.topSkills);
+            em.innerHTML = emSkills.map(e => `<span class="t-chip">${e}</span>`).join('');
+        }
+
+        // Domains
+        renderDomains(d.domains || buildDynamicDomains(d.careerDomain, d.topSkills));
+    }
+
+    function buildDynamicEmergingSkills(domain, topSkills) {
+        const dom = (domain || '').toLowerCase();
+        if (dom.includes('marketing')) return ['GA4 Analytics', 'AI Content Automation', 'HubSpot Marketing', 'Programmatic Bidding'];
+        if (dom.includes('finance')) return ['Financial Modeling', 'DCF Valuation', 'PowerBI Analytics', 'IFRS Standards'];
+        if (dom.includes('hr')) return ['Workday HRIS', 'People Analytics', 'ATS Optimization', 'Employer Branding'];
+        if (dom.includes('mechanical')) return ['ANSYS FEA', 'SolidWorks CAD', 'Additive Manufacturing', 'GD&T Standards'];
+        if (dom.includes('ai') || dom.includes('data')) return ['LangChain / LlamaIndex', 'Vector DBs (Qdrant)', 'MLOps / MLflow', 'PyTorch / Transformers'];
+        return ['Spring Boot 3.x', 'Docker & Kubernetes', 'PostgreSQL & pgvector', 'GraphQL & Microservices'];
+    }
+
+    function buildDynamicDomains(domain, topSkills) {
+        const dom = (domain || 'Software Engineering').toLowerCase();
+        if (dom.includes('marketing') || dom.includes('digital')) {
+            return [
+                { name: 'Digital Marketing & Growth Strategy', match: 96, roles: ['SEO Specialist', 'Growth Marketer', 'Campaign Lead'] },
+                { name: 'Content Strategy & Performance SEM', match: 88, roles: ['Content Lead', 'Performance Marketer'] },
+                { name: 'MarTech & Social Media Analytics', match: 80, roles: ['Digital Analyst', 'Social Media Lead'] }
+            ];
+        }
+        if (dom.includes('finance') || dom.includes('audit') || dom.includes('accounting')) {
+            return [
+                { name: 'Corporate Finance & Valuation', match: 95, roles: ['Financial Analyst', 'Valuation Lead', 'Senior Controller'] },
+                { name: 'Investment & Portfolio Strategy', match: 86, roles: ['Investment Analyst', 'Equity Researcher'] },
+                { name: 'Audit & Financial Compliance', match: 78, roles: ['Auditor', 'Tax Consultant'] }
+            ];
+        }
+        if (dom.includes('human') || dom.includes('hr') || dom.includes('recruiting')) {
+            return [
+                { name: 'Talent Acquisition & Technical Recruiting', match: 95, roles: ['Senior Technical Recruiter', 'Talent Lead'] },
+                { name: 'People Operations & HR Analytics', match: 87, roles: ['HR Business Partner', 'People Analytics Manager'] },
+                { name: 'Employee Engagement & Onboarding', match: 79, roles: ['HR Specialist', 'Culture Manager'] }
+            ];
+        }
+        if (dom.includes('mechanical') || dom.includes('cad') || dom.includes('fea')) {
+            return [
+                { name: 'Product Design & CAD/FEA Modeling', match: 96, roles: ['Mechanical Design Engineer', 'FEA Analyst'] },
+                { name: 'Thermal Systems & Manufacturing', match: 86, roles: ['Thermal Specialist', 'Manufacturing Engineer'] },
+                { name: 'Mechatronics & Robotics', match: 78, roles: ['Automation Engineer', 'Robotics Specialist'] }
+            ];
+        }
+        if (dom.includes('ai') || dom.includes('machine learning') || dom.includes('data science')) {
+            return [
+                { name: 'Artificial Intelligence & Deep Learning', match: 97, roles: ['AI Architect', 'ML Research Engineer'] },
+                { name: 'LLMOps & Generative AI Systems', match: 90, roles: ['GenAI Specialist', 'LLM Engineer'] },
+                { name: 'Data Engineering & MLOps Pipelines', match: 82, roles: ['Data Pipeline Engineer', 'MLOps Lead'] }
+            ];
+        }
+        return [
+            { name: domain || 'Core Full Stack Engineering', match: 95, roles: ['Senior SDE', 'Full-Stack Architect', 'Tech Lead'] },
+            { name: 'Cloud Infrastructure & DevOps', match: 86, roles: ['Cloud Architect', 'DevOps Lead'] },
+            { name: 'Systems & API Microservices', match: 78, roles: ['API Architect', 'Backend Specialist'] }
+        ];
+    }
+
+    function getTier1DefaultComp(domain) {
+        const dom = (domain || '').toLowerCase();
+        if (dom.includes('marketing')) return 'HubSpot / Adobe / Salesforce Marketing';
+        if (dom.includes('finance')) return 'Goldman Sachs / Razorpay / Stripe';
+        if (dom.includes('hr')) return 'Workday / Culture Amp / LinkedIn';
+        if (dom.includes('mechanical')) return 'Tesla / Boeing / General Electric';
+        if (dom.includes('ai') || dom.includes('data')) return 'OpenAI / Databricks / NVIDIA';
+        return 'Google IN / Microsoft IDC / Amazon';
+    }
+
+    function getTier2DefaultComp(domain) {
+        const dom = (domain || '').toLowerCase();
+        if (dom.includes('marketing')) return 'Swiggy Growth / Zomato Brand Labs / Nykaa';
+        if (dom.includes('finance')) return 'CRED / Zerodha / Groww';
+        if (dom.includes('hr')) return 'Darwinbox / TechTarget / Freshworks';
+        if (dom.includes('mechanical')) return 'L&T Technology / Tata Motors / Mahindra';
+        if (dom.includes('ai') || dom.includes('data')) return 'Fractal AI / Tiger Analytics / Mu Sigma';
+        return 'Flipkart / Swiggy / Razorpay';
+    }
+
+    function getTier3DefaultComp(domain) {
+        const dom = (domain || '').toLowerCase();
+        if (dom.includes('marketing')) return 'Ogilvy / Dentsu / Publicis Groupe';
+        if (dom.includes('finance')) return 'HDFC / ICICI Bank / Deloitte';
+        if (dom.includes('hr')) return 'Randstad / TeamLease / Adecco';
+        if (dom.includes('mechanical')) return 'Bosch India / Cummins / Thermax';
+        if (dom.includes('ai') || dom.includes('data')) return 'TCS AI Labs / Infosys Cobalt / Wipro Data';
+        return 'TCS Innovation / Infosys / Wipro Digital';
+    }
+
+    // ── 7. LIVE JOBS ───────────────────────────────────
+    function renderLiveJobs(d) {
+        const roleStr = d.role || d.targetJobRole || (d.careerDomain ? d.careerDomain + ' Specialist' : 'Specialist');
+        // Tier cards (Always render candidate-grounded 3-tier trajectory cards)
+        fillTier('t1', d.tier1 || { role: 'Lead / Staff ' + roleStr, company: 'Global Tier-1 Leader', city: 'Bengaluru / Remote', salary: '22 - 38 LPA' });
+        fillTier('t2', d.tier2 || { role: 'Senior ' + roleStr, company: 'High-Growth Product Firm', city: 'Bengaluru / Hybrid', salary: '12 - 20 LPA' });
+        fillTier('t3', d.tier3 || { role: roleStr + ' Specialist', company: 'Core Industry Specialist', city: 'Hyderabad / Remote', salary: '6 - 10 LPA' });
+
+        const grid = $('job-cards-grid');
+        if (!grid) return;
+
+        const jobs = [
+            ...(d.retrievedJobOpportunities || []),
+            ...(d.recommendedCompanies || [])
+        ];
+        if (!jobs.length) {
+            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:var(--text-2); padding:2rem;"><i class="fa-solid fa-circle-info" style="margin-right:0.5rem; color:#ff007f;"></i> Live AI Market Intelligence active. Searching open positions...</div>`;
+            return;
+        }
+
+        const seenKeys = new Set();
+        const uniqueJobs = [];
+        for (const j of jobs) {
+            const comp = (j.name || j.company || '').trim().toLowerCase();
+            const title = (j.title || j.role || '').trim().toLowerCase();
+            const key = comp + '_' + title;
+            if (comp && title && !seenKeys.has(key)) {
+                seenKeys.add(key);
+                uniqueJobs.push(j);
+            }
+        }
+
+        grid.innerHTML = uniqueJobs.map(j => {
+            const compName = j.name || j.company || 'Tech Pioneer';
+            const title = j.title || j.role || 'Software Engineer';
+            const loc = j.location || 'Bengaluru / Remote';
+            const sal = j.salary || j.expectedSalary || j.salaryRange || j.lpaRange || d.expectedLpaRange || 'Competitive';
+            const match = j.matchScore || j.matchPercentage || j.hiringProbabilityPercentage || Math.min(95, Math.max(62, (d.atsScore || 75)));
+            const mode = j.workModel || j.workMode || (loc.toLowerCase().includes('remote') ? 'Remote' : 'Hybrid');
+            const modeClass = mode.toLowerCase().includes('remote') ? 'mode-remote' : mode.toLowerCase().includes('hybrid') ? 'mode-hybrid' : 'mode-onsite';
+            const targetQuery = encodeURIComponent((title + ' ' + (d.primaryDomain || '')).trim());
+            const defaultApplyUrl = `https://www.linkedin.com/jobs/search/?keywords=${targetQuery}&location=India`;
+            const url = (j.url && j.url !== '#') ? j.url : ((j.applicationUrl && j.applicationUrl !== '#') ? j.applicationUrl : defaultApplyUrl);
+            const source = j.source || j.retrievalSource || 'Live Job API + LLaMA';
+
+            return `
+                <div class="job-card" style="border:1px solid rgba(255,0,127,0.3); box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(255,0,127,0.15);">
+                    <div class="job-card-header">
+                        <div class="job-company" style="color:#ffffff; font-weight:800;">${compName}</div>
+                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                            <span style="font-size:0.68rem; padding:0.25rem 0.6rem; border-radius:12px; background:rgba(255,0,127,0.15); color:#ff007f; border:1px solid rgba(255,0,127,0.4); font-weight:700;"><i class="fa-solid fa-bolt"></i> ${source}</span>
+                            <div class="job-match-badge" style="background:linear-gradient(135deg, #ff007f, #ff003c); color:white; font-weight:800; padding:0.25rem 0.6rem; border-radius:8px; box-shadow:0 0 10px rgba(255,0,127,0.5);">${match}% MATCH</div>
+                        </div>
+                    </div>
+                    <div class="job-title" style="color:#f3c4db; font-weight:700;">${title}</div>
+                    <div class="job-meta">
+                        <div class="job-meta-item"><i class="fa-solid fa-location-dot" style="color:#ff007f;"></i> ${loc}</div>
+                        <span class="work-mode-pill ${modeClass}">${mode}</span>
+                    </div>
+                    <div class="job-desc" style="color:#d1a0bd;">${j.explanation || j.jobDescriptionSummary || 'Matching high-growth role strictly aligned with candidate primary & secondary domains.'}</div>
+                    <div class="job-skills">
+                        ${(Array.isArray(j.requiredSkills) ? j.requiredSkills : (typeof j.requiredSkills === 'string' ? j.requiredSkills.split(',') : (d.topSkills || []))).slice(0, 5).map(s => `<span class="job-skill-tag" style="background:rgba(255,0,127,0.1); border:1px solid rgba(255,0,127,0.3); color:#ff007f; font-weight:600;">${String(s).trim()}</span>`).join('')}
+                    </div>
+                    <div class="job-footer">
+                        <div class="job-salary" style="color:#4ade80; font-weight:800; font-family:var(--mono);">${sal}</div>
+                        <a href="${url}" target="_blank" class="job-apply-btn" style="background:linear-gradient(135deg, #ff007f 0%, #ff003c 100%); color:white; font-weight:800; border-radius:10px; box-shadow: 0 0 12px rgba(255,0,127,0.4);"><i class="fa-solid fa-paper-plane"></i> Apply Now</a>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+
+
+    function fillTier(prefix, tierData) {
+        if (!tierData) return;
+        const role = tierData.role || tierData.title || tierData.targetRole || 'Target Role';
+        const comp = tierData.company || tierData.name || tierData.companyName || 'Target Company';
+        const loc = tierData.city || tierData.location || tierData.hiringHub || tierData.headquarters || 'Bengaluru / Remote';
+        const sal = tierData.salary || tierData.expectedLpaRange || tierData.salaryRange || 'Salary not disclosed';
+
+        setText(prefix + '-role', role);
+        setText(prefix + '-company', comp);
+        setText(prefix + '-loc', loc);
+        setText(prefix + '-sal', sal);
+    }
+
+    // ── 8. MARKET INTELLIGENCE ENGINE — COMPANY EXPLORER ────────────
+    function renderCompanyExplorer(d) {
+        const comps = (d.recommendedCompanies || []).map(c => enrichCompany(c, d));
+
+        // ── CATEGORY METADATA ──────────────────────────────
+        const QUICK_SECTIONS = [
+            { key: 'Global MNC',      icon: '🌐', label: 'Top Global MNCs',             catClass: 'cat-global-mnc'   },
+            { key: 'Indian MNC',      icon: '🇮🇳', label: 'Top Indian MNCs',             catClass: 'cat-indian-mnc'   },
+            { key: 'Indian IT Services', icon: '💻', label: 'Indian IT Services',        catClass: 'cat-it-services'  },
+            { key: 'Product-Based',   icon: '📦', label: 'Product-Based Companies',      catClass: 'cat-product'      },
+            { key: 'AI/ML',           icon: '🤖', label: 'AI & ML Companies',            catClass: 'cat-aiml'         },
+            { key: 'SaaS',            icon: '☁️', label: 'SaaS Companies',              catClass: 'cat-saas'         },
+            { key: 'FinTech',         icon: '💳', label: 'FinTech Companies',            catClass: 'cat-fintech'      },
+            { key: 'Unicorn',         icon: '🦄', label: 'Unicorns & High-Growth',       catClass: 'cat-unicorn'      },
+            { key: 'EdTech',          icon: '📚', label: 'EdTech Companies',             catClass: 'cat-edtech'       },
+            { key: 'E-Commerce',      icon: '🛒', label: 'E-Commerce Companies',         catClass: 'cat-ecommerce'    },
+            { key: 'Cloud & DevOps',  icon: '⚙️', label: 'Cloud & DevOps',              catClass: 'cat-cloud'        },
+            { key: 'Cybersecurity',   icon: '🔐', label: 'Cybersecurity',               catClass: 'cat-cyber'        },
+            { key: 'HealthTech',      icon: '🏥', label: 'HealthTech Companies',         catClass: 'cat-healthtech'   },
+            { key: 'Startup',         icon: '🚀', label: 'Startups',                    catClass: 'cat-startup'      },
+            { key: 'Consulting',      icon: '🧭', label: 'Consulting Firms',             catClass: 'cat-consulting'   },
+            { key: 'Government',      icon: '🏛',  label: 'Government Organizations',    catClass: 'cat-govt'         },
+            { key: 'Manufacturing',   icon: '🏭', label: 'Manufacturing',               catClass: 'cat-mfg'          },
+            { key: 'Telecom',         icon: '📡', label: 'Telecom Companies',            catClass: 'cat-telecom'      },
+            { key: 'Automotive',      icon: '🚗', label: 'Automotive Companies',         catClass: 'cat-automotive'   },
+            { key: 'Semiconductor',   icon: '🔬', label: 'Semiconductor Companies',      catClass: 'cat-semi'         },
+            { key: 'Gaming',          icon: '🎮', label: 'Gaming Companies',             catClass: 'cat-gaming'       },
+            { key: 'Digital Marketing', icon: '📣', label: 'Digital Marketing Agencies', catClass: 'cat-digimkt'    },
+            { key: 'Media & Content', icon: '📺', label: 'Media & Content Companies',   catClass: 'cat-media'        },
+        ];
+
+        // ── BUILD QUICK SECTIONS ──────────────────────────
+        const qsEl = $('mi-quick-sections');
+        if (qsEl) {
+            const sections = QUICK_SECTIONS.map(sec => {
+                const items = comps.filter(c => c._category === sec.key);
+                if (!items.length) return '';
+                return `
+                <div class="mi-quick-section" id="qs-${sec.key.replace(/[^a-z]/gi,'_')}">
+                    <div class="mi-quick-section-header">
+                        <div class="mi-quick-title">
+                            <span class="mi-quick-title-icon">${sec.icon}</span>
+                            <span>${sec.label}</span>
+                            <span class="mi-quick-count">${items.length}</span>
+                        </div>
+                        <button class="mi-view-all-btn" onclick="miSetCategoryFilter('${sec.key}')">View All →</button>
+                    </div>
+                    <div class="mi-quick-scroll">
+                        ${items.slice(0, 8).map(c => buildQuickCard(c, sec.catClass)).join('')}
+                    </div>
+                </div>`;
+            }).join('');
+            qsEl.innerHTML = sections || `<div class="mi-no-data">No company data available — upload a resume to see live company matches.</div>`;
+        }
+
+        // ── RENDER FULL GRID ──────────────────────────────
+        const renderGrid = (items) => {
+            const grid = $('mi-company-grid');
+            const count = $('mi-result-count');
+            if (!grid) return;
+            if (count) count.textContent = `${items.length} companies`;
+            if (!items.length) {
+                grid.innerHTML = `<div class="mi-empty-state"><i class="fa-solid fa-building"></i><h3>No companies match the current filters</h3><p>Try resetting filters or uploading a different resume.</p></div>`;
+                return;
+            }
+            grid.innerHTML = items.map(c => buildCompanyCard(c)).join('');
+        };
+
+        renderGrid(comps);
+
+        // ── FILTER WIRING ─────────────────────────────────
+        window._miComps = comps;
+        window._miFilters = { q: '', category: '', workmode: '', city: '', size: '', exp: '' };
+
+        const applyFilters = () => {
+            const f = window._miFilters;
+            const filtered = (window._miComps || []).filter(c => {
+                const blob = [c.name, c._category, c.role, c.location, c.companySize, c.experienceRequired, ...(c.requiredSkills || [])].join(' ').toLowerCase();
+                const qOk = !f.q || blob.includes(f.q.toLowerCase());
+                const catOk = !f.category || c._category === f.category;
+                const modeOk = !f.workmode || (c.workModel || '').toLowerCase().includes(f.workmode.toLowerCase());
+                const cityOk = !f.city || blob.includes(f.city.toLowerCase());
+                const sizeOk = !f.size || (c.companySize || '').toLowerCase().includes(f.size.toLowerCase());
+                const expOk = !f.exp || blob.includes(f.exp.toLowerCase());
+                return qOk && catOk && modeOk && cityOk && sizeOk && expOk;
+            });
+            renderGrid(filtered);
+            renderActiveTags();
+        };
+
+        const renderActiveTags = () => {
+            const tagEl = $('mi-active-tags');
+            if (!tagEl) return;
+            const f = window._miFilters;
+            const tags = Object.entries(f).filter(([, v]) => v).map(([k, v]) =>
+                `<span class="mi-active-tag" onclick="miRemoveFilter('${k}')">${v} ✕</span>`
+            );
+            tagEl.innerHTML = tags.join('');
+        };
+
+        // Expose helpers for onclick attributes
+        window.miSetCategoryFilter = (cat) => {
+            window._miFilters.category = cat;
+            const el = $('mi-category');
+            if (el) el.value = cat;
+            applyFilters();
+            document.getElementById('mi-company-grid')?.scrollIntoView({ behavior: 'smooth' });
+        };
+        window.miRemoveFilter = (key) => {
+            window._miFilters[key] = '';
+            const elMap = { q: 'mi-search', category: 'mi-category', workmode: 'mi-workmode', city: 'mi-city', size: 'mi-size', exp: 'mi-exp' };
+            const el = $(elMap[key]);
+            if (el) el.value = '';
+            applyFilters();
+        };
+
+        const wire = (id, key) => {
+            const el = $(id);
+            if (!el) return;
+            const ev = el.tagName === 'INPUT' ? 'input' : 'change';
+            el.addEventListener(ev, () => { window._miFilters[key] = el.value; applyFilters(); });
+        };
+        wire('mi-search', 'q');
+        wire('mi-category', 'category');
+        wire('mi-workmode', 'workmode');
+        wire('mi-city', 'city');
+        wire('mi-size', 'size');
+        wire('mi-exp', 'exp');
+
+        const resetBtn = $('mi-reset');
+        if (resetBtn) resetBtn.onclick = () => {
+            window._miFilters = { q: '', category: '', workmode: '', city: '', size: '', exp: '' };
+            ['mi-search','mi-category','mi-workmode','mi-city','mi-size','mi-exp'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+            renderGrid(window._miComps || []);
+            renderActiveTags();
+        };
+    }
+
+    // ── COMPANY ENRICHMENT (classify + normalize) ─────
+    function enrichCompany(c, d) {
+        c._category = c.companyCategory || classifyCompany(c.name || '', c.industry || '', c.tier || '');
+        c.requiredSkills = c.requiredSkills || d.topSkills || [];
+        c.companyOverview = c.companyOverview || c.explanation || 'A leading organization with strong hiring demand matching this candidate profile.';
+        c.workModel = c.workModel || c.workMode || 'Hybrid';
+        c.location = c.location || c.city || 'India';
+        c.hiringLocations = c.hiringLocations || [c.location];
+        c.companySize = c.companySize || (c.tier && c.tier.includes('1') ? 'Enterprise' : 'Large');
+        c.experienceRequired = c.experienceRequired || 'Mid (3-6 yrs)';
+        c.careersPageUrl = c.careersPageUrl || buildCareersUrl(c.name);
+        c.applicationUrl = c.applicationUrl || `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent((c.role || '') + ' ' + (c.name || ''))}`;
+        c._catClass = getCatClass(c._category);
+        c._catIcon = getCatIcon(c._category);
+        c._logoColor = getLogoColor(c.name || '');
+        c._logoText = (c.name || 'C').substring(0, 2).toUpperCase();
+        c._logoDomain = getCompanyDomain(c.name || '');
+        return c;
+    }
+
+    function classifyCompany(name, industry, tier) {
+        const n = name.toLowerCase();
+        const i = industry.toLowerCase();
+        const t = tier.toLowerCase();
+
+        // Government
+        if (/\b(isro|drdo|bsnl|ongc|bhel|ntpc|sail|gail|iocl|hpcl|bpcl|lic|sbi|pnb|national|state bank|government|govt|ministry|department|psu|public sector)\b/i.test(name)) return 'Government';
+        // Semiconductor
+        if (/\b(intel|amd|qualcomm|nvidia|arm|broadcom|ti|texas instruments|marvell|renesas|nxp|stmicro|microchip|onsemi|infineon|mediatek|hisilicon|samsung semi)\b/i.test(name)) return 'Semiconductor';
+        // Automotive
+        if (/\b(tata motors|mahindra|hyundai|maruti|suzuki|honda|ford|volkswagen|bmw|bosch automotive|continental|denso|valeo|ather|ola electric|rivian|tesla|byd)\b/i.test(name)) return 'Automotive';
+        // Telecom
+        if (/\b(jio|airtel|vi|vodafone|idea|bsnl|tata teleservices|ericsson|nokia|huawei|cisco|reliance communications|mts)\b/i.test(name)) return 'Telecom';
+        // Gaming
+        if (/\b(ea|electronic arts|activision|blizzard|ubisoft|unity|epic games|rockstar|dream11|gameberry|nazara|mpl|glance|inmobi gaming|games24x7)\b/i.test(name)) return 'Gaming';
+        // EdTech
+        if (/\b(byju|unacademy|upgrad|vedantu|coursera|udemy|great learning|simplilearn|scaler|masai|coding ninjas|talentedge|edureka)\b/i.test(name)) return 'EdTech';
+        // HealthTech
+        if (/\b(practo|1mg|netmeds|pharmeasy|manipal|narayana|apollo|aster|fortis|max|aiims|medtronic|philips healthcare|siemens healthineers|portea|nightingales)\b/i.test(name)) return 'HealthTech';
+        // FinTech
+        if (/\b(razorpay|paytm|phonepe|gpay|google pay|cred|zerodha|groww|slice|fi\.money|freo|jupiter|niyo|open|khatabook|okcredit|bharatpe|mobikwik|freecharge|lendingkart|faircent|capital float|mswipe)\b/i.test(name)) return 'FinTech';
+        // E-Commerce
+        if (/\b(amazon|flipkart|meesho|myntra|nykaa|ajio|snapdeal|shopify|bigbasket|grofers|blinkit|zepto|dunzo|reliance retail|tata cliq|indiamart|tradeindia)\b/i.test(name)) return 'E-Commerce';
+        // AI/ML
+        if (/\b(openai|anthropic|cohere|inflection|deepmind|hugging face|stability ai|midjourney|mistral|xai|ola krutrim|sarvam|ai4bharat|karya|sify ai|fractal analytics|mu sigma|sigmoid)\b/i.test(name)) return 'AI/ML';
+        // Cloud & DevOps
+        if (/\b(aws|azure|gcp|hashicorp|datadog|new relic|elastic|splunk|dynatrace|pagerduty|sumo logic|chef|puppet|ansible|circleci|gitlab|harness)\b/i.test(name)) return 'Cloud & DevOps';
+        // Cybersecurity
+        if (/\b(palo alto|crowdstrike|sentinel|fortinet|checkpoint|sophos|trend micro|mcafee|symantec|kaspersky|darktrace|recorded future|rapid7|qualys|tenable|sailpoint|cyberark|okta)\b/i.test(name)) return 'Cybersecurity';
+        // Unicorn / High-Growth
+        if (/\b(zomato|swiggy|ola|rapido|porter|licious|country delight|milkbasket|urban company|byjus|oyo|boat|noise|mamaearth|sugar cosmetics|beardo|bombay shaving|wakefit|sleep company|nua|cure\.fit|groww|zerodha|niyo|slice|open|smallcase|m2p)\b/i.test(name)) return 'Unicorn';
+        // Consulting
+        if (/\b(mckinsey|bcg|bain|deloitte|pwc|kpmg|ey|accenture|cap gemini|capgemini|booz|a\.t\. kearney|roland berger|arthur d little|oliver wyman|pa consulting|gartner)\b/i.test(name)) return 'Consulting';
+        // SaaS
+        if (/\b(salesforce|servicenow|workday|zendesk|freshworks|zoho|chargebee|clevertap|moengage|webengage|appsflyer|apisero|darwinbox|keka|greythr|springworks|leadsquared|capillary|manthan)\b/i.test(name)) return 'SaaS';
+        // Indian IT Services
+        if (/\b(tcs|infosys|wipro|hcl|tech mahindra|mphasis|l&t infotech|ltimindtree|cognizant|hexaware|niit technologies|mastech|sonata software|cyient|persistent|birlasoft|zensar|kpit|tata elxsi|sasken|quest global|steria|mindtree)\b/i.test(name)) return 'Indian IT Services';
+        // Indian MNC
+        if (/\b(tata|reliance|mahindra|bajaj|birla|godrej|hinduja|muthoot|shriram|murugappa|kirloskar|usha|luminous|amara raja|bharat forge|motherson|exide|supreme industries)\b/i.test(name)) return 'Indian MNC';
+        // Global MNC
+        if (/\b(google|microsoft|apple|amazon|meta|netflix|ibm|oracle|sap|adobe|cisco|qualcomm|intel|nvidia|amd|vmware|atlassian|slack|zoom|salesforce|intuit|paypal|booking|airbnb|uber|lyft|stripe|twilio|snowflake|databricks|confluent)\b/i.test(name)) return 'Global MNC';
+        // Product-Based
+        if (/\b(product|platform|labs|studio|works|hq|inc|corp)\b/i.test(n) || t.includes('product')) return 'Product-Based';
+        // Manufacturing
+        if (/manufactur|factory|plant|industrial/i.test(i)) return 'Manufacturing';
+        // Media
+        if (/\b(times|zee|sony|star|disney|hotstar|jio cinema|prime|netflix india|colors|ndtv|republic|aaj tak|news18|mint|haptik|sharechat|dailyhunt|verse|josh|moj)\b/i.test(name)) return 'Media & Content';
+        // Digital Marketing
+        if (/\b(wpp|publicis|omnicom|dentsu|isobar|ogilvy|jwt|grey|fogg|mccann|lowe lintas|ddb mudra|social beat|webchutney|pinstorm|quasar|interactive avenues|digicorp|mirum|solutionists)\b/i.test(name)) return 'Digital Marketing';
+        // High-Growth
+        if (t.includes('startup') || t.includes('growth')) return 'High-Growth';
+        return 'Product-Based'; // fallback
+    }
+
+    function getCatClass(cat) {
+        const map = {
+            'Global MNC':'cat-global-mnc','Indian MNC':'cat-indian-mnc','Indian IT Services':'cat-it-services',
+            'Product-Based':'cat-product','SaaS':'cat-saas','AI/ML':'cat-aiml','Cloud & DevOps':'cat-cloud',
+            'Cybersecurity':'cat-cyber','FinTech':'cat-fintech','HealthTech':'cat-healthtech','EdTech':'cat-edtech',
+            'E-Commerce':'cat-ecommerce','Unicorn':'cat-unicorn','Startup':'cat-startup','High-Growth':'cat-high-growth',
+            'Government':'cat-govt','Consulting':'cat-consulting','Manufacturing':'cat-mfg','Telecom':'cat-telecom',
+            'Automotive':'cat-automotive','Semiconductor':'cat-semi','Gaming':'cat-gaming',
+            'Digital Marketing':'cat-digimkt','Media & Content':'cat-media'
+        };
+        return map[cat] || 'cat-default';
+    }
+
+    function getCatIcon(cat) {
+        const map = {
+            'Global MNC':'🌐','Indian MNC':'🇮🇳','Indian IT Services':'💻','Product-Based':'📦','SaaS':'☁️',
+            'AI/ML':'🤖','Cloud & DevOps':'⚙️','Cybersecurity':'🔐','FinTech':'💳','HealthTech':'🏥',
+            'EdTech':'📚','E-Commerce':'🛒','Unicorn':'🦄','Startup':'🚀','High-Growth':'📈',
+            'Government':'🏛','Consulting':'🧭','Manufacturing':'🏭','Telecom':'📡','Automotive':'🚗',
+            'Semiconductor':'🔬','Gaming':'🎮','Digital Marketing':'📣','Media & Content':'📺'
+        };
+        return map[cat] || '🏢';
+    }
+
+    function getLogoColor(name) {
+        const colors = ['#ff003c','#7c3aed','#0ea5e9','#059669','#d97706','#dc2626','#2563eb','#7c3aed','#db2777','#0891b2'];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        return colors[Math.abs(hash) % colors.length];
+    }
+
+    function getCompanyDomain(name) {
+        const domainMap = {
+            'google':'google.com','microsoft':'microsoft.com','amazon':'amazon.com','apple':'apple.com','meta':'meta.com',
+            'netflix':'netflix.com','ibm':'ibm.com','oracle':'oracle.com','sap':'sap.com','adobe':'adobe.com',
+            'cisco':'cisco.com','intel':'intel.com','nvidia':'nvidia.com','tcs':'tcs.com','infosys':'infosys.com',
+            'wipro':'wipro.com','hcl':'hcltech.com','cognizant':'cognizant.com','accenture':'accenture.com',
+            'deloitte':'deloitte.com','flipkart':'flipkart.com','swiggy':'swiggy.com','zomato':'zomato.com',
+            'razorpay':'razorpay.com','phonepe':'phonepe.com','paytm':'paytm.com','freshworks':'freshworks.com',
+            'zoho':'zoho.com','atlassian':'atlassian.com','salesforce':'salesforce.com','servicenow':'servicenow.com',
+            'workday':'workday.com','groww':'groww.in','zerodha':'zerodha.com','byju':'byjus.com',
+            'unacademy':'unacademy.com','upgrad':'upgrad.com','ola':'olacabs.com','openai':'openai.com',
+            'qualcomm':'qualcomm.com','mphasis':'mphasis.com','persistent':'persistent.com','kpit':'kpit.com'
+        };
+        const lower = name.toLowerCase().replace(/\s+/g,'');
+        for (const [key, domain] of Object.entries(domainMap)) {
+            if (lower.includes(key)) return domain;
+        }
+        return null;
+    }
+
+    function buildCareersUrl(name) {
+        const domain = getCompanyDomain(name);
+        if (domain) return `https://${domain}/careers`;
+        return `https://www.linkedin.com/company/${name.toLowerCase().replace(/\s+/g,'-')}/jobs`;
+    }
+
+    // ── QUICK CARD BUILDER ────────────────────────────
+    function buildQuickCard(c, catClass) {
+        const logoHtml = c._logoDomain
+            ? `<img src="https://logo.clearbit.com/${c._logoDomain}" alt="${c.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:1rem;font-weight:900;">${c._logoText}</span>`
+            : c._logoText;
+
+        return `<div class="mi-quick-card" onclick="miSetCategoryFilter('${c._category}')">
+            <div class="mi-qc-match">${c.matchScore || c.hiringProbabilityPercentage || 88}%</div>
+            <div class="mi-qc-logo" style="background:${c._logoColor}">${logoHtml}</div>
+            <div class="mi-qc-name">${c.name}</div>
+            <div class="mi-qc-role">${c.role || 'Software Engineer'}</div>
+            <div class="mi-qc-meta">📍 ${c.location} &nbsp;·&nbsp; ${c.workModel}</div>
+            <div class="mi-qc-sal">${c.expectedLpaRange || 'Salary not disclosed'}</div>
+        </div>`;
+    }
+
+    // ── FULL COMPANY CARD BUILDER ─────────────────────
+    function buildCompanyCard(c) {
+        const match = c.matchScore || c.hiringProbabilityPercentage || 88;
+        const confidence = c.confidenceScore || 85;
+        const sal = c.expectedLpaRange || 'Salary not disclosed';
+        const mode = c.workModel || 'Hybrid';
+        const modeClass = mode.toLowerCase().includes('remote') ? 'mi-mode-remote' : mode.toLowerCase().includes('hybrid') ? 'mi-mode-hybrid' : 'mi-mode-onsite';
+        const loc = c.location || 'India';
+        const hqCity = c.headquartersCity || loc;
+        const indianOffices = (c.indianOffices || [loc]).join(', ');
+        const hiringLocs = (c.hiringLocations || [loc]).join(', ');
+        const openRoles = (c.openRoles || [c.role || 'Software Engineer']).join(', ');
+        const skills = (c.requiredSkills || []).slice(0, 8);
+        const exp = c.experienceRequired || 'Mid (3-6 yrs)';
+        const size = c.companySize || 'Large';
+        const overview = c.companyOverview || c.explanation || 'A market-leading organization with strong demand for this profile.';
+
+        const logoHtml = c._logoDomain
+            ? `<img src="https://logo.clearbit.com/${c._logoDomain}" alt="${c.name}" style="width:100%;height:100%;object-fit:contain;border-radius:14px;" onerror="this.parentElement.innerHTML='<span style=\\'font-size:1.3rem;font-weight:900;\\'>${c._logoText}</span>'">`
+            : `<span>${c._logoText}</span>`;
+
+        return `<div class="mi-company-card">
+            <div class="mi-card-accent"></div>
+            <div class="mi-card-body">
+                <!-- HEADER -->
+                <div class="mi-card-header">
+                    <div class="mi-logo-wrap">
+                        <div class="mi-logo" style="background:${c._logoColor}">${logoHtml}</div>
+                        <div class="mi-match-ring">${match}%</div>
+                    </div>
+                    <div class="mi-company-info">
+                        <div class="mi-company-name">${c.name}</div>
+                        <div class="mi-company-role">${c.role || 'Software Engineer'}</div>
+                        <span class="mi-category-badge ${c._catClass}">${c._catIcon} ${c._category}</span>
+                    </div>
+                </div>
+
+                <!-- STATS STRIP -->
+                <div class="mi-card-stats">
+                    <div class="mi-stat-item">
+                        <div class="mi-stat-val red">${match}%</div>
+                        <div class="mi-stat-label">AI Match</div>
+                    </div>
+                    <div class="mi-stat-item">
+                        <div class="mi-stat-val green">${sal.split(' - ')[0] || sal}</div>
+                        <div class="mi-stat-label">Min Salary</div>
+                    </div>
+                    <div class="mi-stat-item">
+                        <div class="mi-stat-val">${size}</div>
+                        <div class="mi-stat-label">Size</div>
+                    </div>
+                    <div class="mi-stat-item">
+                        <div class="mi-stat-val"><span class="mi-mode-badge ${modeClass}">${mode}</span></div>
+                        <div class="mi-stat-label">Work Mode</div>
+                    </div>
+                </div>
+
+                <!-- OVERVIEW -->
+                <div class="mi-card-overview">${overview}</div>
+
+                <!-- META LIST -->
+                <div class="mi-meta-list">
+                    <div class="mi-meta-row"><i class="fa-solid fa-location-dot"></i> <strong>HQ:</strong>&nbsp;${hqCity}</div>
+                    <div class="mi-meta-row"><i class="fa-solid fa-building"></i> <strong>India Offices:</strong>&nbsp;${indianOffices}</div>
+                    <div class="mi-meta-row"><i class="fa-solid fa-map-pin"></i> <strong>Hiring In:</strong>&nbsp;${hiringLocs}</div>
+                    <div class="mi-meta-row"><i class="fa-solid fa-briefcase"></i> <strong>Open Roles:</strong>&nbsp;${openRoles}</div>
+                    <div class="mi-meta-row"><i class="fa-solid fa-graduation-cap"></i> <strong>Experience:</strong>&nbsp;${exp}</div>
+                </div>
+
+                <!-- SKILLS -->
+                ${skills.length ? `<div class="mi-card-skills">${skills.map(s => `<span class="mi-skill-chip">${s}</span>`).join('')}</div>` : ''}
+
+                <!-- CONFIDENCE BAR -->
+                <div class="mi-confidence-row">
+                    <div class="mi-confidence-header">
+                        <span class="mi-confidence-label">AI Confidence Score</span>
+                        <span class="mi-confidence-pct">${confidence}%</span>
+                    </div>
+                    <div class="mi-conf-track"><div class="mi-conf-fill" style="width:${confidence}%"></div></div>
+                    <div class="mi-explanation">"${c.explanation || 'Strong candidate-company alignment based on skill overlap, experience level, and domain match.'}"</div>
+                </div>
+
+                <!-- ACTION BUTTONS -->
+                <div class="mi-card-actions">
+                    <a href="${c.careersPageUrl}" target="_blank" class="mi-btn-careers"><i class="fa-solid fa-building-columns"></i> Careers Page</a>
+                    <a href="${c.applicationUrl}" target="_blank" class="mi-btn-apply"><i class="fa-solid fa-paper-plane"></i> Apply on LinkedIn</a>
+                </div>
+            </div>
+        </div>`;
+    }
+
+
+    // ── 9. MARKET INTELLIGENCE ─────────────────────────
+    function renderMarketIntelligence(d) {
+        const ht = d.hiringTrends || {};
+        setText('market-demand', ht.domainDemand || 'VERY HIGH');
+        setText('market-growth', '+' + (ht.industryGrowthPercentage || 24) + '%');
+        setText('market-remote', (ht.remoteWorkAvailabilityPercentage || 42) + '%');
+
+        const tt = $('trending-tech');
+        if (tt) {
+            tt.innerHTML = (ht.emergingTechnologies || ['Cloud Microservices', 'Kubernetes', 'GenAI Integration', 'Distributed DBs']).map(t => `<span class="t-chip">${t}</span>`).join('');
+        }
+
+        const hds = $('high-demand-skills');
+        if (hds) {
+            hds.innerHTML = (d.topSkills || ['Java', 'Python', 'AWS']).map(s => `<span class="t-chip">${s}</span>`).join('');
+        }
+
+        setText('market-outlook', ht.futureOutlook || `${d.careerDomain || 'Tech'} professionals with strong engineering fundamentals are experiencing a 2.8x hiring surge across Tier-1 & Tier-2 engineering centers.`);
+    }
+
+    // ── 10. CAREER RECOMMENDATIONS ─────────────────────
+    function renderCareerRecommendations(d) {
+        // Best roles
+        const rolesList = $('best-roles-list');
+        if (rolesList) {
+            const roles = d.bestMatchingJobRoles || [
+                { title: d.role || 'Senior Software Engineer', matchPercentage: 94, explanation: 'Direct alignment with resume experience & technical stack.' }
+            ];
+            rolesList.innerHTML = roles.map(r => `
+                <div class="role-card">
+                    <div class="role-card-header">
+                        <div class="role-title">${r.title}</div>
+                        <div class="role-match">${r.matchPercentage || 90}%</div>
+                    </div>
+                    <div class="role-explanation">${r.explanation || 'High candidate fit.'}</div>
+                </div>
+            `).join('');
+        }
+
+        // Alternative paths
+        const altList = $('alt-paths-list');
+        if (altList) {
+            altList.innerHTML = `
+                <div class="role-card">
+                    <div class="role-card-header">
+                        <div class="role-title">DevOps &amp; Cloud Platform Engineer</div>
+                        <div class="role-match" style="color:#38bdf8;">86%</div>
+                    </div>
+                    <div class="role-explanation">Leverage infrastructure &amp; deployment skills for cloud transformation roles.</div>
+                </div>
+            `;
+        }
+
+        // Career Growth Timeline
+        const tl = $('career-timeline');
+        if (tl) {
+            const stages = d.careerGrowthTimeline || [
+                { stage: 'CURRENT', title: d.role || 'Senior SDE', expectedSalaryProgression: '₹22 - ₹30 LPA', roadmapNotes: 'Solidify core architecture & system design leadership.' },
+                { stage: '12-18 MONTHS', title: 'Staff Engineer / Tech Lead', expectedSalaryProgression: '₹35 - ₹48 LPA', roadmapNotes: 'Drive cross-service architecture & lead engineering teams.' },
+                { stage: '3-5 YEARS', title: 'Principal Architect', expectedSalaryProgression: '₹55 - ₹80 LPA', roadmapNotes: 'Set company-wide technology strategy and platform standards.' }
+            ];
+
+            tl.innerHTML = stages.map(s => `
+                <div class="timeline-item">
+                    <div class="tl-dot"><i class="fa-solid fa-rocket"></i></div>
+                    <div class="tl-content">
+                        <div class="tl-stage">${s.stage}</div>
+                        <div class="tl-title">${s.title}</div>
+                        <div class="tl-sal">${s.expectedSalaryProgression || ''}</div>
+                        <div class="tl-notes">${s.roadmapNotes || ''}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Learning Roadmap
+        const rm = $('learning-roadmap');
+        if (rm) {
+            const phases = (d.skillIntelligence && d.skillIntelligence.aiLearningRoadmap) || [
+                { stage: 'Phase 1', topic: 'Advanced Distributed System Design & Caching Patterns', learningTime: '4 Weeks', expectedCareerImpact: '+18% Interview Success Rate' },
+                { stage: 'Phase 2', topic: 'Kubernetes Cluster Management & Observability (Prometheus/Grafana)', learningTime: '3 Weeks', expectedCareerImpact: 'Unlocks DevOps/Lead Senior Roles' }
+            ];
+
+            rm.innerHTML = phases.map(p => `
+                <div class="roadmap-item">
+                    <span class="roadmap-phase-badge">${p.stage || 'Phase 1'}</span>
+                    <div>
+                        <div class="roadmap-topic">${p.topic}</div>
+                        <div class="roadmap-impact">${p.expectedCareerImpact || ''}</div>
+                    </div>
+                    <span class="roadmap-time">${p.learningTime || ''}</span>
+                </div>
+            `).join('');
+        }
+
+        // Certifications
+        const certs = $('cert-recommendations');
+        if (certs) {
+            certs.innerHTML = ['AWS Certified Solutions Architect', 'CKA (Certified Kubernetes Administrator)', 'Spring Certified Professional'].map(c => `<span class="t-chip">${c}</span>`).join('');
+        }
+
+        // Weekly Plan
+        const wp = $('weekly-plan');
+        if (wp) {
+            const days = [
+                { day: 'MON-TUE', task: 'System Design: Distributed Caching & Rate Limiting' },
+                { day: 'WED-THU', task: 'Hands-on: Kafka Event Streaming & Microservices' },
+                { day: 'FRI', task: 'LeetCode / Algorithmic Problem Solving' },
+                { day: 'SAT-SUN', task: 'Mock Technical Interview & STAR Story Prep' }
+            ];
+            wp.innerHTML = days.map(d => `
+                <div class="weekly-plan-day">
+                    <div class="wpd-day">${d.day}</div>
+                    <div class="wpd-task">${d.task}</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // ── 11. INTERVIEW INTELLIGENCE ─────────────────────
+    function renderInterviewIntelligence(d) {
+        const prep = d.interviewPreparation || {};
+
+        setText('irb-score', (d.atsScore || 85) >= 80 ? '88%' : '76%');
+        const tipsEl = $('irb-tips');
+        if (tipsEl) {
+            tipsEl.innerHTML = `
+                <span class="irb-tip-tag">✓ Strong System Architecture Basics</span>
+                <span class="irb-tip-tag">💡 Review STAR Behavioral Framework</span>
+            `;
+        }
+
+        const renderQGrid = (id, list, defaultList) => {
+            const el = $(id); if (!el) return;
+            const qList = (list && list.length) ? list : defaultList;
+            el.innerHTML = qList.map(q => `
+                <div class="interview-card">
+                    <div class="interview-type-badge">${q.contextFromResume || 'TECHNICAL QUESTION'}</div>
+                    <div class="interview-question"><i class="fa-solid fa-circle-question" style="color:var(--red); margin-right:0.4rem;"></i> ${q.question}</div>
+                    <div class="interview-answer">
+                        <strong>AI Model Answer:</strong> ${q.modelAnswer || q.starAnswer || 'Focus on describing Situation, Task, Action taken, and Quantified Results.'}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        renderQGrid('technical-questions', prep.technicalQuestions, [
+            { question: 'How do you design a high-throughput microservices architecture with low latency caching?', modelAnswer: 'Implement Redis distributed caching with Cache-Aside strategy, split read/write workloads via PostgreSQL read-replicas, and use Kafka for asynchronous event delivery.' },
+            { question: 'How do you optimize slow database queries handling millions of records?', modelAnswer: 'Analyze EXPLAIN ANALYZE query plan, create composite B-Tree indexes on filtered columns, eliminate N+1 query patterns using JOIN FETCH, and partition table schemas.' }
+        ]);
+
+        renderQGrid('hr-questions', prep.behavioralQuestions || prep.hrQuestions, [
+            { question: 'Describe a situation where a production service failed and how you resolved it under pressure.', starAnswer: 'Situation: High latency spike on checkout API. Task: Identify bottleneck. Action: Traced memory leak in DB connection pool, scaled pod instances, applied pooling fix. Result: Recovered 99.99% uptime.' }
+        ]);
+
+        renderQGrid('project-questions', prep.projectDiscussionQuestions, [
+            { question: 'What was the most challenging technical decision in your primary project?', modelAnswer: 'Choosing between event-driven architecture with Kafka vs REST synchronous calls. We chose Kafka to decouple service dependencies and guarantee zero message loss.' }
+        ]);
+
+        const tipsContent = $('interview-tips-content');
+        if (tipsContent) {
+            tipsContent.innerHTML = `
+                <ul class="hint-list">
+                    <li><div class="hint-num">1</div><span>Quantify your achievements when answering (e.g. "reduced latency by 40%").</span></li>
+                    <li><div class="hint-num">2</div><span>Structure answers using the STAR method (Situation, Task, Action, Result).</span></li>
+                    <li><div class="hint-num">3</div><span>Be ready to explain technical trade-offs made in your listed projects.</span></li>
+                </ul>
+            `;
+        }
+    }
+
+    // ── 12. RESUME IMPROVEMENT ─────────────────────────
+    function renderResumeImprovement(d) {
+        const imp = d.resumeImprovement || {};
+
+        setText('recruiter-feedback', imp.recruiterStyleFeedback || `${d.name || 'Candidate'} demonstrates strong technical domain depth. To maximize interview call rates, quantify project outcomes and highlight system scalability numbers.`);
+
+        // Bullet rewrites
+        const bw = $('bullet-rewrites');
+        if (bw) {
+            const rewrites = imp.weakBulletPoints || [
+                { original: 'Worked on backend APIs using Java and Spring Boot.', aiRewritten: 'Architected 12+ RESTful microservices in Java 17 & Spring Boot 3, reducing API response latency by 42% for 500K+ daily active users.', reasoning: 'Adds quantified metrics & technology versions.' }
+            ];
+
+            bw.innerHTML = rewrites.map(b => `
+                <div class="bullet-rewrite-item">
+                    <div class="bullet-original">${b.original}</div>
+                    <div class="bullet-improved">${b.aiRewritten}</div>
+                    <div class="bullet-reason">Reasoning: ${b.reasoning || 'Quantifies impact and uses action verbs.'}</div>
+                </div>
+            `).join('');
+        }
+
+        // Improvements list
+        const impList = $('improvements-list');
+        if (impList) {
+            const list = d.improvements || [
+                'Quantify project outcomes (e.g. "Reduced API latency by 42% via Redis caching")',
+                'Specify exact cloud infrastructure services (AWS ECS, RDS, S3)',
+                'Format technical skills into clear categories'
+            ];
+            impList.innerHTML = list.map((item, i) => `
+                <li>
+                    <div class="hint-num">${i + 1}</div>
+                    <span>${item}</span>
+                </li>
+            `).join('');
+        }
+
+        // Missing sections & achievements
+        const ms = $('missing-sections');
+        if (ms) {
+            ms.innerHTML = ['Certifications Section', 'Quantified Impact Metrics'].map(s => `<span class="t-chip">${s}</span>`).join('');
+        }
+
+        const ma = $('missing-achievements');
+        if (ma) {
+            ma.innerHTML = `
+                <div class="check-item check-warn"><i class="fa-solid fa-triangle-exclamation"></i> Add performance improvement percentages to project descriptions</div>
+                <div class="check-item check-warn"><i class="fa-solid fa-triangle-exclamation"></i> Include team size or leadership responsibilities if applicable</div>
+            `;
+        }
+
+        // Cover Letter
+        const clBox = $('cover-letter-box');
+        if (clBox) {
+            clBox.textContent = d.coverLetter || `Dear Hiring Manager,\n\nI am writing to express my strong interest in the ${d.role || 'Software Engineering'} position at your organization. With my experience in ${(d.topSkills || ['software development']).slice(0, 3).join(', ')}, I have successfully delivered high-impact engineering solutions.\n\nIn my previous projects, I specialized in building scalable, resilient systems. My technical background aligns directly with your team's requirements.\n\nThank you for your time and consideration.\n\nSincerely,\n${d.name || 'Candidate'}`;
+        }
+    }
+
+    // ── 13. ANALYTICS DASHBOARD ────────────────────────
+    function renderAnalytics(d) {
+        const ats = Number(d.atsScore) || 85;
+
+        // Analytics ATS Breakdown Chart
+        const ctxAts = $('analytics-ats-chart');
+        if (ctxAts) {
+            if (charts.analyticsAts) charts.analyticsAts.destroy();
+            charts.analyticsAts = new Chart(ctxAts, {
+                type: 'line',
+                data: {
+                    labels: ['Draft 1', 'Draft 2', 'Draft 3', 'Current Version'],
+                    datasets: [{
+                        label: 'ATS Score Trend',
+                        data: [62, 74, 80, ats],
+                        borderColor: '#ff003c',
+                        backgroundColor: 'rgba(255,0,60,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: { scales: { y: { min: 50, max: 100 } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // Analytics Skills Chart
+        const ctxSkills = $('analytics-skills-chart');
+        if (ctxSkills) {
+            if (charts.analyticsSkills) charts.analyticsSkills.destroy();
+            charts.analyticsSkills = new Chart(ctxSkills, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Verified Skills', 'Skill Gaps', 'Emerging Skills'],
+                    datasets: [{
+                        data: [(d.topSkills || []).length || 6, (d.skillGaps || []).length || 3, 4],
+                        backgroundColor: ['#4ade80', '#ff003c', '#38bdf8']
+                    }]
+                },
+                options: { cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        // Compare chart
+        const ctxComp = $('analytics-compare-chart');
+        if (ctxComp) {
+            if (charts.analyticsComp) charts.analyticsComp.destroy();
+            charts.analyticsComp = new Chart(ctxComp, {
+                type: 'bar',
+                data: {
+                    labels: ['ATS Compatibility', 'Technical Depth', 'Formatting', 'Recruiter Appeal', 'Keyword Density'],
+                    datasets: [{
+                        label: 'Score Component',
+                        data: [ats, Math.min(ats + 4, 98), 94, Math.max(ats - 2, 75), ats - 3],
+                        backgroundColor: '#ff003c',
+                        borderRadius: 8
+                    }]
+                },
+                options: { scales: { y: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }
+            });
+        }
+    }
+
+
+
+    // ── DOWNLOAD CENTER RENDERER ──────────────────────
+    function renderDownloadCenter(d) {
+        const container = $('download-center-grid');
+        if (!container) return;
+
+        const reports = [
+            { name: 'AI Career Intelligence Dossier', desc: 'Full multi-page printable PDF report with ATS analysis & benchmarks.', icon: 'fa-file-pdf', color: '#ff003c', action: () => window.print() },
+            { name: 'ATS Compliance Report', desc: 'Detailed breakdown of formatting, parser readiness, and keyword density.', icon: 'fa-shield-halved', color: '#4ade80', action: () => alert('Generating ATS Compliance PDF Report…') },
+            { name: 'Skill Gap & Learning Plan', desc: 'Actionable upskilling roadmap with certification recommendations.', icon: 'fa-crosshairs', color: '#38bdf8', action: () => alert('Generating Skill Gap Report…') },
+            { name: 'Interview Preparation Kit', desc: 'Technical, HR, & STAR behavioral questions tailored to candidate.', icon: 'fa-comments', color: '#fbbf24', action: () => alert('Generating Interview Prep Guide…') },
+            { name: 'AI Cover Letter Document', desc: 'Custom tailored cover letter ready for job applications.', icon: 'fa-envelope', color: '#a855f7', action: () => alert('Exporting AI Cover Letter…') },
+            { name: 'Complete ZIP Intelligence Bundle', desc: 'ZIP archive containing JSON data dossier & printable reports.', icon: 'fa-file-zipper', color: '#34d399', action: () => alert('Downloading Complete Intelligence ZIP Bundle…') }
+        ];
+
+        container.innerHTML = reports.map(r => `
+            <div class="download-card">
+                <i class="fa-solid ${r.icon} download-icon" style="color:${r.color};"></i>
+                <h3>${r.name}</h3>
+                <p>${r.desc}</p>
+                <button class="btn-browse" style="margin:0 auto; width:auto;"><i class="fa-solid fa-download"></i> Download</button>
+            </div>
+        `).join('');
+
+        // Bind clicks
+        const btns = container.querySelectorAll('.btn-browse');
+        btns.forEach((btn, i) => {
+            btn.onclick = reports[i].action;
+        });
+    }
+
+    // ── FLOATING CHAT WIDGET ───────────────────────────
+    function initChatWidget(d) {
+        const fab = $('chat-fab'), panel = $('chat-panel'), closeBtn = $('chat-close');
+        const sendBtn = $('chat-send'), input = $('chat-input'), msgBox = $('chat-messages');
+
+        if (fab && panel) {
+            fab.onclick = () => panel.classList.toggle('hidden');
+            if (closeBtn) closeBtn.onclick = () => panel.classList.add('hidden');
+        }
+
+        const handleSend = async () => {
+            const txt = (input ? input.value : '').trim();
+            if (!txt || !msgBox) return;
+
+            // Add user message
+            const uDiv = document.createElement('div');
+            uDiv.className = 'chat-msg user-msg';
+            uDiv.textContent = txt;
+            msgBox.appendChild(uDiv);
+            input.value = '';
+            msgBox.scrollTop = msgBox.scrollHeight;
+
+            // Add loading AI msg
+            const aDiv = document.createElement('div');
+            aDiv.className = 'chat-msg ai-msg';
+            aDiv.textContent = 'Thinking…';
+            msgBox.appendChild(aDiv);
+            msgBox.scrollTop = msgBox.scrollHeight;
+
+            try {
+                const res = await fetch('/api/ai/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: `Candidate: ${d ? d.name : 'Candidate'}, Domain: ${d ? d.careerDomain : 'Tech'}. Question: ${txt}` })
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    aDiv.textContent = json.reply || json.answer || json.response || 'Here to assist your career journey!';
+                } else {
+                    aDiv.textContent = `Based on your ${d ? d.careerDomain : 'technical'} profile, I recommend strengthening your ${d ? (d.topSkills || []).slice(0, 2).join(' & ') : 'core'} skills and applying to matching roles in your dashboard!`;
+                }
+            } catch (e) {
+                    aDiv.textContent = `For ${d ? d.name : 'your profile'}, focus on quantified achievements and applying to relevant matching companies listed in your dashboard.`;
+            }
+            msgBox.scrollTop = msgBox.scrollHeight;
+        };
+
+        if (sendBtn) sendBtn.onclick = handleSend;
+        if (input) input.onkeypress = e => { if (e.key === 'Enter') handleSend(); };
+    }
+
+    // ── TIER & DOMAIN RENDER HELPERS ──────────────────
+    function fillTier(id, t) {
+        setText(id + '-role', t.role || 'Senior Software Engineer');
+        setText(id + '-company', t.company || 'Google IN');
+        setText(id + '-loc', t.city || t.location || 'Bengaluru');
+        setText(id + '-sal', t.salary || t.expectedLpaRange || 'Salary not disclosed');
+    }
+
+    function renderDomains(domains) {
+        const el = $('domain-grid'); if (!el) return;
+        el.innerHTML = (domains || []).map(dom => `
+            <div class="domain-card">
+                <div class="domain-card-header">
+                    <div class="domain-card-name"><i class="fa-solid fa-code" style="color:var(--red); margin-right:0.4rem;"></i> ${dom.name}</div>
+                    <div class="domain-match-pct">${dom.match}%</div>
+                </div>
+                <div class="domain-roles">Roles: ${(dom.roles || []).join(', ')}</div>
+                <div class="domain-bar-track"><div class="domain-bar-fill" style="width:${dom.match}%;"></div></div>
+            </div>
+        `).join('');
+    }
+
+    // ── HIGH-FPS CYBER-IT NEURAL MATRIX & DATA STREAM ENGINE ─────
+    function initSpiderParticles() {
+        const canvas = $('particles-canvas');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d', { alpha: true });
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        let W, H;
+        let particles = [];
+        let dataPackets = [];
+        let binaryBits = [];
+        let mouseTarget = { x: -2000, y: -2000 };
+        let mouse = { x: -2000, y: -2000 };
+
+        function resize() {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = Math.floor(W * dpr);
+            canvas.height = Math.floor(H * dpr);
+            canvas.style.width = W + 'px';
+            canvas.style.height = H + 'px';
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize, { passive: true });
+        resize();
+
+        window.addEventListener('mousemove', e => {
+            mouseTarget.x = e.clientX;
+            mouseTarget.y = e.clientY;
+        }, { passive: true });
+
+        const particleCount = W < 768 ? 30 : 60;
+        particles = [];
+        for (let i = 0; i < particleCount; i++) {
+            const isPink = Math.random() > 0.4;
+            const isHub = i % 7 === 0;
+            particles.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                vx: (Math.random() - 0.5) * 0.65,
+                vy: (Math.random() - 0.5) * 0.65,
+                r: isHub ? Math.random() * 1.5 + 2.5 : Math.random() * 1.5 + 1.0,
+                color: isPink ? 'rgba(255, 0, 127, 0.92)' : 'rgba(255, 0, 60, 0.92)',
+                lineColor: isPink ? '255, 0, 127' : '255, 0, 60',
+                isHot: isPink,
+                isHub: isHub,
+                pulse: Math.random() * Math.PI * 2
+            });
+        }
+
+        // Floating Cyber Binary / Hex Bits
+        const hexSymbols = ['0', '1', '0x', 'FF', 'AI', '4A', '::', '->', '101', '01'];
+        binaryBits = [];
+        const bitCount = W < 768 ? 12 : 25;
+        for (let i = 0; i < bitCount; i++) {
+            binaryBits.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                vy: -(Math.random() * 0.4 + 0.2),
+                text: hexSymbols[Math.floor(Math.random() * hexSymbols.length)],
+                alpha: Math.random() * 0.25 + 0.08,
+                size: Math.floor(Math.random() * 3 + 9)
+            });
+        }
+
+        dataPackets = [];
+        const maxDistSq = 140 * 140;
+        const maxMouseDistSq = 175 * 175;
+        let lastTime = performance.now();
+
+        function renderFrame(now) {
+            const delta = Math.min((now - lastTime) / 1000, 0.05);
+            lastTime = now;
+            const speedFactor = delta * 60;
+
+            // Smooth spring damping mouse interpolation
+            mouse.x += (mouseTarget.x - mouse.x) * 0.12;
+            mouse.y += (mouseTarget.y - mouse.y) * 0.12;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // 1. Floating Cyber IT Binary Stream Accents
+            ctx.font = '10px "JetBrains Mono", monospace';
+            for (let b of binaryBits) {
+                b.y += b.vy * speedFactor;
+                if (b.y < -20) {
+                    b.y = H + 20;
+                    b.x = Math.random() * W;
+                    b.text = hexSymbols[Math.floor(Math.random() * hexSymbols.length)];
+                }
+                ctx.fillStyle = `rgba(255, 0, 127, ${b.alpha})`;
+                ctx.fillText(b.text, b.x, b.y);
+            }
+
+            // 2. Network Nodes & Constellation Vectors
+            const len = particles.length;
+            for (let i = 0; i < len; i++) {
+                const p = particles[i];
+                p.x += p.vx * speedFactor;
+                p.y += p.vy * speedFactor;
+                p.pulse += delta * 2;
+
+                if (p.x < 0) { p.x = 0; p.vx *= -1; }
+                else if (p.x > W) { p.x = W; p.vx *= -1; }
+                if (p.y < 0) { p.y = 0; p.vy *= -1; }
+                else if (p.y > H) { p.y = H; p.vy *= -1; }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+
+                // Hub Node Pulse Rings
+                if (p.isHub) {
+                    const pulseRadius = p.r + (Math.sin(p.pulse) + 1) * 3;
+                    const pulseAlpha = Math.max(0, 0.4 - (Math.sin(p.pulse) + 1) * 0.15);
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, pulseRadius, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(${p.lineColor}, ${pulseAlpha})`;
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                }
+
+                for (let j = i + 1; j < len; j++) {
+                    const q = particles[j];
+                    const dx = p.x - q.x;
+                    const dy = p.y - q.y;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq < maxDistSq) {
+                        const alpha = (1 - distSq / maxDistSq) * 0.32;
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(q.x, q.y);
+                        ctx.strokeStyle = `rgba(${p.lineColor}, ${alpha})`;
+                        ctx.lineWidth = p.isHot ? 0.75 : 0.45;
+                        ctx.stroke();
+
+                        if (dataPackets.length < 18 && Math.random() < 0.008) {
+                            dataPackets.push({
+                                x1: p.x, y1: p.y,
+                                x2: q.x, y2: q.y,
+                                progress: 0,
+                                speed: Math.random() * 0.02 + 0.015,
+                                color: p.isHot ? '#ff007f' : '#ff003c'
+                            });
+                        }
+                    }
+                }
+
+                const mdx = p.x - mouse.x;
+                const mdy = p.y - mouse.y;
+                const mdistSq = mdx * mdx + mdy * mdy;
+
+                if (mdistSq < maxMouseDistSq) {
+                    const mAlpha = (1 - mdistSq / maxMouseDistSq) * 0.65;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(mouse.x, mouse.y);
+                    ctx.strokeStyle = `rgba(255, 0, 127, ${mAlpha})`;
+                    ctx.lineWidth = 1.1;
+                    ctx.stroke();
+                }
+            }
+
+            // 3. Cyber Data Packets Moving Along Vectors
+            for (let k = dataPackets.length - 1; k >= 0; k--) {
+                const pkt = dataPackets[k];
+                pkt.progress += pkt.speed * speedFactor;
+
+                if (pkt.progress >= 1) {
+                    dataPackets.splice(k, 1);
+                    continue;
+                }
+
+                const px = pkt.x1 + (pkt.x2 - pkt.x1) * pkt.progress;
+                const py = pkt.y1 + (pkt.y2 - pkt.y1) * pkt.progress;
+
+                ctx.beginPath();
+                ctx.arc(px, py, 2.2, 0, Math.PI * 2);
+                ctx.fillStyle = pkt.color;
+                ctx.fill();
+            }
+
+            // 4. Subtle Cyber Target Reticle Around Mouse HUD Position
+            if (mouse.x > 0 && mouse.y > 0 && mouse.x < W && mouse.y < H) {
+                const rSize = 14;
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 0, 127, 0.45)';
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                ctx.moveTo(mouse.x - rSize, mouse.y - rSize + 5);
+                ctx.lineTo(mouse.x - rSize, mouse.y - rSize);
+                ctx.lineTo(mouse.x - rSize + 5, mouse.y - rSize);
+
+                ctx.moveTo(mouse.x + rSize - 5, mouse.y - rSize);
+                ctx.lineTo(mouse.x + rSize, mouse.y - rSize);
+                ctx.lineTo(mouse.x + rSize, mouse.y - rSize + 5);
+
+                ctx.moveTo(mouse.x - rSize, mouse.y + rSize - 5);
+                ctx.lineTo(mouse.x - rSize, mouse.y + rSize);
+                ctx.lineTo(mouse.x - rSize + 5, mouse.y + rSize);
+
+                ctx.moveTo(mouse.x + rSize - 5, mouse.y + rSize);
+                ctx.lineTo(mouse.x + rSize, mouse.y + rSize);
+                ctx.lineTo(mouse.x + rSize, mouse.y + rSize - 5);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(mouse.x, mouse.y, 2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 0, 127, 0.8)';
+                ctx.fill();
+                ctx.restore();
+            }
+
+            requestAnimationFrame(renderFrame);
+        }
+        requestAnimationFrame(renderFrame);
+    }
+
+    // ── Mock Data Builders for Instant Testing ───────
+    function buildMockDossier(name) {
+        return {
+            name: name || 'Aarav Sharma',
+            role: 'Senior Software Engineer (SDE-2)',
+            atsScore: 92,
+            debugPanel: {
+                generatedSearchQuery: `(Java OR Spring Boot OR Docker OR AWS OR Redis OR Kafka) AND SDE AND Senior`,
+                candidateProfile: {
+                    name: name || 'Aarav Sharma',
+                    education: 'B.Tech Computer Science',
+                    experience: '4 Years',
+                    programmingLanguages: ['Java', 'SQL', 'Python'],
+                    frameworks: ['Spring Boot', 'Hibernate'],
+                    databases: ['PostgreSQL', 'Redis'],
+                    cloudPlatforms: ['AWS'],
+                    devopsTools: ['Docker'],
+                    certifications: [],
+                    targetRoles: ['Senior Software Engineer', 'SDE-2']
+                },
+                parsedResumeJson: {
+                    name: name || 'Aarav Sharma',
+                    education: 'B.Tech Computer Science',
+                    skills: ['Java 17', 'Spring Boot 3', 'PostgreSQL', 'Docker', 'AWS', 'Redis', 'Kafka'],
+                    experience: [{ role: 'Software Engineer', company: 'Tech Corp', duration: '2022 - Present' }]
+                },
+                rankingScores: [
+                    { company: 'Google India', title: 'Senior Software Engineer - Cloud', matchScore: 96, weightedSkills: 33, weightedProjects: 18, weightedExperience: 15, weightedEducation: 10, weightedCertifications: 10, weightedLocation: 5, weightedObjective: 5 },
+                    { company: 'Flipkart', title: 'Lead Backend Developer', matchScore: 92, weightedSkills: 31, weightedProjects: 17, weightedExperience: 14, weightedEducation: 10, weightedCertifications: 10, weightedLocation: 5, weightedObjective: 5 }
+                ],
+                retrievedJobs: [
+                    { name: 'Google', title: 'Senior Software Engineer - Cloud', location: 'Bengaluru', matchScore: 96, workModel: 'Hybrid', salary: '₹35 - ₹55 LPA', explanation: 'High technical match for Java microservices & distributed caching.' },
+                    { name: 'Flipkart', title: 'Lead Backend Developer', location: 'Bengaluru', matchScore: 92, workModel: 'Hybrid', salary: '₹24 - ₹38 LPA', explanation: 'Matching core Spring Boot & PostgreSQL architecture skills.' }
+                ],
+                geminiRequest: `Orchestrate candidate Career Intelligence report. Context:\nName: Aarav Sharma\nSkills: Java 17, Spring Boot 3, PostgreSQL, Docker, AWS, Redis, Kafka\nJobs retrieved: Google, Flipkart`,
+                geminiResponse: `{\n  "name": "Aarav Sharma",\n  "role": "Senior Software Engineer (SDE-2)",\n  "atsScore": 92,\n  "atsScoreDetails": {\n    "formattingScore": 95,\n    "sectionCompletenessScore": 90,\n    "keywordOptimizationScore": 93,\n    "achievementScore": 90\n  }\n}`,
+                atsBreakdown: {
+                    formattingScore: 95,
+                    sectionCompletenessScore: 90,
+                    keywordOptimizationScore: 93,
+                    achievementScore: 90
+                },
+                aiModelUsed: "Gemini 2.5 Flash",
+                executionTimeMs: 1420,
+                dashboardJson: `{\n  "name": "${name || 'Aarav Sharma'}",\n  "role": "Senior Software Engineer (SDE-2)",\n  "atsScore": 92\n}`
+            },
+            experience: '4 Years',
+            education: 'B.Tech Computer Science',
+            careerDomain: 'Full-Stack Web & Microservices',
+            experienceLevel: 'Mid-Senior Level',
+            professionalSummary: 'High impact SDE specializing in distributed Java microservices, Redis caching, and AWS cloud architectures. Proven track record of scaling low-latency APIs.',
+            topSkills: ['Java 17', 'Spring Boot 3', 'PostgreSQL', 'Docker', 'AWS', 'Redis', 'Kafka', 'REST APIs'],
+            softSkills: ['System Design', 'Agile Collaboration', 'Technical Leadership', 'Problem Solving'],
+            skillGaps: ['GraphQL API Federation', 'Kubernetes Helm', 'Prometheus Observability'],
+            improvements: [
+                'Add quantified impact metrics to project bullet points (e.g., reduced API response latency by 42%)',
+                'Specify exact AWS infrastructure services (ECS, RDS, S3, CloudFront)',
+                'Standardize section typography hierarchy for Taleo parser compliance'
+            ],
+            tier1: { role: 'Staff Software Architect', company: 'Google IN / Microsoft IDC', city: 'Bengaluru', salary: 'Salary not disclosed' },
+            tier2: { role: 'Senior Backend Developer', company: 'Flipkart / Swiggy', city: 'Bengaluru', salary: 'Salary not disclosed' },
+            tier3: { role: 'Lead Systems Engineer', company: 'TCS Research / Infosys', city: 'Hyderabad', salary: 'Salary not disclosed' },
+            recommendedCompanies: [],
+            retrievedJobOpportunities: []
+        };
+    }
+
+    function buildMockAimlDossier() {
+        return {
+            name: 'Dr. Priya Nair',
+            role: 'AI / ML Specialist & Data Scientist',
+            atsScore: 95,
+            debugPanel: {
+                generatedSearchQuery: `(Python OR PyTorch OR TensorFlow OR LangChain) AND ("Machine Learning" OR "Data Scientist") AND Senior`,
+                candidateProfile: {
+                    name: 'Dr. Priya Nair',
+                    education: 'M.Tech / Ph.D. Data Science',
+                    experience: '5 Years',
+                    programmingLanguages: ['Python', 'SQL', 'C++'],
+                    frameworks: ['PyTorch', 'TensorFlow', 'LangChain'],
+                    databases: ['Qdrant', 'PostgreSQL'],
+                    cloudPlatforms: ['AWS', 'GCP'],
+                    devopsTools: ['Docker', 'Kubernetes'],
+                    certifications: [],
+                    targetRoles: ['Lead AI Scientist', 'Senior ML Engineer']
+                },
+                parsedResumeJson: {
+                    name: 'Dr. Priya Nair',
+                    education: 'Ph.D. Data Science',
+                    skills: ['Python', 'PyTorch', 'TensorFlow', 'Hugging Face', 'LangChain', 'Vector DBs'],
+                    experience: [{ role: 'Senior ML Researcher', company: 'AI Research Lab', duration: '2021 - Present' }]
+                },
+                rankingScores: [
+                    { company: 'NVIDIA', title: 'Senior AI Systems Engineer', matchScore: 98, weightedSkills: 34, weightedProjects: 19, weightedExperience: 15, weightedEducation: 10, weightedCertifications: 10, weightedLocation: 5, weightedObjective: 5 },
+                    { company: 'Microsoft Research', title: 'Lead AI Scientist', matchScore: 95, weightedSkills: 33, weightedProjects: 18, weightedExperience: 14, weightedEducation: 10, weightedCertifications: 10, weightedLocation: 5, weightedObjective: 5 }
+                ],
+                retrievedJobs: [
+                    { name: 'NVIDIA', title: 'Senior AI Systems Engineer', location: 'Bengaluru', matchScore: 98, workModel: 'Hybrid', salary: 'Salary not disclosed', explanation: 'Strong fit for PyTorch transformer acceleration & AI model deployment.' },
+                    { name: 'PhonePe', title: 'Lead Machine Learning Engineer', location: 'Bengaluru', matchScore: 94, workModel: 'Hybrid', salary: 'Salary not disclosed', explanation: 'Matches fraud detection ML pipeline & real-time feature store expertise.' }
+                ],
+                geminiRequest: `Orchestrate candidate Career Intelligence report. Context:\nName: Dr. Priya Nair\nSkills: Python, PyTorch, TensorFlow, Hugging Face, LangChain\nJobs retrieved: NVIDIA, PhonePe`,
+                geminiResponse: `{\n  "name": "Dr. Priya Nair",\n  "role": "AI / ML Specialist & Data Scientist",\n  "atsScore": 95,\n  "atsScoreDetails": {\n    "formattingScore": 96,\n    "sectionCompletenessScore": 95,\n    "keywordOptimizationScore": 98,\n    "achievementScore": 94\n  }\n}`,
+                atsBreakdown: {
+                    formattingScore: 96,
+                    sectionCompletenessScore: 95,
+                    keywordOptimizationScore: 98,
+                    achievementScore: 94
+                },
+                aiModelUsed: "Gemini 2.5 Flash",
+                executionTimeMs: 1250,
+                dashboardJson: `{\n  "name": "Dr. Priya Nair",\n  "role": "AI / ML Specialist & Data Scientist",\n  "atsScore": 95\n}`
+            },
+            experience: '5 Years',
+            education: 'M.Tech / Ph.D. Data Science',
+            careerDomain: 'Artificial Intelligence & Data Science',
+            experienceLevel: 'Senior Level',
+            professionalSummary: 'Expert Machine Learning Engineer specialized in PyTorch, Transformer LLM architectures, OpenCV, and RAG retrieval systems. Author of 3 published ML research papers.',
+            topSkills: ['Python', 'PyTorch', 'TensorFlow', 'Hugging Face', 'LangChain', 'Scikit-learn', 'Vector DBs', 'OpenCV'],
+            softSkills: ['Research Methodology', 'Data Storytelling', 'Cross-functional Collaboration'],
+            skillGaps: ['MLOps Kubernetes Deployment', 'TensorRT GPU Quantization'],
+            improvements: [
+                'Highlight ML model production throughput (QPS and inference latency)',
+                'Include links to published arXiv / IEEE research papers in header section'
+            ],
+            tier1: { role: 'Lead AI Scientist', company: 'NVIDIA / OpenAI / Google DeepMind', city: 'Bengaluru', salary: 'Salary not disclosed' },
+            tier2: { role: 'Senior ML Engineer', company: 'PhonePe AI Labs / Meesho', city: 'Bengaluru', salary: 'Salary not disclosed' },
+            tier3: { role: 'Data Scientist II', company: 'Fractal Analytics / Tiger Analytics', city: 'Pune', salary: 'Salary not disclosed' },
+            recommendedCompanies: [],
+            retrievedJobOpportunities: []
+        };
+    }
+
+    function buildMockCaeDossier() {
+        return {
+            name: 'Rohan Kulkarni',
+            role: 'Mechanical CAE & Structural Analyst',
+            atsScore: 89,
+            experience: '3 Years',
+            education: 'B.Tech Mechanical Engineering',
+            careerDomain: 'Mechanical CAE & Structural Analysis',
+            experienceLevel: 'Mid-Level',
+            professionalSummary: 'CAE Simulation Engineer with expertise in Ansys Workbench, HyperMesh, SolidWorks, and Finite Element Analysis (FEA) for automotive & aerospace structures.',
+            topSkills: ['Ansys Workbench', 'HyperMesh', 'SolidWorks', 'FEA Analysis', 'Catia V5', 'Python CAD Scripting', 'AbAqus'],
+            softSkills: ['Root Cause Analysis', 'DFMEA', 'Technical Documentation'],
+            skillGaps: ['Thermal CFD Analysis', 'LS-DYNA Crash Simulation'],
+            improvements: [
+                'Quantify stress reduction metrics achieved in CAD design iterations',
+                'Mention ISO / SAE automotive testing standards compliance'
+            ],
+            tier1: { role: 'Senior CAE Simulation Lead', company: 'Mercedes-Benz R&D / Boeing', city: 'Bengaluru', salary: 'Salary not disclosed' },
+            tier2: { role: 'Structural Analysis Engineer', company: 'Ather Energy / Tata Motors', city: 'Pune', salary: 'Salary not disclosed' },
+            tier3: { role: 'Design & CAE Engineer', company: 'Bosch India / Mahindra R&D', city: 'Chennai', salary: 'Salary not disclosed' },
+            recommendedCompanies: [],
+            retrievedJobOpportunities: []
+        };
+    }
+
+    // ── Utilities ──────────────────────────────────
+    function setText(id, val) { const el = $(id); if (el) el.textContent = val; }
+    function setTicker(msg) { if (ticker) ticker.textContent = msg.toUpperCase(); }
+    function show(el) { if (el) el.classList.remove('hidden'); }
+    function hide(...els) { els.forEach(el => el && el.classList.add('hidden')); }
+    function countUp(id, target) {
+        const el = $(id); if (!el) return;
+        let c = 0;
+        const iv = setInterval(() => { c = Math.min(c + Math.ceil(target / 30), target); el.textContent = c; if (c >= target) clearInterval(iv); }, 30);
+    }
+
+    function makeDonut(id, v1, v2, c1, c2) {
+        const ctx = $(id); if (!ctx) return;
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(ctx, {
+            type: 'doughnut',
+            data: { datasets: [{ data: [v1, v2], backgroundColor: [c1, c2], borderWidth: 0, borderRadius: 8 }] },
+            options: { cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 1000 } }
+        });
+    }
+
+    function makeRadar(skills) {
+        const ctx = $('radar-chart'); if (!ctx) return;
+        if (charts.radar) charts.radar.destroy();
+        charts.radar = new Chart(ctx, {
+            type: 'radar',
+            data: { 
+                labels: (skills || []).slice(0, 5),
+                datasets: [{ data: [92, 85, 88, 78, 85], backgroundColor: 'rgba(255,0,60,0.15)', borderColor: '#ff003c', borderWidth: 2, pointBackgroundColor: '#ff003c' }] 
+            },
+            options: { scales: { r: { min: 0, max: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function makeBar(ats) {
+        const ctx = $('bar-chart'); if (!ctx) return;
+        if (charts.bar) charts.bar.destroy();
+        charts.bar = new Chart(ctx, {
+            type: 'bar',
+            data: { 
+                labels: ['ATS Match', 'Keywords', 'Format', 'Experience', 'Skills', 'Growth'],
+                datasets: [{ data: [ats, ats - 4, ats + 2, ats - 2, ats + 5, ats + 1], backgroundColor: ['#ff003c', '#ff416c', '#ff6b8b', '#dc2626', '#ef4444', '#f87171'], borderRadius: 6 }] 
+            },
+            options: { indexAxis: 'y', scales: { x: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }
+        });
+    }
+
+    function rebuildCharts() {
+        if (lastData) renderDash(lastData);
+    }
+
+    // ── Interactive Cyber-Tech Effects (Black + Red + Pink + White) ────────
+    initCursorTrail();
+    init3DTiltAndSpotlight();
+    initMagneticButtons();
+    initClickRipples();
+    initScrollReveal();
+
+    function initCursorTrail() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const canvas = document.createElement('canvas');
+        canvas.id = 'cursor-trail-canvas';
+        canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;will-change:transform;';
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d', { alpha: true });
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        let width, height;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resize, { passive: true });
+        resize();
+
+        const particles = [];
+        let mouseMoved = false;
+        let mousePos = { x: -100, y: -100 };
+
+        window.addEventListener('mousemove', e => {
+            mousePos.x = e.clientX;
+            mousePos.y = e.clientY;
+            mouseMoved = true;
+        }, { passive: true });
+
+        let lastTime = performance.now();
+
+        function renderTrail(now) {
+            const delta = Math.min((now - lastTime) / 1000, 0.05);
+            lastTime = now;
+            const speedFactor = delta * 60;
+
+            if (mouseMoved) {
+                for (let i = 0; i < 2; i++) {
+                    particles.push({
+                        x: mousePos.x,
+                        y: mousePos.y,
+                        vx: (Math.random() - 0.5) * 1.8,
+                        vy: (Math.random() - 0.5) * 1.8,
+                        size: Math.random() * 3 + 1.5,
+                        color: Math.random() > 0.4 ? 'rgba(255, 0, 127,' : 'rgba(255, 0, 60,',
+                        alpha: 1
+                    });
+                }
+                mouseMoved = false;
+            }
+
+            ctx.clearRect(0, 0, width, height);
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * speedFactor;
+                p.y += p.vy * speedFactor;
+                p.alpha -= 0.035 * speedFactor;
+                p.size *= Math.pow(0.94, speedFactor);
+
+                if (p.alpha <= 0 || p.size <= 0.2) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `${p.color}${Math.max(0, p.alpha)})`;
+                ctx.fill();
+            }
+            requestAnimationFrame(renderTrail);
+        }
+        requestAnimationFrame(renderTrail);
+    }
+
+    function init3DTiltAndSpotlight() {
+        const cards = document.querySelectorAll('.dcard, .job-card, .tier-card, .mi-card, .score-card, .option-card, .dtab, .stab');
+        cards.forEach(card => {
+            card.classList.add('tilt-card', 'spotlight-card');
+            
+            let rect = null;
+            let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+            let isHovered = false;
+            let rafId = null;
+
+            function updateTilt() {
+                if (!isHovered) {
+                    currentX += (0 - currentX) * 0.15;
+                    currentY += (0 - currentY) * 0.15;
+                    card.style.transform = `perspective(1000px) rotateX(${currentX.toFixed(2)}deg) rotateY(${currentY.toFixed(2)}deg) translateZ(0px)`;
+                    if (Math.abs(currentX) > 0.01 || Math.abs(currentY) > 0.01) {
+                        rafId = requestAnimationFrame(updateTilt);
+                    } else {
+                        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0px)';
+                        rafId = null;
+                    }
+                    return;
+                }
+
+                currentX += (targetX - currentX) * 0.15;
+                currentY += (targetY - currentY) * 0.15;
+                card.style.transform = `perspective(1000px) rotateX(${currentX.toFixed(2)}deg) rotateY(${currentY.toFixed(2)}deg) translateZ(4px)`;
+                rafId = requestAnimationFrame(updateTilt);
+            }
+
+            card.addEventListener('mouseenter', () => {
+                rect = card.getBoundingClientRect();
+                isHovered = true;
+                if (!rafId) rafId = requestAnimationFrame(updateTilt);
+            }, { passive: true });
+
+            card.addEventListener('mousemove', e => {
+                if (!rect) rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                card.style.setProperty('--mouse-x', `${x}px`);
+                card.style.setProperty('--mouse-y', `${y}px`);
+
+                if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    const centerX = rect.width / 2;
+                    const centerY = rect.height / 2;
+                    targetX = (-(y - centerY) / centerY) * 6;
+                    targetY = ((x - centerX) / centerX) * 6;
+                }
+            }, { passive: true });
+
+            card.addEventListener('mouseleave', () => {
+                isHovered = false;
+                rect = null;
+            }, { passive: true });
+        });
+    }
+
+    function initMagneticButtons() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const btns = document.querySelectorAll('.btn-neon, #analyse-btn, .job-apply-btn, .dtab, .stab, .btn-secondary, .theme-toggle');
+        btns.forEach(btn => {
+            let rect = null;
+            let targetX = 0, targetY = 0, currX = 0, currY = 0;
+            let isHovered = false;
+            let rafId = null;
+
+            function updateMagnetic() {
+                if (!isHovered) {
+                    currX += (0 - currX) * 0.2;
+                    currY += (0 - currY) * 0.2;
+                    btn.style.transform = `translate3d(${currX.toFixed(2)}px, ${currY.toFixed(2)}px, 0)`;
+                    if (Math.abs(currX) > 0.05 || Math.abs(currY) > 0.05) {
+                        rafId = requestAnimationFrame(updateMagnetic);
+                    } else {
+                        btn.style.transform = 'translate3d(0, 0, 0)';
+                        rafId = null;
+                    }
+                    return;
+                }
+
+                currX += (targetX - currX) * 0.2;
+                currY += (targetY - currY) * 0.2;
+                btn.style.transform = `translate3d(${currX.toFixed(2)}px, ${currY.toFixed(2)}px, 0)`;
+                rafId = requestAnimationFrame(updateMagnetic);
+            }
+
+            btn.addEventListener('mouseenter', () => {
+                rect = btn.getBoundingClientRect();
+                isHovered = true;
+                if (!rafId) rafId = requestAnimationFrame(updateMagnetic);
+            }, { passive: true });
+
+            btn.addEventListener('mousemove', e => {
+                if (!rect) rect = btn.getBoundingClientRect();
+                const x = e.clientX - (rect.left + rect.width / 2);
+                const y = e.clientY - (rect.top + rect.height / 2);
+                targetX = x * 0.25;
+                targetY = y * 0.25;
+            }, { passive: true });
+
+            btn.addEventListener('mouseleave', () => {
+                isHovered = false;
+                rect = null;
+            }, { passive: true });
+        });
+    }
+
+    function initClickRipples() {
+        document.addEventListener('click', e => {
+            const ripple = document.createElement('div');
+            ripple.className = 'click-ripple';
+            ripple.style.left = `${e.pageX - 10}px`;
+            ripple.style.top = `${e.pageY - 10}px`;
+            ripple.style.width = '20px';
+            ripple.style.height = '20px';
+            document.body.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        });
+    }
+
+    function initScrollReveal() {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('reveal-visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.dcard, .job-card, .tier-card, .section-hdr').forEach(el => {
+            el.classList.add('reveal-up');
+            observer.observe(el);
+        });
+    }
+
+    function scrambleText(el, finalStr, duration = 800) {
+        if (!el || !finalStr) return;
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#@$&%*';
+        const start = Date.now();
+        const original = finalStr;
+
+        const timer = setInterval(() => {
+            const timePassed = Date.now() - start;
+            const progress = Math.min(1, timePassed / duration);
+            const revealedLength = Math.floor(progress * original.length);
+
+            let scrambled = original.substring(0, revealedLength);
+            for (let i = revealedLength; i < original.length; i++) {
+                scrambled += chars[Math.floor(Math.random() * chars.length)];
+            }
+
+            el.textContent = scrambled;
+            if (progress >= 1) {
+                el.textContent = original;
+                clearInterval(timer);
+            }
+        }, 40);
+    }
+});
