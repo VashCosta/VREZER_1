@@ -58,7 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetContent = $(targetId);
             if (targetContent) targetContent.classList.remove('hidden');
 
-            if (lastData) {
+            if (targetId === 'tab-jobs') {
+                renderLiveJobs(lastData || { role: 'Performance Marketing Specialist', careerDomain: 'Digital Marketing & Growth' });
+            } else if (lastData) {
                 if (targetId === 'tab-analytics') {
                     renderAnalytics(lastData);
                 } else if (targetId === 'tab-overview') {
