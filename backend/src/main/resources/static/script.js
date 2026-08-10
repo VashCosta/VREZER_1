@@ -1814,6 +1814,7 @@ document.addEventListener('DOMContentLoaded', () => {
             requestAnimationFrame(renderFrame);
         }
         requestAnimationFrame(renderFrame);
+    }
     function readTextFromFile(file) {
         return new Promise((resolve) => {
             if (!file) return resolve('');

@@ -1817,6 +1817,30 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(renderFrame);
     }
 
+    function readTextFromFile(file) {
+        return new Promise((resolve) => {
+            if (!file) return resolve('');
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result || '');
+            reader.onerror = () => resolve('');
+            reader.readAsText(file);
+        });
+    }
+
+    function buildDossierFromText(filename, text) {
+        const cleanName = filename.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        const words = cleanName.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const candidateName = words.length > 2 ? words : 'Candidate Resume';
+        
+        const lower = (text || '').toLowerCase();
+        if (lower.includes('python') || lower.includes('pytorch') || lower.includes('machine learning') || lower.includes('data science') || lower.includes('tensorflow')) {
+            return buildMockAimlDossier(candidateName);
+        } else if (lower.includes('ansys') || lower.includes('solidworks') || lower.includes('cad') || lower.includes('mechanical') || lower.includes('fea')) {
+            return buildMockCaeDossier(candidateName);
+        }
+        return buildMockDossier(candidateName);
+    }
+
     // ── Mock Data Builders for Instant Testing ───────
     function buildMockDossier(name) {
         return {
