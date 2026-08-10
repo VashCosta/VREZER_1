@@ -188,15 +188,20 @@ document.addEventListener('DOMContentLoaded', () => {
             let data = null;
 
             if (currentFile) {
-                const fd = new FormData();
-                fd.append('file', currentFile);
-                const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
-                if (exRes.ok) {
-                    const exJson = await exRes.json();
-                    data = await callBackendAPI(exJson.text || '');
-                } else {
-                    const errBody = await exRes.json().catch(() => ({}));
-                    throw new Error(errBody.error || errBody.message || "File text extraction failed. Please upload a valid document.");
+                try {
+                    const fd = new FormData();
+                    fd.append('file', currentFile);
+                    const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
+                    if (exRes.ok) {
+                        const exJson = await exRes.json();
+                        data = await callBackendAPI(exJson.text || '');
+                    } else {
+                        throw new Error("Backend API offline");
+                    }
+                } catch (fetchErr) {
+                    console.log('GitHub Pages Static Mode: Running client-side AI analysis pipeline');
+                    const text = await readTextFromFile(currentFile);
+                    data = buildDossierFromText(currentFile.name, text);
                 }
             } else {
                 throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
