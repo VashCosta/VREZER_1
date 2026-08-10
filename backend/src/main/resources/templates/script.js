@@ -448,6 +448,16 @@ document.addEventListener('DOMContentLoaded', () => {
         makeBar(ats);
     }
 
+    function toTextString(val) {
+        if (val === null || val === undefined) return '';
+        if (typeof val === 'string') return val;
+        if (typeof val === 'number') return String(val);
+        if (typeof val === 'object') {
+            return val.skill || val.title || val.name || val.improvement || val.description || val.label || JSON.stringify(val);
+        }
+        return String(val);
+    }
+
     // ── 3. SWOT MATRIX ─────────────────────────────────
     function renderSwot(d) {
         const swot = d.swot || {};
@@ -456,14 +466,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const list = (items && items.length > 0) ? items : defaultItems;
             list.slice(0, 4).forEach(it => {
                 const s = document.createElement('div');
-                s.className = 'sw-tag'; s.textContent = it;
+                s.className = 'sw-tag';
+                s.textContent = toTextString(it);
                 el.appendChild(s);
             });
         };
+        const formatGaps = (d.skillGaps || []).map(g => toTextString(g));
+        const formatImprov = (d.improvements || []).map(i => toTextString(i));
+
         populate('swot-strengths', swot.strengths || d.topSkills, ['High technical competence', 'Verified domain experience', 'Strong project impact']);
-        populate('swot-weaknesses', swot.weaknesses || d.skillGaps, ['Cloud credentials missing', 'Quantified metrics needed']);
+        populate('swot-weaknesses', swot.weaknesses || formatGaps, ['Cloud credentials missing', 'Quantified metrics needed']);
         populate('swot-opps', swot.opportunities, ['Relevant Opportunities', 'High Salary Product Roles', 'Global Remote Work']);
-        populate('swot-risks', swot.improvements || d.improvements, ['Add system metrics to bullet points', 'Standardize section headers']);
+        populate('swot-risks', swot.improvements || formatImprov, ['Add system metrics to bullet points', 'Standardize section headers']);
     }
 
     // ── 4. PROFILE INTELLIGENCE ────────────────────────
@@ -566,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const mk = $('missing-keywords');
         if (mk) {
             const keywords = (d.swot && d.swot.missingSkills) || d.skillGaps || ['Distributed Systems', 'CI/CD Pipelines', 'Cloud Architecture'];
-            mk.innerHTML = keywords.map(k => `<span class="t-chip">${k}</span>`).join('');
+            mk.innerHTML = keywords.map(k => `<span class="t-chip">${toTextString(k)}</span>`).join('');
         }
 
         // Grammar & Red Flags
@@ -581,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rf = $('red-flags-list');
         if (rf) {
-            const flags = (d.improvements || []).slice(0, 2);
+            const flags = (d.improvements || []).slice(0, 2).map(f => toTextString(f));
             if (flags.length === 0) flags.push('Add quantified metrics to bullet points to prove impact (e.g., reduced latency by 35%).');
             rf.innerHTML = flags.map(f => `
                 <div class="rf-item">
@@ -597,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Gaps & Strengths
         const gapEl = $('gap-list');
         if (gapEl) {
-            gapEl.innerHTML = (d.skillGaps || ['Distributed Systems', 'Cloud Native']).map(g => `<span class="gap-tag">${g}</span>`).join('');
+            gapEl.innerHTML = (d.skillGaps || ['Distributed Systems', 'Cloud Native']).map(g => `<span class="gap-tag">${toTextString(g)}</span>`).join('');
         }
         const strEl = $('strengths-full-list');
         if (strEl) {
