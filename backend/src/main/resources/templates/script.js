@@ -162,65 +162,98 @@ document.addEventListener('DOMContentLoaded', () => {
     async function runAnalysis() {
         show(loadSect); 
         hide(uploadSect, dashSect);
-        const pIv = startProgress();
+
+        const startTime = Date.now();
+        const TOTAL_DURATION_MS = 15000; // Minimum 15 full seconds deep neural analysis
 
         const steps = [
-            { text: 'Extracting resume text via Tika & PDFBox…', id: 'ps-parse' },
-            { text: 'Running RAG Market Intelligence Retrieval…', id: 'ps-rag' },
-            { text: 'Executing 6-Agent AI Reasoning Pipeline…', id: 'ps-ai' },
-            { text: 'Matching Jobs across Adzuna & Live APIs…', id: 'ps-jobs' },
-            { text: 'Building 13-Section Dynamic Dashboard…', id: 'ps-render' }
+            { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
         ];
 
         let stepIdx = 0;
         const loadPhase = $('load-phase');
+
         const iv = setInterval(() => {
-            if (stepIdx < steps.length) {
-                if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
-                if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
-                const stepEl = $(steps[stepIdx].id);
-                if (stepEl) stepEl.classList.add('active');
-                if (stepIdx > 0) {
-                    const prev = $(steps[stepIdx - 1].id);
-                    if (prev) { prev.classList.remove('active'); prev.classList.add('done'); }
-                }
-                stepIdx++;
+            const elapsed = Date.now() - startTime;
+            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+
+            if (progFill) progFill.style.width = progressPct + '%';
+            const progPct = $('prog-pct');
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
+
+            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
+            if (currentPhaseIdx !== stepIdx) {
+                stepIdx = currentPhaseIdx;
             }
-        }, 800);
+
+            if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
+            if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
+
+            steps.forEach((st, idx) => {
+                const stepEl = $(st.id);
+                if (stepEl) {
+                    if (idx < stepIdx) {
+                        stepEl.classList.remove('active');
+                        stepEl.classList.add('done');
+                    } else if (idx === stepIdx) {
+                        stepEl.classList.add('active');
+                        stepEl.classList.remove('done');
+                    } else {
+                        stepEl.classList.remove('active', 'done');
+                    }
+                }
+            });
+        }, 100);
 
         try {
             let data = null;
 
-            if (currentFile) {
-                try {
-                    const fd = new FormData();
-                    fd.append('file', currentFile);
-                    const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
-                    if (exRes.ok) {
-                        const exJson = await exRes.json();
-                        data = await callBackendAPI(exJson.text || '');
-                    } else {
-                        throw new Error("Backend API offline");
+            const fetchPromise = (async () => {
+                if (currentFile) {
+                    try {
+                        const fd = new FormData();
+                        fd.append('file', currentFile);
+                        const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
+                        if (exRes.ok) {
+                            const exJson = await exRes.json();
+                            return await callBackendAPI(exJson.text || '');
+                        } else {
+                            throw new Error("Backend API offline");
+                        }
+                    } catch (fetchErr) {
+                        console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js + Meta LLaMA 3.3 70B Client Pipeline');
+                        const text = await extractPdfTextClientSide(currentFile);
+                        return await callGroqDirectlyClientSide(text, currentFile.name);
                     }
-                } catch (fetchErr) {
-                    console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js + Meta LLaMA 3.3 70B Client Pipeline');
-                    const text = await extractPdfTextClientSide(currentFile);
-                    data = await callGroqDirectlyClientSide(text, currentFile.name);
-                    await new Promise(r => setTimeout(r, 2000));
+                } else {
+                    throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
                 }
-            } else {
-                throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
-            }
+            })();
+
+            const [fetchedData] = await Promise.all([
+                fetchPromise,
+                new Promise(r => {
+                    const elapsed = Date.now() - startTime;
+                    const remaining = Math.max(0, TOTAL_DURATION_MS - elapsed);
+                    setTimeout(r, remaining);
+                })
+            ]);
+
+            data = fetchedData;
 
             if (!data || (!data.name && !data.atsScore && !data.role)) {
                 throw new Error("No analysis data returned by the VREZER AI engine service.");
             }
 
             clearInterval(iv);
-            clearInterval(pIv);
             if (progFill) progFill.style.width = '100%';
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
+            if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
 
             setTimeout(() => {
                 try {
@@ -232,12 +265,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     hide(loadSect, uploadSect);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
-            }, 300);
+            }, 400);
 
         } catch (err) {
             console.error('Analysis error:', err);
             clearInterval(iv);
-            clearInterval(pIv);
             hide(loadSect);
             show(uploadSect);
             
@@ -247,17 +279,62 @@ document.addEventListener('DOMContentLoaded', () => {
                 status.style.background = 'rgba(255, 0, 60, 0.15)';
                 status.style.borderColor = 'rgba(255, 0, 60, 0.4)';
                 status.style.color = '#ff4a7d';
-                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ${err.message || err || 'Check console details.'} Verify your API key is valid and the backend is running.`;
+                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ${err.message || err || 'Check console details.'}`;
             } else {
                 alert("VREZER Pipeline Error: " + (err.message || err));
             }
         }
     }
 
-    function loadSampleProfile(type) {
+    async function loadSampleProfile(type) {
         show(loadSect);
         hide(uploadSect, dashSect);
-        const pIv = startProgress();
+
+        const startTime = Date.now();
+        const TOTAL_DURATION_MS = 15000; // Full 15 seconds deep neural analysis
+
+        const steps = [
+            { text: 'Phase 1/5: Loading Sample Profile & Extracting Benchmark Vectors…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
+        ];
+
+        let stepIdx = 0;
+        const loadPhase = $('load-phase');
+
+        const iv = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+
+            if (progFill) progFill.style.width = progressPct + '%';
+            const progPct = $('prog-pct');
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
+
+            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
+            if (currentPhaseIdx !== stepIdx) {
+                stepIdx = currentPhaseIdx;
+            }
+
+            if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
+            if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
+
+            steps.forEach((st, idx) => {
+                const stepEl = $(st.id);
+                if (stepEl) {
+                    if (idx < stepIdx) {
+                        stepEl.classList.remove('active');
+                        stepEl.classList.add('done');
+                    } else if (idx === stepIdx) {
+                        stepEl.classList.add('active');
+                        stepEl.classList.remove('done');
+                    } else {
+                        stepEl.classList.remove('active', 'done');
+                    }
+                }
+            });
+        }, 100);
 
         let sampleData;
         if (type === 'aiml') {
@@ -268,24 +345,25 @@ document.addEventListener('DOMContentLoaded', () => {
             sampleData = buildMockDossier('Aarav Sharma — Software SDE');
         }
 
-        setTimeout(() => {
-            clearInterval(pIv);
-            if (progFill) progFill.style.width = '100%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
+        await new Promise(r => setTimeout(r, TOTAL_DURATION_MS));
 
-            setTimeout(() => {
-                try {
-                    renderDash(sampleData);
-                } catch (e) {
-                    console.error('Sample render error:', e);
-                } finally {
-                    show(dashSect);
-                    hide(loadSect, uploadSect);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            }, 200);
-        }, 600);
+        clearInterval(iv);
+        if (progFill) progFill.style.width = '100%';
+        const progPct = $('prog-pct');
+        if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
+        if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
+
+        setTimeout(() => {
+            try {
+                renderDash(sampleData);
+            } catch (e) {
+                console.error('Sample render error:', e);
+            } finally {
+                show(dashSect);
+                hide(loadSect, uploadSect);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }, 400);
     }
 
     async function callBackendAPI(resumeText) {
