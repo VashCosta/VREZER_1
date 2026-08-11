@@ -324,6 +324,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (fetchErr) {
                         console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js Client Neural Pipeline');
                         const text = await extractPdfTextClientSide(currentFile);
+                        const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || '';
+                        if (userKey) {
+                            try {
+                                return await callGeminiDirectlyClientSide(text, userKey);
+                            } catch (aiErr) {
+                                console.warn('Direct Gemini AI Client Call failed, falling back to neural parser:', aiErr);
+                            }
+                        }
                         return parseResumeClientSide(currentFile.name, text);
                     }
                 } else {
@@ -3360,6 +3368,139 @@ ${(resumeText || '').substring(0, 3500)}`;
             console.warn('Groq client API fallback to local parser:', groqErr);
         }
         return parseResumeClientSide(fileName, resumeText);
+    }
+
+    async function callGeminiDirectlyClientSide(resumeText, apiKey) {
+        if (!apiKey) throw new Error('No API key provided.');
+        let model = 'gemini-1.5-flash';
+        let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        
+        if (apiKey.startsWith('gsk_')) {
+            url = 'https://api.groq.com/openai/v1/chat/completions';
+        }
+
+        const promptText = `Analyze this candidate resume and return ONLY valid JSON with no markdown headers:
+{
+  "name": "Candidate Full Name",
+  "email": "candidate@email.com",
+  "phone": "+91 98765 43210",
+  "role": "Target Specialization Title",
+  "primaryDomain": "Primary Tech Domain",
+  "secondaryDomain": "Cloud & Systems",
+  "careerDomain": "Primary Tech Domain",
+  "atsScore": 85,
+  "atsScoreText": "EXCELLENT MATCH",
+  "profileStrength": 88,
+  "confidenceScore": 94,
+  "yearsOfExperience": 3,
+  "experienceLevel": "MID_LEVEL",
+  "careerLevel": "MID_LEVEL",
+  "education": "Highest Degree",
+  "expectedLpaRange": "₹12.0 LPA - ₹18.0 LPA",
+  "salaryMin": 12,
+  "salaryMax": 18,
+  "salaryCurrency": "INR",
+  "salaryUsd": "$18,000 USD/yr",
+  "professionalSummary": "Detailed summary",
+  "strategicForecast": "2-3 sentence strategic forecast",
+  "AI_STATUS": "ACTIVE",
+  "RAG_STATUS": "ACTIVE",
+  "aiModelUsed": "Gemini 1.5 Flash (Direct AI Pipeline)",
+  "topSkills": ["Skill1", "Skill2", "Skill3"],
+  "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
+  "missingSkills": ["Cloud Architecture", "Distributed Systems"],
+  "programmingLanguages": ["Python", "Java", "SQL"],
+  "toolsAndTechnologies": ["Docker", "Kubernetes", "AWS"],
+  "swotAnalysis": {
+    "strengths": ["Strong domain foundation", "Hands-on execution"],
+    "weaknesses": ["Needs metrics quantification"],
+    "opportunities": ["High demand in tech hubs"],
+    "threats": ["Evolving tool stack"]
+  },
+  "atsScoreDetails": {
+    "sectionCompletenessScore": 90,
+    "keywordOptimizationScore": 88,
+    "formattingScore": 85,
+    "achievementScore": 80,
+    "readabilityScore": 85,
+    "explanation": "ATS evaluation summary"
+  },
+  "projects": [
+    { "title": "System Architecture", "description": "High availability design", "techStack": ["Java", "Docker"] }
+  ],
+  "tier1": [{ "company": "Google", "role": "Senior Engineer", "expectedSalary": "₹35 LPA", "matchScore": 95 }],
+  "tier2": [{ "company": "Razorpay", "role": "Engineer", "expectedSalary": "₹18 LPA", "matchScore": 88 }],
+  "tier3": [{ "company": "Infosys", "role": "Associate", "expectedSalary": "₹8 LPA", "matchScore": 75 }],
+  "recommendedCompanies": ["Google", "Razorpay", "Zoho"],
+  "retrievedJobOpportunities": [
+    { "title": "Senior Engineer", "company": "Razorpay", "location": "Bengaluru, India", "salary": "₹18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Live API" }
+  ],
+  "careerGrowthTimeline": [
+    { "stage": "0-6 months", "title": "Core Engineer", "expectedSalaryProgression": "₹12-15 LPA", "recommendedCertifications": "AWS Certified", "roadmapNotes": "Production deployment" }
+  ],
+  "interviewPreparation": {
+    "technicalQuestions": [{ "question": "Explain recent project architecture", "modelAnswer": "Walkthrough design" }],
+    "behavioralQuestions": [{ "question": "Describe a challenge", "starAnswer": "STAR method response" }],
+    "salaryNegotiationTips": ["Anchor high using market data"]
+  },
+  "bulletPointRewrites": [
+    { "original": "Developed features", "aiRewritten": "Architected scalable features improving throughput by 35%", "impactMetricMetric": "+35% Throughput" }
+  ],
+  "skillGaps": [{ "skill": "Distributed Systems", "priority": "HIGH", "impact": "+8% Match" }],
+  "improvements": ["Quantify achievements"],
+  "nextBestActions": ["Apply to Razorpay"],
+  "debugPanel": {
+    "analysisId": "an_direct_ai",
+    "resumeHash": "sha256_direct",
+    "extractedTextLength": 1200,
+    "candidateName": "Candidate",
+    "detectedDomain": "Tech",
+    "experienceLevel": "MID_LEVEL",
+    "jobApiRequestCount": 8,
+    "mergedJobsCount": 3,
+    "AI_STATUS": "ACTIVE",
+    "RAG_STATUS": "ACTIVE"
+  }
+}
+
+RESUME TEXT:
+${resumeText.substring(0, 8000)}`;
+
+        if (apiKey.startsWith('gsk_')) {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [{ role: 'user', content: promptText }],
+                    temperature: 0.2
+                })
+            });
+            const data = await resp.json();
+            const raw = data?.choices?.[0]?.message?.content || '';
+            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(clean);
+            parsed.aiModelUsed = 'Groq / Meta LLaMA 3.3 70B (Direct AI)';
+            return parsed;
+        } else {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: { temperature: 0.2, maxOutputTokens: 3500 }
+                })
+            });
+            const data = await resp.json();
+            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const parsed = JSON.parse(clean);
+            parsed.aiModelUsed = 'Google Gemini 1.5 Flash (Direct AI)';
+            return parsed;
+        }
     }
 
     async function extractPdfTextClientSide(file) {
