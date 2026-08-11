@@ -557,7 +557,7 @@ public class ResumeIntelligenceEngine {
     }
 
     private String extractDegreeTitle(String text) {
-        Pattern p = Pattern.compile("(?i)(B\\.?Tech|B\\.?E\\.?|M\\.?Tech|M\\.?E\\.?|MBA|BCA|MCA|B\\.?Sc|M\\.?Sc|B\\.?A\\.?|B\\.?Com|Ph\\.?D|Diploma|Chartered Accountant|CA)");
+        Pattern p = Pattern.compile("(?i)(?<![a-zA-Z0-9])(B\\.?Tech|B\\.?E\\.?|M\\.?Tech|M\\.?E\\.?|MBA|BCA|MCA|B\\.?Sc|M\\.?Sc|B\\.?A\\.?|B\\.?Com|Ph\\.?D|Diploma|Chartered Accountant|C\\.A\\.)(?![a-zA-Z0-9])");
         Matcher m = p.matcher(text);
         if (m.find()) return m.group(1).toUpperCase().replaceAll("\\.", "");
         return "Degree Holder";

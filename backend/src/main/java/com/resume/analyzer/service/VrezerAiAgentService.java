@@ -83,16 +83,80 @@ public class VrezerAiAgentService {
     }
 
     public int calculateDynamicConfidence(Map<String, Object> baseParsed, Map<String, Object> profile, List<String> skills, int atsScore, boolean isAiOnline) {
-        int score = isAiOnline ? 75 : 65;
-        if (baseParsed.get("email") != null && !String.valueOf(baseParsed.get("email")).isEmpty()) score += 5;
-        if (baseParsed.get("phone") != null && !String.valueOf(baseParsed.get("phone")).isEmpty()) score += 5;
-        if (skills != null && skills.size() >= 5) score += 10;
-        else if (skills != null && skills.size() >= 2) score += 5;
+        String rawText = baseParsed != null ? String.valueOf(baseParsed.getOrDefault("rawText", "")) : "";
+        int wordCount = rawText.isBlank() ? 0 : rawText.trim().split("\\s+").length;
         
-        List<?> exp = (List<?>) baseParsed.getOrDefault("experience", List.of());
-        if (!exp.isEmpty()) score += 5;
+        int score = isAiOnline ? 50 : 40;
+        
+        // 1. Text richness and depth
+        if (wordCount >= 500) score += 15;
+        else if (wordCount >= 300) score += 10;
+        else if (wordCount >= 150) score += 5;
+        else if (wordCount > 0 && wordCount < 60) score -= 15; // penalty for very short resume text
+        
+        // 2. Contact completeness
+        if (baseParsed != null) {
+            if (baseParsed.get("email") != null && !String.valueOf(baseParsed.get("email")).isEmpty()) score += 5;
+            if (baseParsed.get("phone") != null && !String.valueOf(baseParsed.get("phone")).isEmpty()) score += 5;
+            if (baseParsed.get("linkedin") != null && !String.valueOf(baseParsed.get("linkedin")).isEmpty()) score += 4;
+            if (baseParsed.get("github") != null && !String.valueOf(baseParsed.get("github")).isEmpty()) score += 4;
+        }
 
-        return Math.max(50, Math.min(98, score));
+        // 3. Technical & Domain Skill grounding
+        if (skills != null) {
+            if (skills.size() >= 12) score += 12;
+            else if (skills.size() >= 7) score += 8;
+            else if (skills.size() >= 3) score += 4;
+            else score -= 5;
+        }
+
+        // 4. Projects & Work Experience grounding
+        List<?> exp = baseParsed != null ? (List<?>) baseParsed.getOrDefault("experience", List.of()) : List.of();
+        List<?> proj = baseParsed != null ? (List<?>) baseParsed.getOrDefault("projects", List.of()) : List.of();
+        if (!exp.isEmpty()) score += 8;
+        if (!proj.isEmpty()) score += 8;
+        if (exp.isEmpty() && proj.isEmpty()) score -= 15;
+
+        // 5. Metric & Verifiable Evidence density in resume text (numbers, %, $, dates)
+        if (!rawText.isEmpty()) {
+            java.util.regex.Matcher metricMatcher = java.util.regex.Pattern.compile("(\\d+%|\\$\\d+|\\b(19|20)\\d{2}\\b|\\b\\d+\\+\\s*(years|yrs|projects)\\b)").matcher(rawText);
+            int metricsFound = 0;
+            while (metricMatcher.find()) metricsFound++;
+            if (metricsFound >= 5) score += 10;
+            else if (metricsFound >= 2) score += 5;
+        }
+
+        // 6. ATS Alignment Factor
+        if (atsScore > 0) {
+            if (atsScore >= 80) score += 6;
+            else if (atsScore < 50) score -= 8;
+        }
+
+        return Math.max(35, Math.min(97, score));
+    }
+
+    public String generateConfidenceExplanation(int confScore, Map<String, Object> baseParsed, List<String> skills, boolean isAiOnline) {
+        StringBuilder sb = new StringBuilder();
+        String rawText = baseParsed != null ? String.valueOf(baseParsed.getOrDefault("rawText", "")) : "";
+        int wordCount = rawText.isBlank() ? 0 : rawText.trim().split("\\s+").length;
+
+        if (confScore >= 85) {
+            sb.append("High AI Grounding (").append(confScore).append("%): ");
+            sb.append("Analysis is verified with strong resume evidence including ");
+            sb.append(skills != null ? skills.size() : 0).append(" detected technical competencies, ");
+            sb.append(wordCount).append(" words of detailed text, ");
+            sb.append(isAiOnline ? "and neural LLM contextual validation." : "and structured local rules.");
+        } else if (confScore >= 65) {
+            sb.append("Moderate Grounding (").append(confScore).append("%): ");
+            sb.append("Extracted core candidate profile but confidence is calibrated due to ");
+            if (wordCount < 200) sb.append("moderate resume text depth (").append(wordCount).append(" words) ");
+            else sb.append("partial section details ");
+            sb.append("and ").append(skills != null ? skills.size() : 0).append(" verified skill matches.");
+        } else {
+            sb.append("Basic Evidence (").append(confScore).append("%): ");
+            sb.append("Confidence is limited due to sparse resume text, missing contact/section details, or unverified claims. Add detailed project descriptions and metrics to boost grounding.");
+        }
+        return sb.toString();
     }
 
 
@@ -143,7 +207,7 @@ public class VrezerAiAgentService {
         "1. RETRIEVAL-AUGMENTED GENERATION (RAG): You are operating in RAG mode. Company recommendations, job openings, hiring locations, and salary data MUST come strictly from the RETRIEVED MARKET DATA provided in the prompt. Do NOT generate companies, job roles, openings, or locations from your internal training knowledge.\n" +
         "2. NO FABRICATION: If live job APIs are integrated and return jobs (i.e. 'liveApiJobs' or 'retrievedJobOpportunities' context is provided), use the retrieved job data to recommend suitable companies and jobs. Otherwise, if no retrieval context is provided or it is empty, clearly state in 'recommendedCompanies' and 'retrievedJobOpportunities' details that 'current market recommendations are unavailable' instead of inventing them.\n" +
         "3. AUTOMATIC DOMAIN DETECTION: Determine the candidate's career domain, specialization, education level, and experience level strictly from resume evidence (e.g. freshers, experienced professionals, B.Tech, M.Tech, MBA, MCA, ITI, Diploma, Arts, Commerce, Science, Law, Healthcare, Marketing, Sales, etc.).\n" +
-        "4. EXPLAINABLE SCORING: Every ATS score must include a detailed breakdown based on section completeness, keyword relevance, skills, projects, education, experience, achievements, formatting, and readability. Every recommendation must include matchScore (0-100), confidenceScore (0-100), and an explanation citing resume + retrieved evidence.\n" +
+        "4. EXPLAINABLE SCORING & GROUNDING CONFIDENCE: Calculate confidenceScore (0-100) dynamically based on resume text density, verifiable dates/metrics, contact details, and skill-to-project evidence. Provide a 1-2 sentence confidenceExplanation detailing why that specific confidence score was assigned. Never return static default confidence numbers like 90 or 92 for all resumes.\n" +
         "5. UNIQUENESS & DYNAMISM: Different resumes must produce completely different output. Never return identical companies, scores, or roadmaps for dissimilar profiles.\n" +
         "6. RESUME EVIDENCE ONLY for profile fields: Skills, projects, education, experience, certifications — extract only from the resume text.\n" +
         "7. RETURN ONLY RAW JSON. No markdown backticks, no prose. The first character must be '{'.\n" +
@@ -172,7 +236,8 @@ public class VrezerAiAgentService {
         "  \"experience\": \"<years of experience from resume>\",\n" +
         "  \"education\": \"<exact degree and institution from resume>\",\n" +
         "  \"cgpa\": \"<exact CGPA/marks from resume or empty string>\",\n" +
-        "  \"confidenceScore\": <number 0-100>,\n" +
+        "  \"confidenceScore\": <dynamically calculated number 0-100 based on text depth and verifiable resume evidence>,\n" +
+        "  \"confidenceExplanation\": \"<1-2 sentence rationale explaining why this confidence score was assigned based on resume evidence, text length, and metric grounding>\",\n" +
         "  \"profileStrength\": <number 0-100>,\n" +
         "  \"professionalSummary\": \"<3-4 sentence summary of candidate profile, domain, and key achievements>\",\n" +
         "  \"strategicForecast\": \"<4-5 sentence career growth trajectory tailored to candidate's domain>\",\n" +
@@ -972,11 +1037,35 @@ public class VrezerAiAgentService {
         }
         result.put("atsScoreText", atsText);
 
-        // Confidence score — dynamically calculated from resume evidence, never hardcoded to 90
-        if (!result.containsKey("confidenceScore") || result.get("confidenceScore") == null) {
-            int dynConf = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
-            result.put("confidenceScore", dynConf);
+        // Confidence score & Explanation normalization — dynamically evaluated from AI + resume evidence
+        int confidenceScore = -1;
+        Object confObj = result.get("confidenceScore");
+        if (confObj instanceof Number) {
+            confidenceScore = ((Number) confObj).intValue();
+        } else if (confObj != null && !String.valueOf(confObj).isEmpty()) {
+            try {
+                double val = Double.parseDouble(String.valueOf(confObj).replaceAll("[^0-9.]", ""));
+                confidenceScore = val <= 1.0 && val > 0 ? (int) Math.round(val * 100) : (int) Math.round(val);
+            } catch (Exception ignored) {}
         }
+        
+        // If AI returned static 90 or invalid/missing score, compute dynamic evidence score
+        if (confidenceScore <= 0 || confidenceScore > 100) {
+            confidenceScore = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
+        } else {
+            // Apply evidence bounds to ensure AI output is grounded in actual resume detail
+            int calcConf = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
+            // Blend LLM rating with dynamic evidence calculation (weight 60% dynamic evidence + 40% LLM rating)
+            confidenceScore = (int) Math.round((calcConf * 0.6) + (confidenceScore * 0.4));
+        }
+        confidenceScore = Math.max(35, Math.min(97, confidenceScore));
+        result.put("confidenceScore", confidenceScore);
+
+        String confExplanation = String.valueOf(result.getOrDefault("confidenceExplanation", "")).trim();
+        if (confExplanation.isEmpty() || confExplanation.equalsIgnoreCase("null")) {
+            confExplanation = generateConfidenceExplanation(confidenceScore, parsed, skills, true);
+        }
+        result.put("confidenceExplanation", confExplanation);
 
         // Ensure topSkills, programmingLanguages, toolsAndTechnologies are present
         if (!result.containsKey("topSkills") || result.get("topSkills") == null) {
@@ -1758,20 +1847,14 @@ public class VrezerAiAgentService {
         result.put("experience", experience);
         result.put("education", education);
         result.put("cgpa", cgpa.isEmpty() ? "N/A" : cgpa);
-        // ── Confidence score is LOWER when using local engine (AI not available) ──
-        // 60 = local engine, honest lower bound. NOT fabricated 92.
-        int localConfidenceScore = 60;
-        // Boost confidence if resume has many fields detected
-        if (!email.isEmpty()) localConfidenceScore += 3;
-        if (!github.isEmpty()) localConfidenceScore += 3;
-        if (!linkedin.isEmpty()) localConfidenceScore += 2;
-        if (!projList.isEmpty()) localConfidenceScore += 5;
-        if (!expList.isEmpty()) localConfidenceScore += 5;
-        if (allSkills.size() > 10) localConfidenceScore += 5;
-        localConfidenceScore = Math.min(localConfidenceScore, 78); // cap at 78 for local engine
+        // ── Confidence score is dynamically calculated based on resume evidence ──
+        int localConfidenceScore = calculateDynamicConfidence(parsed, Map.of(), allSkills, atsScore, false);
+        localConfidenceScore = Math.min(localConfidenceScore, 75); // cap for local engine
+        String localConfidenceExplanation = generateConfidenceExplanation(localConfidenceScore, parsed, allSkills, false);
 
         result.put("aiModelUsed", "Local Engine (No AI API Key)");
         result.put("confidenceScore", localConfidenceScore);
+        result.put("confidenceExplanation", localConfidenceExplanation);
         result.put("profileStrength", Math.min(atsScore + 2, 85)); // cap lower for local engine
         result.put("professionalSummary", candidateName + " is a " + careerLevel + " specializing in " + domain + ". Verified technical competencies include " + (allSkills.isEmpty() ? "various domain skills" : String.join(", ", allSkills.subList(0, Math.min(5, allSkills.size())))) + ". This summary was generated by the local engine — configure an AI API key for deeper insights.");
         result.put("strategicForecast", "Growth candidate in " + domain + " space. Configure an AI API key for a detailed, evidence-based career forecast tailored to this specific resume.");

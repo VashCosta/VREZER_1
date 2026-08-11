@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link rel="stylesheet" href="style.css?v=8.1.0">
 </head>
 
@@ -329,7 +331,10 @@
 
                     <!-- AI Confidence Meter -->
                     <div class="card" style="margin-bottom:1.25rem;">
-                        <div class="card-label"><i class="fa-solid fa-gauge-high"></i> AI Confidence Meter</div>
+                        <div class="card-label" style="display:flex; justify-space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                            <span><i class="fa-solid fa-gauge-high"></i> AI Grounding & Confidence Meter</span>
+                            <span id="conf-level-badge" class="conf-badge conf-badge-high">Verified Evidence</span>
+                        </div>
                         <div class="confidence-meter">
                             <div class="conf-bar-track">
                                 <div class="conf-bar-fill" id="confidence-bar-fill"></div>
@@ -337,6 +342,10 @@
                             <div class="conf-meta">
                                 <span id="conf-score-lbl">—</span>
                                 <span id="conf-level-lbl">—</span>
+                            </div>
+                            <div id="conf-explanation-box" class="conf-explanation-box">
+                                <i class="fa-solid fa-circle-info conf-exp-icon"></i>
+                                <span id="conf-explanation-text">Analyzing resume grounding confidence...</span>
                             </div>
                         </div>
                     </div>
@@ -882,6 +891,130 @@
             </section>
 
         </main>
+    </div>
+
+    <!-- ══════════ EXPORT DOSSIER MODAL ══════════ -->
+    <div id="export-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <i class="fa-solid fa-file-export modal-icon"></i>
+                    <div>
+                        <h3 class="modal-title">Export Candidate Dossier &amp; AI Intelligence</h3>
+                        <p class="modal-subtitle">Download personalized reports, structured JSON, or the complete ZIP package.</p>
+                    </div>
+                </div>
+                <button id="close-export-modal" class="modal-close-btn">&times;</button>
+            </div>
+            
+            <div class="export-modal-grid">
+                <div class="export-card" id="export-card-zip">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-file-zipper export-card-icon" style="color:#34d399;"></i>
+                        <span class="export-badge badge-zip">ZIP BUNDLE</span>
+                    </div>
+                    <h4>Complete ZIP Package</h4>
+                    <p>All 8 personalized AI intelligence reports bundled into a single ZIP archive.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-zip"><i class="fa-solid fa-file-zipper"></i> Download ZIP Package</button>
+                </div>
+
+                <div class="export-card" id="export-card-pdf">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-file-pdf export-card-icon" style="color:#ff003c;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>Executive Intelligence Dossier</h4>
+                    <p>Full multi-page printable PDF report with ATS metrics, benchmarks &amp; trajectory.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-pdf"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-ats">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-shield-halved export-card-icon" style="color:#4ade80;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>ATS Compliance Audit</h4>
+                    <p>Detailed parser readiness audit, keyword density metrics &amp; Taleo tips.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-ats"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-skills">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-crosshairs export-card-icon" style="color:#38bdf8;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>Skill Gap &amp; Upskilling Plan</h4>
+                    <p>30-60-90 day learning milestones, missing skills &amp; certification guide.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-skills"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-interview">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-comments export-card-icon" style="color:#fbbf24;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>Interview Prep Kit</h4>
+                    <p>Technical domain Q&amp;A, STAR scenario responses &amp; elevator pitch.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-interview"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-cover">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-envelope export-card-icon" style="color:#ec4899;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>AI Tailored Cover Letter</h4>
+                    <p>Custom tailored professional cover letter document ready for job submissions.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-cover"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-brief">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-user-tie export-card-icon" style="color:#818cf8;"></i>
+                        <span class="export-badge badge-pdf">PDF REPORT</span>
+                    </div>
+                    <h4>Recruiter Executive Brief</h4>
+                    <p>1-Page hiring manager candidate pitch, key metrics &amp; fit assessment.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-brief"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                </div>
+
+                <div class="export-card" id="export-card-json">
+                    <div class="export-card-top">
+                        <i class="fa-solid fa-code export-card-icon" style="color:#a855f7;"></i>
+                        <span class="export-badge badge-json">RAW JSON</span>
+                    </div>
+                    <h4>Structured Data Dossier</h4>
+                    <p>28 Extracted attributes, AI reasoning scores, and complete raw JSON data.</p>
+                    <button class="btn-browse export-action-btn" id="btn-export-json"><i class="fa-solid fa-file-code"></i> Download JSON</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ REPORT LIVE PREVIEW & PDF DOWNLOAD MODAL ══════════ -->
+    <div id="preview-modal" class="modal-overlay hidden">
+        <div class="modal-card preview-modal-card">
+            <div class="preview-modal-header">
+                <div class="modal-title-group">
+                    <i class="fa-solid fa-file-pdf modal-icon" id="preview-header-icon" style="color:#ff003c; background:rgba(255,0,60,0.12);"></i>
+                    <div>
+                        <h3 class="modal-title" id="preview-modal-title">AI Career Intelligence Dossier — Live Preview</h3>
+                        <p class="modal-subtitle" id="preview-modal-subtitle">Preview projected candidate data before downloading as a PDF.</p>
+                    </div>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn-browse" id="btn-preview-download-pdf" style="background:linear-gradient(135deg, #ff003c 0%, #d90429 100%); color:white; border:none; padding:0.55rem 1.25rem; font-weight:800;"><i class="fa-solid fa-file-pdf"></i> Download PDF</button>
+                    <button class="btn-browse" id="btn-preview-download-txt" style="background:rgba(255,255,255,0.08); color:var(--text-1); border:1px solid var(--border); padding:0.55rem 1rem;"><i class="fa-solid fa-file-lines"></i> TXT</button>
+                    <button id="close-preview-modal" class="modal-close-btn">&times;</button>
+                </div>
+            </div>
+
+            <div class="preview-document-viewport">
+                <div id="preview-paper-container" class="preview-paper-sheet">
+                    <!-- Dynamic Projected Candidate Data Rendered Here -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="script.js?v=8.1.0"></script>

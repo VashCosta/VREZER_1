@@ -763,11 +763,38 @@ body {
 
 /* ── CONFIDENCE METER ─────────────────────────────────── */
 .confidence-meter { margin-top: 0.5rem; }
-.conf-bar-track { height: 10px; background: var(--surface-2); border-radius: 100px; overflow: hidden; margin-bottom: 0.75rem; }
-.conf-bar-fill { height: 100%; background: linear-gradient(90deg, var(--red), #ff416c); border-radius: 100px; transition: width 1s ease; }
+.conf-bar-track { height: 10px; background: var(--surface-2); border-radius: 100px; overflow: hidden; margin-bottom: 0.75rem; border: 1px solid var(--border); }
+.conf-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 100px; transition: width 1s ease, background 0.5s ease; }
+.conf-bar-fill.conf-fill-high { background: linear-gradient(90deg, #10b981, #059669); box-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+.conf-bar-fill.conf-fill-med { background: linear-gradient(90deg, #f59e0b, #d97706); box-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
+.conf-bar-fill.conf-fill-low { background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+
 .conf-meta { display: flex; justify-content: space-between; align-items: center; }
-#conf-score-lbl { font-family: var(--mono); font-size: 1.2rem; font-weight: 900; color: var(--red); }
+#conf-score-lbl { font-family: var(--mono); font-size: 1.2rem; font-weight: 900; color: #10b981; transition: color 0.3s ease; }
+#conf-score-lbl.conf-lbl-high { color: #10b981; }
+#conf-score-lbl.conf-lbl-med { color: #f59e0b; }
+#conf-score-lbl.conf-lbl-low { color: #ef4444; }
 #conf-level-lbl { font-size: 0.8rem; color: var(--text-2); font-weight: 700; }
+
+.conf-badge { font-size: 0.68rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid transparent; }
+.conf-badge-high { background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.3); }
+.conf-badge-med { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
+.conf-badge-low { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+
+.conf-explanation-box {
+    margin-top: 0.85rem;
+    padding: 0.75rem 0.9rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    color: var(--text-2);
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+.conf-exp-icon { color: #38bdf8; font-size: 0.85rem; margin-top: 0.15rem; flex-shrink: 0; }
 
 /* ── EVIDENCE PANEL ───────────────────────────────────── */
 .evidence-list { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -2214,4 +2241,404 @@ input:focus, select:focus, textarea:focus {
         scroll-behavior: auto !important;
     }
 }
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT DOSSIER MODAL & DOWNLOAD CENTER SUITE
+   ═══════════════════════════════════════════════════════ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: rgba(4, 3, 8, 0.85);
+    backdrop-filter: blur(16px);
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay.hidden {
+    display: none !important;
+}
+
+.modal-card {
+    width: 100%;
+    max-width: 960px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: linear-gradient(145deg, rgba(16, 12, 28, 0.96), rgba(8, 6, 16, 0.98));
+    border: 1px solid var(--border-red);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 0 60px rgba(255, 0, 60, 0.25), 0 20px 40px rgba(0, 0, 0, 0.8);
+    color: var(--text-1);
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 1.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-title-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.modal-icon {
+    font-size: 1.75rem;
+    color: #ff003c;
+    background: rgba(255, 0, 60, 0.12);
+    padding: 0.85rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 0, 60, 0.3);
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--text-1);
+}
+
+.modal-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-2);
+    margin: 0.25rem 0 0 0;
+}
+
+.modal-close-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.modal-close-btn:hover {
+    background: rgba(255, 0, 60, 0.2);
+    color: #ff003c;
+    border-color: rgba(255, 0, 60, 0.4);
+}
+
+.export-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.25rem;
+}
+
+.export-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.export-card:hover {
+    border-color: var(--border-red);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(255, 0, 60, 0.15);
+}
+
+.export-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.85rem;
+}
+
+.export-card-icon {
+    font-size: 1.5rem;
+}
+
+.export-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    font-family: var(--mono);
+    padding: 0.2rem 0.55rem;
+    border-radius: 100px;
+    letter-spacing: 0.08em;
+}
+
+.badge-zip { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+.badge-pdf { background: rgba(255, 0, 60, 0.15); color: #ff003c; border: 1px solid rgba(255, 0, 60, 0.3); }
+.badge-json { background: rgba(168, 85, 247, 0.15); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3); }
+.badge-txt { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+.export-card h4 {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--text-1);
+    margin: 0 0 0.4rem 0;
+}
+
+.export-card p {
+    font-size: 0.78rem;
+    color: var(--text-2);
+    line-height: 1.45;
+    margin: 0 0 1.1rem 0;
+}
+
+.export-action-btn {
+    width: 100% !important;
+    justify-content: center;
+    font-size: 0.78rem !important;
+    padding: 0.55rem 1rem !important;
+    border-radius: 12px !important;
+}
+
+/* Toast Notifications */
+.vrezer-toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.vrezer-toast {
+    pointer-events: auto;
+    background: rgba(14, 10, 24, 0.95);
+    border: 1px solid var(--border-red);
+    color: #fff;
+    padding: 0.85rem 1.35rem;
+    border-radius: 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 0, 60, 0.3);
+    animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── REPORT LIVE PREVIEW MODAL ───────────────────────── */
+.preview-modal-card {
+    max-width: 1050px !important;
+    width: 95% !important;
+    height: 92vh !important;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem !important;
+}
+
+.preview-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.preview-document-viewport {
+    flex: 1;
+    overflow-y: auto;
+    background: #090614;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2.5rem 1.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red) transparent;
+}
+
+.preview-paper-sheet {
+    background: #ffffff;
+    color: #0f172a;
+    width: 100%;
+    max-width: 840px;
+    margin: 0 auto;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 0, 60, 0.15);
+    padding: 40px;
+/* ═══════════════════════════════════════════════════════
+   VREZER CYBER EFFECTS & HUD NEON COLOR SYSTEM
+   Pink (#ff007f) · Red (#ff003c) · Deep Obsidian HUD
+   ═══════════════════════════════════════════════════════ */
+
+/* Animated Cyber HUD Grid Overlay */
+body.dark::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+        linear-gradient(rgba(255, 0, 127, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 0, 127, 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.9;
+    animation: cyberGridMove 24s linear infinite;
+}
+
+@keyframes cyberGridMove {
+    0% { background-position: 0 0; }
+    100% { background-position: 44px 44px; }
+}
+
+/* Ambient Cyber Plasma Orbs */
+.hero-ambient-glow {
+    position: fixed;
+    top: -15%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 85vw;
+    height: 65vh;
+    background: radial-gradient(ellipse, rgba(255, 0, 127, 0.12) 0%, rgba(255, 0, 60, 0.06) 45%, transparent 75%);
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(60px);
+    animation: cyberOrbPulse 6s ease-in-out infinite alternate;
+}
+
+@keyframes cyberOrbPulse {
+    0% { opacity: 0.7; transform: translateX(-50%) scale(0.98); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+}
+
+/* Glassmorphism Cards with Cyber Reticle Corners */
+.card, .glass-panel, .download-card, .export-card, .metric-card, .stat-box {
+    position: relative;
+    border: 1px solid var(--border-pink) !important;
+    background: rgba(13, 8, 20, 0.82) !important;
+    backdrop-filter: blur(20px) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 0, 127, 0.08) !important;
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    overflow: hidden;
+}
+
+/* Cyber corner HUD brackets */
+.card::before, .glass-panel::before, .download-card::before, .export-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 14px; height: 14px;
+    border-top: 2px solid var(--pink);
+    border-left: 2px solid var(--pink);
+    pointer-events: none;
+    opacity: 0.85;
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+.card::after, .glass-panel::after, .download-card::after, .export-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0; width: 14px; height: 14px;
+    border-bottom: 2px solid var(--red);
+    border-right: 2px solid var(--red);
+    pointer-events: none;
+    opacity: 0.85;
+    transition: all 0.3s ease;
+    z-index: 2;
+}
+
+/* Hover laser sweep and glow */
+.card:hover, .glass-panel:hover, .download-card:hover, .export-card:hover {
+    border-color: rgba(255, 0, 127, 0.75) !important;
+    transform: translateY(-4px) scale(1.008);
+    box-shadow: 0 14px 45px rgba(0, 0, 0, 0.85), 0 0 25px rgba(255, 0, 127, 0.35), 0 0 12px rgba(255, 0, 60, 0.5) !important;
+}
+
+.card:hover::before, .glass-panel:hover::before, .download-card:hover::before, .export-card:hover::before {
+    width: 22px; height: 22px;
+    border-color: #ff007f;
+    box-shadow: -2px -2px 10px #ff007f;
+}
+
+.card:hover::after, .glass-panel:hover::after, .download-card:hover::after, .export-card:hover::after {
+    width: 22px; height: 22px;
+    border-color: #ff003c;
+    box-shadow: 2px 2px 10px #ff003c;
+}
+
+/* Futuristic Logo Aura */
+.logo {
+    position: relative;
+    font-family: var(--mono);
+    font-size: 1.25rem;
+    font-weight: 900;
+    letter-spacing: 0.25em;
+    background: linear-gradient(135deg, #ffffff 0%, #ff007f 55%, #ff003c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 12px rgba(255, 0, 127, 0.6));
+    animation: cyberLogoGlow 3s infinite alternate;
+}
+
+@keyframes cyberLogoGlow {
+    0% { filter: drop-shadow(0 0 8px rgba(255, 0, 127, 0.5)); }
+    100% { filter: drop-shadow(0 0 18px rgba(255, 0, 60, 0.9)); }
+}
+
+/* Glowing Cyber Buttons */
+.btn-browse, .btn-primary, .analyze-btn, .export-action-btn {
+    position: relative;
+    background: linear-gradient(135deg, #ff007f 0%, #ff003c 100%) !important;
+    color: #ffffff !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.04em;
+    border: none !important;
+    box-shadow: 0 4px 20px rgba(255, 0, 127, 0.4), 0 0 12px rgba(255, 0, 60, 0.3) !important;
+    overflow: hidden !important;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-browse::before, .btn-primary::before, .analyze-btn::before, .export-action-btn::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.4) 50%, transparent 55%);
+    transform: rotate(30deg) translateX(-100%);
+    transition: transform 0.6s ease;
+    pointer-events: none;
+}
+
+.btn-browse:hover::before, .btn-primary:hover::before, .analyze-btn:hover::before, .export-action-btn:hover::before {
+    transform: rotate(30deg) translateX(100%);
+}
+
+.btn-browse:hover, .btn-primary:hover, .analyze-btn:hover, .export-action-btn:hover {
+    transform: translateY(-2px) scale(1.02) !important;
+    box-shadow: 0 8px 30px rgba(255, 0, 127, 0.7), 0 0 20px rgba(255, 0, 60, 0.8) !important;
+}
+
+/* Cyber Pulse Badges */
+.export-badge, .badge, .ats-badge {
+    box-shadow: 0 0 10px rgba(255, 0, 127, 0.25);
+    border: 1px solid rgba(255, 0, 127, 0.35) !important;
+}
+
+
+
 

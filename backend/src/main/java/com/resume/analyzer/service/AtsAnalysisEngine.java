@@ -201,7 +201,7 @@ public class AtsAnalysisEngine {
         int score = 55;
         if (cgpa != null && !cgpa.trim().isEmpty()) score += 15;
         String deg = edu.get(0).getOrDefault("degree", "").toLowerCase();
-        if (deg.contains("m.") || deg.contains("master") || deg.contains("ph.d") || deg.contains("b.tech") || deg.contains("b.e") || deg.contains("ca")) score += 15;
+        if (deg.contains("m.") || deg.contains("master") || deg.contains("ph.d") || deg.contains("b.tech") || deg.contains("b.e") || java.util.regex.Pattern.compile("(?i)(?<![a-zA-Z0-9])ca(?![a-zA-Z0-9])").matcher(deg).find()) score += 15;
         return Math.max(25, Math.min(98, score));
     }
 

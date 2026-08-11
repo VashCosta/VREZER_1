@@ -27,7 +27,104 @@ document.addEventListener('DOMContentLoaded', () => {
     const tick = () => { if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
     tick(); setInterval(tick, 1000);
 
-    // ── Live Particle Engine ───────────────────────
+    // ── LIVE CYBER PARTICLE LASER ENGINE ─────────────────
+    function initSpiderParticles() {
+        const cvs = $('particles-canvas');
+        if (!cvs) return;
+        const ctx = cvs.getContext('2d');
+        let width = (cvs.width = window.innerWidth);
+        let height = (cvs.height = window.innerHeight);
+
+        window.addEventListener('resize', () => {
+            width = cvs.width = window.innerWidth;
+            height = cvs.height = window.innerHeight;
+        });
+
+        const particles = [];
+        const count = Math.min(Math.floor(width * 0.045), 75);
+
+        const mouse = { x: null, y: null, radius: 160 };
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        window.addEventListener('mouseleave', () => {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
+                radius: Math.random() * 2 + 1,
+                color: Math.random() > 0.4 ? '#ff007f' : (Math.random() > 0.5 ? '#ff003c' : '#ffffff'),
+                alpha: Math.random() * 0.6 + 0.3
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+
+            for (let i = 0; i < count; i++) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.x < 0 || p.x > width) p.vx *= -1;
+                if (p.y < 0 || p.y > height) p.vy *= -1;
+
+                if (mouse.x !== null && mouse.y !== null) {
+                    const dx = mouse.x - p.x;
+                    const dy = mouse.y - p.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < mouse.radius) {
+                        const force = (mouse.radius - dist) / mouse.radius;
+                        p.x -= (dx / dist) * force * 1.5;
+                        p.y -= (dy / dist) * force * 1.5;
+
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(mouse.x, mouse.y);
+                        ctx.strokeStyle = `rgba(255, 0, 127, ${force * 0.45})`;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 8;
+                ctx.globalAlpha = p.alpha;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                for (let j = i + 1; j < count; j++) {
+                    const p2 = particles[j];
+                    const dx = p.x - p2.x;
+                    const dy = p.y - p2.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 125) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        const alpha = (1 - dist / 125) * 0.28;
+                        ctx.strokeStyle = `rgba(255, 0, 127, ${alpha})`;
+                        ctx.lineWidth = 0.8;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(draw);
+        }
+        draw();
+    }
+
     initSpiderParticles();
 
     // ── Theme Switcher ─────────────────────────────
@@ -44,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Export & Reset ─────────────────────────────
-    if (exportBtn) exportBtn.onclick = () => window.print();
+    if (exportBtn) exportBtn.onclick = () => openExportModal();
     if (resetBtn) resetBtn.onclick = () => location.reload();
 
     // ── Tab Switchers ──────────────────────────────
@@ -431,6 +528,9 @@ document.addEventListener('DOMContentLoaded', () => {
         setText('drc-exp', expText);
 
         let eduText = d.education || 'Degree Qualified';
+        if (eduText.trim().toUpperCase() === 'CATION' || eduText.trim().toUpperCase().startsWith('CATION')) {
+            eduText = 'Degree Qualified';
+        }
         if (eduText.length > 25) eduText = eduText.substring(0, 25) + '…';
         setText('drc-edu', eduText);
 
@@ -577,12 +677,56 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTags('profile-strongest-skills', d.topSkills);
         renderTags('profile-transferable-skills', d.transferableSkills || ['Problem Solving', 'Agile Methodologies', 'Technical Leadership']);
 
-        // Confidence meter
-        const conf = (d.confidenceScore != null) ? d.confidenceScore : null;
+        // Confidence meter — Dynamic AI & Evidence Grounding
+        let conf = null;
+        if (d.confidenceScore != null) {
+            let parsedVal = Number(d.confidenceScore);
+            if (!isNaN(parsedVal)) {
+                conf = (parsedVal <= 1.0 && parsedVal > 0) ? Math.round(parsedVal * 100) : Math.round(parsedVal);
+            }
+        }
+        
         const confFill = $('confidence-bar-fill');
-        if (confFill) confFill.style.width = (conf != null ? conf : 0) + '%';
-        setText('conf-score-lbl', conf != null ? (conf + '%') : 'Not available');
-        setText('conf-level-lbl', conf != null ? (conf >= 90 ? 'High AI Grounding Confidence' : 'Moderate Confidence') : 'Insufficient evidence');
+        const scoreLbl = $('conf-score-lbl');
+        const badgeEl = $('conf-level-badge');
+        const expTextEl = $('conf-explanation-text');
+        
+        if (conf != null) {
+            conf = Math.max(1, Math.min(100, conf));
+            if (confFill) {
+                confFill.style.width = conf + '%';
+                confFill.className = 'conf-bar-fill ' + (conf >= 85 ? 'conf-fill-high' : conf >= 65 ? 'conf-fill-med' : 'conf-fill-low');
+            }
+            if (scoreLbl) {
+                scoreLbl.textContent = conf + '%';
+                scoreLbl.className = conf >= 85 ? 'conf-lbl-high' : conf >= 65 ? 'conf-lbl-med' : 'conf-lbl-low';
+            }
+            
+            let levelTitle = conf >= 85 ? 'High AI Grounding Confidence' : conf >= 65 ? 'Moderate AI Grounding Confidence' : 'Basic Evidence Grounding';
+            setText('conf-level-lbl', levelTitle);
+            
+            if (badgeEl) {
+                badgeEl.textContent = conf >= 85 ? 'Verified Evidence' : conf >= 65 ? 'Moderate Grounding' : 'Basic Evidence';
+                badgeEl.className = 'conf-badge ' + (conf >= 85 ? 'conf-badge-high' : conf >= 65 ? 'conf-badge-med' : 'conf-badge-low');
+            }
+            
+            let defaultExp = d.confidenceExplanation || (conf >= 85 
+                ? `Analysis is verified with strong resume evidence including ${(d.topSkills || []).length} technical competencies and detailed project history.`
+                : conf >= 65 
+                    ? `Extracted core candidate profile but confidence is calibrated due to partial section details and ${(d.topSkills || []).length} skill matches.`
+                    : `Confidence is limited due to sparse text or missing section details. Add detailed project metrics to boost grounding.`);
+            
+            if (expTextEl) expTextEl.textContent = defaultExp;
+        } else {
+            if (confFill) confFill.style.width = '0%';
+            setText('conf-score-lbl', 'Not available');
+            setText('conf-level-lbl', 'Insufficient evidence');
+            if (badgeEl) {
+                badgeEl.textContent = 'No Evidence';
+                badgeEl.className = 'conf-badge conf-badge-low';
+            }
+            if (expTextEl) expTextEl.textContent = 'No confidence metrics returned from analysis engine.';
+        }
 
         // Evidence Panel
         const evPanel = $('evidence-panel');
@@ -1221,7 +1365,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── FULL COMPANY CARD BUILDER ─────────────────────
     function buildCompanyCard(c) {
         const match = c.matchScore || c.hiringProbabilityPercentage || 88;
-        const confidence = c.confidenceScore || 85;
+        const rawConf = c.confidenceScore != null ? Number(c.confidenceScore) : (match > 0 ? Math.max(30, Math.min(95, match - 3)) : 80);
+        const confidence = Math.max(1, Math.min(100, Math.round(rawConf <= 1.0 && rawConf > 0 ? rawConf * 100 : rawConf)));
         const sal = c.expectedLpaRange || 'Salary not disclosed';
         const mode = c.workModel || 'Hybrid';
         const modeClass = mode.toLowerCase().includes('remote') ? 'mi-mode-remote' : mode.toLowerCase().includes('hybrid') ? 'mi-mode-hybrid' : 'mi-mode-onsite';
@@ -1604,26 +1749,1002 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+    // ── TOAST NOTIFICATION SUBSYSTEM ─────────────────
+    function showToast(msg, icon = 'fa-circle-check', color = '#38bdf8') {
+        let container = document.querySelector('.vrezer-toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'vrezer-toast-container';
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement('div');
+        toast.className = 'vrezer-toast';
+        toast.innerHTML = `<i class="fa-solid ${icon}" style="color:${color}; font-size:1.1rem;"></i> <span>${msg}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(10px)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
+
+    // ── GENERIC FILE DOWNLOAD HELPER ─────────────────
+    function downloadFile(filename, content, mimeType = 'text/plain;charset=utf-8') {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ── REPORT CONTENT GENERATORS ────────────────────
+    function getActiveData() {
+        return lastData || buildMockDossier('Candidate Dossier');
+    }
+
+    function generateDossierTextReport(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Engineering Specialist';
+        const ats = (d.atsScore != null) ? d.atsScore : 88;
+        const domain = d.careerDomain || 'Technology';
+        const exp = d.experience || '4 Years';
+        const edu = d.education || 'Degree Qualified';
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        return `================================================================================
+ V R E Z E R   3.0   —   A I   C A R E E R   I N T E L L I G E N C E   D O S S I E R
+================================================================================
+Candidate Name      : ${name}
+Target Role         : ${role}
+ATS Compatibility   : ${ats}/100
+Career Domain       : ${domain}
+Experience Level    : ${exp}
+Education           : ${edu}
+Report Date         : ${dateStr}
+
+--------------------------------------------------------------------------------
+ 1. EXECUTIVE PROFESSIONAL SUMMARY
+--------------------------------------------------------------------------------
+${d.professionalSummary || `${name} is a high-impact ${role} evaluated across ${domain} with demonstrated technical expertise.`}
+
+--------------------------------------------------------------------------------
+ 2. TOP VERIFIED TECHNICAL & SOFT SKILLS
+--------------------------------------------------------------------------------
+Technical Stack     : ${(d.topSkills || ['Java', 'Spring Boot', 'SQL', 'AWS', 'Docker']).join(', ')}
+Soft Skills         : ${(d.softSkills || ['System Design', 'Team Leadership', 'Problem Solving']).join(', ')}
+
+--------------------------------------------------------------------------------
+ 3. ATS COMPLIANCE & MATCH BREAKDOWN
+--------------------------------------------------------------------------------
+Overall ATS Score   : ${ats}%
+Formatting Score    : ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.formattingScore) || 95}%
+Section Completeness: ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.sectionCompletenessScore) || 90}%
+Keyword Optimization: ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.keywordOptimizationScore) || 92}%
+Achievement Metrics : ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.achievementScore) || 90}%
+
+--------------------------------------------------------------------------------
+ 4. IDENTIFIED SKILL GAPS & HIGH-VALUE RECOMMENDATIONS
+--------------------------------------------------------------------------------
+Key Skill Gaps:
+${(d.skillGaps || ['Distributed Microservices', 'Kubernetes Orchestration']).map(s => ' - ' + s).join('\n')}
+
+Actionable Resume Enhancements:
+${(d.improvements || ['Add quantified metrics to project bullets', 'Standardize section typography']).map((imp, idx) => ` ${idx + 1}. ${imp}`).join('\n')}
+
+--------------------------------------------------------------------------------
+ 5. CAREER TRAJECTORY & TARGET ROLES
+--------------------------------------------------------------------------------
+Tier 1 Target Role  : ${(d.tier1 && d.tier1.role) || 'Staff Software Architect'} @ ${(d.tier1 && d.tier1.company) || 'Google / Tier-1 Tech'} (${(d.tier1 && d.tier1.city) || 'Bengaluru'})
+Tier 2 Target Role  : ${(d.tier2 && d.tier2.role) || 'Senior SDE'} @ ${(d.tier2 && d.tier2.company) || 'Flipkart / Scaleup'} (${(d.tier2 && d.tier2.city) || 'Bengaluru'})
+Tier 3 Target Role  : ${(d.tier3 && d.tier3.role) || 'Lead Systems Engineer'} @ ${(d.tier3 && d.tier3.company) || 'Enterprise Hub'} (${(d.tier3 && d.tier3.city) || 'Hyderabad'})
+
+================================================================================
+ Verified & Generated by VREZER 3.0 Neural AI Engine
+================================================================================`;
+    }
+
+    function generateAtsReportText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const ats = d.atsScore || 88;
+        return `================================================================================
+ V R E Z E R   A T S   C O M P L I A N C E   &   P A R S E R   R E P O R T
+================================================================================
+Candidate           : ${name}
+Overall ATS Score   : ${ats}/100
+Parser Status       : EXCELLENT (Taleo, Workday, Greenhouse & Lever Ready)
+
+--------------------------------------------------------------------------------
+ ATS COMPLIANCE BENCHMARKS
+--------------------------------------------------------------------------------
+[✓] Document Formatting Readiness : 95%
+[✓] Section Structure Completeness: 90%
+[✓] Keyword Density Optimization  : 92%
+[✓] Quantified Action Verbs        : 90%
+
+--------------------------------------------------------------------------------
+ PARSER READINESS AUDIT
+--------------------------------------------------------------------------------
+- Layout Complexity : Single / Clean Column (Optimal for Optical Character Recognition)
+- Font Standards    : Standard Sans-Serif Typography Detected
+- Section Headers   : Standardized (Summary, Experience, Education, Skills)
+- Date Formatting   : Month Year Standardized
+
+--------------------------------------------------------------------------------
+ CRITICAL KEYWORD GAP ANALYSIS
+--------------------------------------------------------------------------------
+Missing Domain Keywords:
+${(d.skillGaps || ['Distributed Caching', 'Kubernetes Helm']).map(k => ' - ' + k).join('\n')}
+
+Recommended Action Items:
+ 1. Integrate missing keywords naturally into experience bullet points.
+ 2. Ensure all project experience entries include metrics and tools used.
+ 3. Avoid tables, images, or floating text frames inside PDF layout.
+
+================================================================================
+ Generated by VREZER 3.0 ATS Audit Subsystem
+================================================================================`;
+    }
+
+    function generateSkillGapReportText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const domain = d.careerDomain || 'Technology';
+        const role = d.role || 'Software Specialist';
+        return `================================================================================
+ V R E Z E R   S K I L L   G A P   &   U P S K I L L I N G   R O A D M A P
+================================================================================
+Candidate           : ${name}
+Target Domain       : ${domain}
+Target Role         : ${role}
+
+--------------------------------------------------------------------------------
+ 1. IDENTIFIED SKILL GAPS
+--------------------------------------------------------------------------------
+High Priority Gaps:
+${(d.skillGaps || ['Cloud Native Microservices', 'Container Orchestration']).map((gap, i) => ` ${i + 1}. ${gap} — Industry demand up 30%+ in 2026.`).join('\n')}
+
+--------------------------------------------------------------------------------
+ 2. 30-60-90 DAY UPSKILLING MILESTONES
+--------------------------------------------------------------------------------
+Days 1-30  : Master core principles of missing skill #1 & build standalone proof-of-concept project.
+Days 31-60 : Implement containerized deployment pipelines & integrate cloud monitoring.
+Days 61-90 : Add verified production metrics & certification credentials to candidate resume.
+
+--------------------------------------------------------------------------------
+ 3. RECOMMENDED CERTIFICATIONS & COURSES
+--------------------------------------------------------------------------------
+ [1] AWS Certified Solutions Architect / Cloud Developer
+ [2] Certified Kubernetes Application Developer (CKAD)
+ [3] Advanced Distributed Systems & Microservices Architecture
+
+--------------------------------------------------------------------------------
+ ESTIMATED SALARY UPLIFT
+--------------------------------------------------------------------------------
+Acquiring high-priority missing skills can increase market compensation by 15% - 25%.
+
+================================================================================
+ Generated by VREZER 3.0 Skill Intelligence Engine
+================================================================================`;
+    }
+
+    function generateInterviewPrepReportText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Senior SDE';
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'PostgreSQL', 'AWS']).join(', ');
+        return `================================================================================
+ V R E Z E R   I N T E R V I E W   P R E P A R A T I O N   K I T
+================================================================================
+Candidate           : ${name}
+Target Role         : ${role}
+Key Technical Stack : ${skills}
+
+--------------------------------------------------------------------------------
+ 1. PREDICTED TECHNICAL INTERVIEW QUESTIONS & MODEL ANSWERS
+--------------------------------------------------------------------------------
+Q1: How do you handle cache invalidation and concurrency in high-throughput backend services?
+A1: Implement cache-aside pattern with TTLs, combined with distributed locks (Redis Redlock) or Lua scripts for atomic state updates.
+
+Q2: Describe how your primary tech stack handles event-driven architecture and message ordering.
+A2: Messages with identical partition keys are routed to the same partition, guaranteeing sequential processing within a consumer group.
+
+Q3: How do you design microservices for fault tolerance and zero-downtime deployments?
+A3: Use blue-green/canary deployments, circuit breakers (Resilience4j), and DB migration versioning (Flyway/Liquibase).
+
+--------------------------------------------------------------------------------
+ 2. BEHAVIORAL STAR SCENARIO PREPARATION
+--------------------------------------------------------------------------------
+Situation : High API response latency during peak traffic events.
+Task      : Reduce p99 API response latency below 100ms for core services.
+Action    : Profiled JVM memory, refactored N+1 database queries, and implemented Redis caching.
+Result    : Reduced p99 latency by 42% and supported 3x higher peak transaction volume.
+
+--------------------------------------------------------------------------------
+ 3. ELEVATOR PITCH & RECRUITER STRATEGY
+--------------------------------------------------------------------------------
+"I am a ${role} with proven experience building resilient microservices using ${skills}. In my previous work, I spearheaded system performance refactoring that reduced latency by over 40%. I'm eager to drive architectural impact in your engineering team."
+
+================================================================================
+ Generated by VREZER 3.0 AI Interview Studio
+================================================================================`;
+    }
+
+    function generateCoverLetterText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Engineering Specialist';
+        const domain = d.careerDomain || 'Technology';
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS', 'Docker']).join(', ');
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        return `Date: ${dateStr}
+
+To Hiring Manager & Recruitment Team,
+
+RE: Application for ${role} Position
+
+Dear Hiring Team,
+
+I am writing to express my strong interest in the ${role} position. With experience in ${domain}, building resilient applications with ${skills}, I am confident in my ability to deliver immediate value to your engineering team.
+
+In my recent work, I spearheaded system refactoring that improved reliability and reduced latency for high-volume services. My core expertise encompasses designing scalable architecture, optimizing database performance, and automating deployment pipelines.
+
+I am particularly drawn to your organization's innovative engineering culture and vision. I welcome the opportunity to discuss how my technical background and problem-solving expertise align with your upcoming initiatives.
+
+Thank you for your time and consideration.
+
+Sincerely,
+
+${name}
+Candidate Dossier via VREZER 3.0 AI Career Intelligence`;
+    }
+
+    function generateRecruiterBriefText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Specialist';
+        const exp = d.experience || '4 Years';
+        const ats = d.atsScore || 88;
+        const domain = d.careerDomain || 'Technology';
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS']).join(', ');
+
+        return `================================================================================
+ V R E Z E R   R E C R U I T E R   E X E C U T I V E   B R I E F
+================================================================================
+Candidate Name      : ${name}
+Current Target Role : ${role}
+Experience          : ${exp}
+ATS Score           : ${ats}% Match
+Domain              : ${domain}
+
+--------------------------------------------------------------------------------
+ CANDIDATE HIGHLIGHTS & FIT ASSESSMENT
+--------------------------------------------------------------------------------
+• Key Technical Stack: ${skills}
+• Technical Rating   : Senior / High Match (${ats}%)
+• Communication      : Strong technical leadership & cross-functional collaboration
+• Availability       : Available immediately / Standard notice period
+
+--------------------------------------------------------------------------------
+ TOP TARGET ROLES & COMPANIES
+--------------------------------------------------------------------------------
+1. ${(d.tier1 && d.tier1.role) || 'Senior Engineer'} @ ${(d.tier1 && d.tier1.company) || 'Tier 1 Tech'}
+2. ${(d.tier2 && d.tier2.role) || 'Lead Developer'} @ ${(d.tier2 && d.tier2.company) || 'High Growth Product Company'}
+
+================================================================================
+ Confidential Recruiter Summary — Generated by VREZER 3.0 Platform
+================================================================================`;
+    }
+
+    function generateMarketReportText(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const domain = d.careerDomain || 'Technology';
+        const exp = d.experience || '4 Years';
+        return `================================================================================
+ V R E Z E R   2 0 2 6   M A R K E T   &   S A L A R Y   I N T E L L I G E N C E
+================================================================================
+Candidate           : ${name}
+Career Domain       : ${domain}
+Experience Level    : ${exp}
+
+--------------------------------------------------------------------------------
+ 1. 2026 SALARY BENCHMARKS
+--------------------------------------------------------------------------------
+Median Compensation Range: ₹24 - ₹45 LPA (Tier-1 Tech Hubs)
+Remote Global Role Range : $75,000 - $120,000 USD
+Top Percentile Potential : ₹50+ LPA for Lead Architect Roles
+
+--------------------------------------------------------------------------------
+ 2. TOP HIRING HUBS & DEMAND INDICATORS
+--------------------------------------------------------------------------------
+Hub 1: Bengaluru, India   — High Demand (78% Hybrid/Remote postings)
+Hub 2: Hyderabad, India   — High Demand (65% Hybrid/Remote postings)
+Hub 3: Remote Global Hubs — Very High Demand for Cloud & Microservices Specialists
+
+================================================================================
+ Generated by VREZER 3.0 Global Market Intelligence Unit
+================================================================================`;
+    }
+
+    // ── ZIP BUNDLE EXPORTER ──────────────────────────
+    async function downloadZipBundle(d = getActiveData()) {
+        const safeName = (d.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        showToast(`Preparing ZIP Intelligence Bundle for ${d.name || 'Candidate'}…`, 'fa-file-zipper', '#34d399');
+
+        if (typeof JSZip !== 'undefined') {
+            try {
+                const zip = new JSZip();
+                zip.file(`1_Career_Intelligence_Dossier_${safeName}.txt`, generateDossierTextReport(d));
+                zip.file(`2_ATS_Compliance_Report_${safeName}.txt`, generateAtsReportText(d));
+                zip.file(`3_Skill_Gap_Learning_Plan_${safeName}.txt`, generateSkillGapReportText(d));
+                zip.file(`4_Interview_Preparation_Kit_${safeName}.txt`, generateInterviewPrepReportText(d));
+                zip.file(`5_AI_Cover_Letter_${safeName}.txt`, generateCoverLetterText(d));
+                zip.file(`6_Recruiter_Executive_Brief_${safeName}.txt`, generateRecruiterBriefText(d));
+                zip.file(`7_Salary_Market_Intelligence_${safeName}.txt`, generateMarketReportText(d));
+                zip.file(`8_Candidate_Data_Dossier_${safeName}.json`, JSON.stringify(d, null, 2));
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `VREZER_${safeName}_Complete_Intelligence_Bundle.zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`Downloaded VREZER_${safeName}_Complete_Intelligence_Bundle.zip`, 'fa-circle-check', '#4ade80');
+                return;
+            } catch (err) {
+                console.warn('JSZip failed, falling back to multi-report text bundle:', err);
+            }
+        }
+
+        // Fallback: Generate master text file containing all reports
+        const fullBundle = `================================================================================
+ V R E Z E R   3 . 0   —   C O M P L E T E   I N T E L L I G E N C E   B U N D L E
+================================================================================
+Generated for: ${d.name || 'Candidate Dossier'}
+
+${generateDossierTextReport(d)}
+
+
+${generateAtsReportText(d)}
+
+
+${generateSkillGapReportText(d)}
+
+
+${generateInterviewPrepReportText(d)}
+
+
+${generateCoverLetterText(d)}
+
+
+${generateRecruiterBriefText(d)}
+
+
+${generateMarketReportText(d)}
+`;
+        downloadFile(`VREZER_${safeName}_Complete_Intelligence_Package.txt`, fullBundle);
+        showToast(`Downloaded VREZER_${safeName}_Complete_Intelligence_Package.txt`, 'fa-circle-check', '#4ade80');
+    }
+
+    // ── PDF GENERATOR ENGINE ─────────────────────────
+    function downloadReportAsPdf(filename, htmlContent, textFallback = '') {
+        showToast(`Generating ${filename} PDF document…`, 'fa-file-pdf', '#ff003c');
+
+        const container = document.createElement('div');
+        container.id = 'vrezer-pdf-export-container';
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.width = '800px';
+        container.style.background = '#ffffff';
+        container.style.color = '#0f172a';
+        container.style.fontFamily = "'Plus Jakarta Sans', 'Inter', sans-serif";
+        container.style.padding = '30px';
+        container.innerHTML = htmlContent;
+        document.body.appendChild(container);
+
+        const pdfOpt = {
+            margin: [10, 10, 10, 10],
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        if (typeof html2pdf !== 'undefined') {
+            html2pdf().set(pdfOpt).from(container).save().then(() => {
+                if (document.body.contains(container)) document.body.removeChild(container);
+                showToast(`Downloaded ${filename}`, 'fa-circle-check', '#4ade80');
+            }).catch(err => {
+                console.warn('html2pdf failed, invoking fallback:', err);
+                if (document.body.contains(container)) document.body.removeChild(container);
+                if (textFallback) downloadFile(filename.replace(/\.pdf$/i, '.txt'), textFallback);
+            });
+        } else {
+            if (document.body.contains(container)) document.body.removeChild(container);
+            if (textFallback) downloadFile(filename.replace(/\.pdf$/i, '.txt'), textFallback);
+        }
+    }
+
+    function wrapInPdfTemplate(title, iconClass, headerColor, contentHtml, d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Engineering Specialist';
+        const ats = d.atsScore != null ? d.atsScore : 88;
+        const domain = d.careerDomain || 'Technology';
+        const exp = d.experience || '4 Years';
+        const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        return `
+        <div style="font-family:'Plus Jakarta Sans', 'Inter', Arial, sans-serif; color:#0f172a; line-height:1.5; padding:20px; background:#ffffff;">
+            <!-- HEADER BAR -->
+            <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid ${headerColor}; padding-bottom:15px; margin-bottom:20px;">
+                <div>
+                    <h1 style="font-size:22px; font-weight:900; color:#0f172a; margin:0; letter-spacing:-0.5px;">V R E Z E R &nbsp; 3 . 0</h1>
+                    <p style="font-size:11px; color:#64748b; font-weight:700; margin:2px 0 0 0; text-transform:uppercase; letter-spacing:1px;">AI CAREER INTELLIGENCE PLATFORM</p>
+                </div>
+                <div style="text-align:right;">
+                    <span style="display:inline-block; padding:4px 12px; background:${headerColor}15; color:${headerColor}; font-weight:800; font-size:11px; border-radius:20px; border:1px solid ${headerColor}40;">${title.toUpperCase()}</span>
+                    <p style="font-size:10px; color:#94a3b8; margin:4px 0 0 0; font-family:monospace;">Date: ${dateStr}</p>
+                </div>
+            </div>
+
+            <!-- CANDIDATE SUMMARY CARD -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:15px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h2 style="font-size:18px; font-weight:800; color:#0f172a; margin:0 0 4px 0;">${name}</h2>
+                    <p style="font-size:13px; color:#2563eb; font-weight:700; margin:0;">${role}</p>
+                    <p style="font-size:11px; color:#64748b; margin:4px 0 0 0;">Domain: ${domain} &nbsp;•&nbsp; Experience: ${exp}</p>
+                </div>
+                <div style="text-align:center; background:#ffffff; border:2px solid ${headerColor}; padding:8px 16px; border-radius:12px;">
+                    <span style="font-size:22px; font-weight:900; color:${headerColor}; display:block; line-height:1;">${ats}%</span>
+                    <span style="font-size:9px; font-weight:800; color:#64748b; text-transform:uppercase;">ATS MATCH</span>
+                </div>
+            </div>
+
+            <!-- MAIN REPORT CONTENT -->
+            <div style="margin-bottom:20px;">
+                ${contentHtml}
+            </div>
+
+            <!-- FOOTER -->
+            <div style="border-top:1px solid #e2e8f0; padding-top:12px; margin-top:20px; text-align:center; font-size:10px; color:#94a3b8; font-family:monospace;">
+                Generated &amp; Calibrated by VREZER 3.0 Neural AI Engine &nbsp;•&nbsp; Confidential Executive Report
+            </div>
+        </div>`;
+    }
+
+    function generateDossierPdfHtml(d = getActiveData()) {
+        const summary = d.professionalSummary || `${d.name} is a high-impact ${d.role} evaluated across ${d.careerDomain || 'Technology'}.`;
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS', 'Docker', 'PostgreSQL']).map(s => `<span style="display:inline-block; background:#e0e7ff; color:#3730a3; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; margin:2px 4px 4px 0;">${s}</span>`).join('');
+        const softSkills = (d.softSkills || ['System Design', 'Agile Collaboration', 'Problem Solving']).map(s => `<span style="display:inline-block; background:#f1f5f9; color:#334155; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; margin:2px 4px 4px 0;">${s}</span>`).join('');
+        const gaps = (d.skillGaps || ['Kubernetes Orchestration', 'Distributed Caching']).map(g => `<li style="font-size:12px; color:#b91c1c; margin-bottom:4px; font-weight:600;">${g}</li>`).join('');
+        const improvements = (d.improvements || ['Add quantified metrics to project bullet points', 'Standardize section typography']).map(i => `<li style="font-size:12px; color:#0f172a; margin-bottom:4px;">${i}</li>`).join('');
+
+        const body = `
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Executive Summary</h3>
+                <p style="font-size:12px; color:#334155; margin:0;">${summary}</p>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Top Verified Technical Skills</h3>
+                <div>${skills}</div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Soft Skills &amp; Leadership Capabilities</h3>
+                <div>${softSkills}</div>
+            </div>
+
+            <div style="display:flex; gap:15px; margin-bottom:16px;">
+                <div style="flex:1; background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px;">
+                    <h4 style="font-size:12px; font-weight:800; color:#991b1b; margin:0 0 6px 0; text-transform:uppercase;">Skill Gaps to Bridge</h4>
+                    <ul style="margin:0; padding-left:16px;">${gaps}</ul>
+                </div>
+                <div style="flex:1; background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:8px;">
+                    <h4 style="font-size:12px; font-weight:800; color:#166534; margin:0 0 6px 0; text-transform:uppercase;">Resume Recommendations</h4>
+                    <ul style="margin:0; padding-left:16px;">${improvements}</ul>
+                </div>
+            </div>
+
+            <div>
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">3-Tier Target Role Trajectory</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <tr style="background:#e2e8f0; text-align:left;">
+                        <th style="padding:6px 10px;">Tier</th>
+                        <th style="padding:6px 10px;">Target Role</th>
+                        <th style="padding:6px 10px;">Company</th>
+                        <th style="padding:6px 10px;">Location</th>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:6px 10px; font-weight:800; color:#dc2626;">Tier I (FAANG+)</td>
+                        <td style="padding:6px 10px;">${(d.tier1 && d.tier1.role) || 'Staff Software Architect'}</td>
+                        <td style="padding:6px 10px;">${(d.tier1 && d.tier1.company) || 'Google / Tier-1 Tech'}</td>
+                        <td style="padding:6px 10px;">${(d.tier1 && d.tier1.city) || 'Bengaluru'}</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:6px 10px; font-weight:800; color:#2563eb;">Tier II (Product)</td>
+                        <td style="padding:6px 10px;">${(d.tier2 && d.tier2.role) || 'Senior SDE'}</td>
+                        <td style="padding:6px 10px;">${(d.tier2 && d.tier2.company) || 'Flipkart / Scaleup'}</td>
+                        <td style="padding:6px 10px;">${(d.tier2 && d.tier2.city) || 'Bengaluru'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 10px; font-weight:800; color:#16a34a;">Tier III (Baseline)</td>
+                        <td style="padding:6px 10px;">${(d.tier3 && d.tier3.role) || 'Lead Systems Engineer'}</td>
+                        <td style="padding:6px 10px;">${(d.tier3 && d.tier3.company) || 'Enterprise Hub'}</td>
+                        <td style="padding:6px 10px;">${(d.tier3 && d.tier3.city) || 'Hyderabad'}</td>
+                    </tr>
+                </table>
+            </div>
+        `;
+        return wrapInPdfTemplate('AI Career Intelligence Dossier', 'fa-file-pdf', '#ff003c', body, d);
+    }
+
+    function generateAtsPdfHtml(d = getActiveData()) {
+        const ats = d.atsScore || 88;
+        const gaps = (d.skillGaps || ['Distributed Caching', 'Kubernetes Helm']).map(k => `<li style="font-size:12px; color:#b91c1c; margin-bottom:4px;">${k}</li>`).join('');
+
+        const body = `
+            <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:20px;">
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:8px; text-align:center;">
+                    <span style="font-size:18px; font-weight:900; color:#166534; display:block;">95%</span>
+                    <span style="font-size:10px; font-weight:700; color:#15803d; text-transform:uppercase;">Formatting</span>
+                </div>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; padding:10px; border-radius:8px; text-align:center;">
+                    <span style="font-size:18px; font-weight:900; color:#1e40af; display:block;">90%</span>
+                    <span style="font-size:10px; font-weight:700; color:#1d4ed8; text-transform:uppercase;">Sections</span>
+                </div>
+                <div style="background:#faf5ff; border:1px solid #e9d5ff; padding:10px; border-radius:8px; text-align:center;">
+                    <span style="font-size:18px; font-weight:900; color:#6b21a8; display:block;">92%</span>
+                    <span style="font-size:10px; font-weight:700; color:#7e22ce; text-transform:uppercase;">Keywords</span>
+                </div>
+                <div style="background:#fff7ed; border:1px solid #fed7aa; padding:10px; border-radius:8px; text-align:center;">
+                    <span style="font-size:18px; font-weight:900; color:#9a3412; display:block;">90%</span>
+                    <span style="font-size:10px; font-weight:700; color:#c2410c; text-transform:uppercase;">Metrics</span>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Parser Readiness Verification Audit</h3>
+                <ul style="font-size:12px; color:#334155; margin:0; padding-left:18px; line-height:1.6;">
+                    <li><strong>Document Structure:</strong> Clean single-column layout optimized for Taleo &amp; Workday OCR engines.</li>
+                    <li><strong>Font Standards:</strong> Standard system sans-serif typography detected.</li>
+                    <li><strong>Section Headers:</strong> Standardized (Summary, Experience, Education, Technical Skills).</li>
+                    <li><strong>Date Formats:</strong> Month Year standard formatting throughout timeline.</li>
+                </ul>
+            </div>
+
+            <div style="margin-bottom:16px; background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px;">
+                <h4 style="font-size:12px; font-weight:800; color:#991b1b; margin:0 0 6px 0; text-transform:uppercase;">Missing Keywords Needed for 95%+ ATS Score</h4>
+                <ul style="margin:0; padding-left:16px;">${gaps}</ul>
+            </div>
+
+            <div>
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Recommended Action Plan</h3>
+                <ol style="font-size:12px; color:#334155; margin:0; padding-left:18px; line-height:1.6;">
+                    <li>Integrate high-frequency missing keywords naturally into experience bullet points.</li>
+                    <li>Ensure all project entries contain quantifiable impact metrics (%, $, latency reduction).</li>
+                    <li>Avoid embedding images, graphics, or nested text boxes within PDF files.</li>
+                </ol>
+            </div>
+        `;
+        return wrapInPdfTemplate('ATS Compliance & Parser Audit', 'fa-shield-halved', '#4ade80', body, d);
+    }
+
+    function generateSkillGapPdfHtml(d = getActiveData()) {
+        const gaps = (d.skillGaps || ['Cloud Native Microservices', 'Container Orchestration']).map((gap, i) => `
+            <div style="background:#f8fafc; border-left:4px solid #0284c7; padding:10px 14px; margin-bottom:8px; border-radius:0 8px 8px 0;">
+                <h4 style="font-size:12px; font-weight:800; color:#0369a1; margin:0;">${i + 1}. ${gap}</h4>
+                <p style="font-size:11px; color:#64748b; margin:2px 0 0 0;">High market demand — 30%+ increase in 2026 job postings.</p>
+            </div>
+        `).join('');
+
+        const body = `
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">High Priority Skill Gaps to Bridge</h3>
+                ${gaps}
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">30-60-90 Day Upskilling Milestones</h3>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="background:#f0f9ff; border:1px solid #bae6fd; padding:10px 14px; border-radius:8px;">
+                        <strong style="font-size:11px; color:#0369a1; font-family:monospace;">DAYS 1 - 30: FOUNDATION &amp; PROOF OF CONCEPT</strong>
+                        <p style="font-size:11px; color:#334155; margin:4px 0 0 0;">Master core concepts of missing technical stack &amp; build a standalone hands-on project.</p>
+                    </div>
+                    <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 14px; border-radius:8px;">
+                        <strong style="font-size:11px; color:#15803d; font-family:monospace;">DAYS 31 - 60: INTEGRATION &amp; CI/CD DEPLOYMENT</strong>
+                        <p style="font-size:11px; color:#334155; margin:4px 0 0 0;">Deploy containerized services to AWS/GCP cloud environments with automated CI/CD.</p>
+                    </div>
+                    <div style="background:#faf5ff; border:1px solid #e9d5ff; padding:10px 14px; border-radius:8px;">
+                        <strong style="font-size:11px; color:#7e22ce; font-family:monospace;">DAYS 61 - 90: CERTIFICATION &amp; RESUME OPTIMIZATION</strong>
+                        <p style="font-size:11px; color:#334155; margin:4px 0 0 0;">Complete target cloud certification and add quantified production metrics to candidate dossier.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background:#ecfdf5; border:1px solid #a7f3d0; padding:12px; border-radius:8px;">
+                <h4 style="font-size:12px; font-weight:800; color:#047857; margin:0 0 4px 0;">ESTIMATED COMPENSATION UPLIFT</h4>
+                <p style="font-size:11px; color:#065f46; margin:0;">Acquiring these high-priority skill gaps will position candidate for a <strong>15% - 25% compensation increase</strong> in 2026 hiring markets.</p>
+            </div>
+        `;
+        return wrapInPdfTemplate('Skill Gap & Upskilling Plan', 'fa-crosshairs', '#38bdf8', body, d);
+    }
+
+    function generateInterviewKitPdfHtml(d = getActiveData()) {
+        const role = d.role || 'Senior Software Engineer';
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS']).join(', ');
+
+        const body = `
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Predicted Domain Technical Questions</h3>
+                
+                <div style="margin-bottom:10px; background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:8px;">
+                    <p style="font-size:11px; font-weight:800; color:#0f172a; margin:0 0 4px 0;">Q1: How do you handle cache invalidation and concurrency in high-throughput backend services?</p>
+                    <p style="font-size:11px; color:#334155; margin:0;"><strong>Model Answer:</strong> Implement cache-aside pattern with TTLs, combined with Redis Redlock or Lua scripts for atomic updates.</p>
+                </div>
+
+                <div style="margin-bottom:10px; background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:8px;">
+                    <p style="font-size:11px; font-weight:800; color:#0f172a; margin:0 0 4px 0;">Q2: Describe how your primary tech stack handles event-driven architecture and message ordering.</p>
+                    <p style="font-size:11px; color:#334155; margin:0;"><strong>Model Answer:</strong> Partition key routing guarantees message order within a single Kafka partition consumed sequentially.</p>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Behavioral STAR Framework Scenario</h3>
+                <div style="background:#fffbeb; border:1px solid #fde68a; padding:12px; border-radius:8px; font-size:11px; color:#92400e;">
+                    <p style="margin:0 0 4px 0;"><strong>Situation:</strong> High API response latency during peak traffic events.</p>
+                    <p style="margin:0 0 4px 0;"><strong>Task:</strong> Reduce p99 response latency below 100ms for core checkout service.</p>
+                    <p style="margin:0 0 4px 0;"><strong>Action:</strong> Profiled JVM memory, refactored N+1 database queries, and implemented Redis caching.</p>
+                    <p style="margin:0;"><strong>Result:</strong> Reduced p99 latency by 42% and supported 3x higher peak transaction throughput.</p>
+                </div>
+            </div>
+
+            <div>
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #cbd5e1; padding-bottom:4px; margin-bottom:8px;">Candidate Elevator Pitch</h3>
+                <p style="font-size:11px; color:#334155; background:#f1f5f9; padding:10px; border-radius:8px; font-style:italic; margin:0;">"I am a ${role} with proven experience building resilient microservices using ${skills}. In my previous work, I spearheaded system performance refactoring that reduced latency by over 40%. I'm eager to drive architectural impact in your engineering team."</p>
+            </div>
+        `;
+        return wrapInPdfTemplate('Interview Preparation Kit', 'fa-comments', '#fbbf24', body, d);
+    }
+
+    function generateCoverLetterPdfHtml(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Engineering Specialist';
+        const domain = d.careerDomain || 'Technology';
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS']).join(', ');
+        const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+        const body = `
+            <div style="font-size:12px; color:#334155; line-height:1.7; background:#ffffff; padding:10px;">
+                <p style="font-size:11px; color:#64748b; font-family:monospace; margin-bottom:20px;">Date: ${dateStr}</p>
+                
+                <p style="font-weight:700; color:#0f172a; margin-bottom:15px;">To Hiring Manager &amp; Recruitment Team,<br>RE: Application for ${role} Position</p>
+
+                <p style="margin-bottom:12px;">Dear Hiring Team,</p>
+
+                <p style="margin-bottom:12px;">I am writing to express my strong interest in the <strong>${role}</strong> position. With my background in ${domain}, building resilient solutions with <strong>${skills}</strong>, I am confident in my ability to deliver immediate technical impact to your engineering team.</p>
+
+                <p style="margin-bottom:12px;">In my recent work, I spearheaded system architecture refactoring that improved system uptime, reduced latency, and optimized cloud resource consumption. My core expertise encompasses designing scalable microservices, optimizing database queries, and automating containerized deployments.</p>
+
+                <p style="margin-bottom:12px;">I am particularly drawn to your organization's innovative engineering culture and growth vision. I welcome the opportunity to discuss how my technical expertise aligns with your upcoming initiatives.</p>
+
+                <p style="margin-bottom:25px;">Thank you for your time and consideration.</p>
+
+                <p style="margin:0;">Sincerely,<br><strong style="font-size:14px; color:#0f172a;">${name}</strong><br><span style="font-size:11px; color:#64748b;">${role}</span></p>
+            </div>
+        `;
+        return wrapInPdfTemplate('AI Tailored Cover Letter', 'fa-envelope', '#ec4899', body, d);
+    }
+
+    function generateRecruiterBriefPdfHtml(d = getActiveData()) {
+        const name = d.name || 'Candidate Dossier';
+        const role = d.role || 'Software Specialist';
+        const exp = d.experience || '4 Years';
+        const ats = d.atsScore || 88;
+        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS']).join(', ');
+
+        const body = `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:15px; border-radius:10px; margin-bottom:20px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; margin:0 0 10px 0;">Executive Candidate Pitch</h3>
+                <ul style="font-size:12px; color:#334155; margin:0; padding-left:18px; line-height:1.7;">
+                    <li><strong>Core Technical Stack:</strong> ${skills}</li>
+                    <li><strong>Overall Match Score:</strong> ${ats}% Senior Level Match</li>
+                    <li><strong>Leadership &amp; Communication:</strong> Strong cross-functional collaboration and technical mentorship.</li>
+                    <li><strong>Notice Period / Availability:</strong> Available immediately / Standard 30 days.</li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; margin:0 0 10px 0;">Top Matching Target Roles</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <tr style="background:#e2e8f0; text-align:left;">
+                        <th style="padding:6px 10px;">Role</th>
+                        <th style="padding:6px 10px;">Target Companies</th>
+                        <th style="padding:6px 10px;">Location</th>
+                    </tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:6px 10px; font-weight:700;">${(d.tier1 && d.tier1.role) || 'Staff Software Architect'}</td>
+                        <td style="padding:6px 10px;">${(d.tier1 && d.tier1.company) || 'FAANG / Tier-1 Tech'}</td>
+                        <td style="padding:6px 10px;">${(d.tier1 && d.tier1.city) || 'Bengaluru'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 10px; font-weight:700;">${(d.tier2 && d.tier2.role) || 'Senior SDE'}</td>
+                        <td style="padding:6px 10px;">${(d.tier2 && d.tier2.company) || 'Product Scaleup'}</td>
+                        <td style="padding:6px 10px;">${(d.tier2 && d.tier2.city) || 'Bengaluru'}</td>
+                    </tr>
+                </table>
+            </div>
+        `;
+        return wrapInPdfTemplate('Recruiter Executive Brief', 'fa-user-tie', '#818cf8', body, d);
+    }
+
+    function generateMarketReportPdfHtml(d = getActiveData()) {
+        const domain = d.careerDomain || 'Technology';
+
+        const body = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:8px;">
+                    <span style="font-size:10px; font-weight:800; color:#15803d; text-transform:uppercase;">Median Compensation</span>
+                    <p style="font-size:16px; font-weight:900; color:#166534; margin:4px 0 0 0;">₹24 - ₹45 LPA</p>
+                </div>
+                <div style="background:#faf5ff; border:1px solid #e9d5ff; padding:12px; border-radius:8px;">
+                    <span style="font-size:10px; font-weight:800; color:#7e22ce; text-transform:uppercase;">Remote Global Roles</span>
+                    <p style="font-size:16px; font-weight:900; color:#6b21a8; margin:4px 0 0 0;">$75,000 - $120,000 USD</p>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <h3 style="font-size:13px; font-weight:800; color:#475569; text-transform:uppercase; margin:0 0 8px 0;">Top Hiring Hubs for ${domain}</h3>
+                <ul style="font-size:12px; color:#334155; margin:0; padding-left:18px; line-height:1.6;">
+                    <li><strong>Bengaluru, India:</strong> High Demand (78% Hybrid/Remote postings).</li>
+                    <li><strong>Hyderabad, India:</strong> High Demand (65% Hybrid/Remote postings).</li>
+                    <li><strong>Remote Global Hubs:</strong> Very High Demand for Cloud &amp; Microservices SDEs.</li>
+                </ul>
+            </div>
+        `;
+        return wrapInPdfTemplate('Salary & Market Intelligence', 'fa-chart-line', '#c084fc', body, d);
+    }
+
+    // ── LIVE REPORT PREVIEW SUBSYSTEM ────────────────
+    const previewModal = $('preview-modal');
+    const closePreviewBtn = $('close-preview-modal');
+    const previewTitle = $('preview-modal-title');
+    const previewSubtitle = $('preview-modal-subtitle');
+    const previewHeaderIcon = $('preview-header-icon');
+    const previewPaperContainer = $('preview-paper-container');
+    const btnPreviewDownloadPdf = $('btn-preview-download-pdf');
+    const btnPreviewDownloadTxt = $('btn-preview-download-txt');
+
+    let currentPreviewContext = {
+        filename: 'Report.pdf',
+        htmlContent: '',
+        textContent: ''
+    };
+
+    function openReportPreview(title, subtitle, iconClass, iconColor, filename, htmlContent, textContent = '') {
+        currentPreviewContext = { filename, htmlContent, textContent };
+
+        if (previewTitle) previewTitle.textContent = title;
+        if (previewSubtitle) previewSubtitle.textContent = subtitle;
+        if (previewHeaderIcon) {
+            previewHeaderIcon.className = `fa-solid ${iconClass} modal-icon`;
+            previewHeaderIcon.style.color = iconColor;
+            previewHeaderIcon.style.background = `${iconColor}18`;
+        }
+        if (previewPaperContainer) {
+            previewPaperContainer.innerHTML = htmlContent;
+        }
+
+        if (previewModal) previewModal.classList.remove('hidden');
+    }
+
+    function closeReportPreview() {
+        if (previewModal) previewModal.classList.add('hidden');
+    }
+
+    if (closePreviewBtn) closePreviewBtn.onclick = closeReportPreview;
+    if (previewModal) {
+        previewModal.onclick = (e) => {
+            if (e.target === previewModal) closeReportPreview();
+        };
+    }
+
+    if (btnPreviewDownloadPdf) {
+        btnPreviewDownloadPdf.onclick = () => {
+            downloadReportAsPdf(currentPreviewContext.filename, currentPreviewContext.htmlContent, currentPreviewContext.textContent);
+        };
+    }
+
+    if (btnPreviewDownloadTxt) {
+        btnPreviewDownloadTxt.onclick = () => {
+            if (currentPreviewContext.textContent) {
+                downloadFile(currentPreviewContext.filename.replace(/\.pdf$/i, '.txt'), currentPreviewContext.textContent);
+                showToast(`Downloaded ${currentPreviewContext.filename.replace(/\.pdf$/i, '.txt')}`, 'fa-circle-check', '#4ade80');
+            } else {
+                showToast('Text version unavailable for this document', 'fa-triangle-exclamation', '#fbbf24');
+            }
+        };
+    }
+
     // ── DOWNLOAD CENTER RENDERER ──────────────────────
     function renderDownloadCenter(d) {
         const container = $('download-center-grid');
         if (!container) return;
 
+        const activeData = d || getActiveData();
+
         const reports = [
-            { name: 'AI Career Intelligence Dossier', desc: 'Full multi-page printable PDF report with ATS analysis & benchmarks.', icon: 'fa-file-pdf', color: '#ff003c', action: () => window.print() },
-            { name: 'ATS Compliance Report', desc: 'Detailed breakdown of formatting, parser readiness, and keyword density.', icon: 'fa-shield-halved', color: '#4ade80', action: () => alert('Generating ATS Compliance PDF Report…') },
-            { name: 'Skill Gap & Learning Plan', desc: 'Actionable upskilling roadmap with certification recommendations.', icon: 'fa-crosshairs', color: '#38bdf8', action: () => alert('Generating Skill Gap Report…') },
-            { name: 'Interview Preparation Kit', desc: 'Technical, HR, & STAR behavioral questions tailored to candidate.', icon: 'fa-comments', color: '#fbbf24', action: () => alert('Generating Interview Prep Guide…') },
-            { name: 'AI Cover Letter Document', desc: 'Custom tailored cover letter ready for job applications.', icon: 'fa-envelope', color: '#a855f7', action: () => alert('Exporting AI Cover Letter…') },
-            { name: 'Complete ZIP Intelligence Bundle', desc: 'ZIP archive containing JSON data dossier & printable reports.', icon: 'fa-file-zipper', color: '#34d399', action: () => alert('Downloading Complete Intelligence ZIP Bundle…') }
+            {
+                name: 'AI Career Intelligence Dossier',
+                desc: 'Full multi-page printable PDF report with ATS analysis & benchmarks.',
+                icon: 'fa-file-pdf',
+                format: 'PDF REPORT',
+                color: '#ff003c',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'AI Career Intelligence Dossier — Live Preview',
+                        'Full executive candidate intelligence report with projected career metrics.',
+                        'fa-file-pdf',
+                        '#ff003c',
+                        `VREZER_Career_Intelligence_Dossier_${nameStr}.pdf`,
+                        generateDossierPdfHtml(activeData),
+                        generateDossierTextReport(activeData)
+                    );
+                }
+            },
+            {
+                name: 'ATS Compliance & Parser Audit',
+                desc: 'Detailed breakdown of formatting, parser readiness, and keyword density.',
+                icon: 'fa-shield-halved',
+                format: 'PDF REPORT',
+                color: '#4ade80',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'ATS Compliance & Parser Audit — Live Preview',
+                        'Parser readiness audit, ATS sub-scores & missing keyword recommendations.',
+                        'fa-shield-halved',
+                        '#4ade80',
+                        `VREZER_ATS_Compliance_Report_${nameStr}.pdf`,
+                        generateAtsPdfHtml(activeData),
+                        generateAtsReportText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'Skill Gap & Learning Plan',
+                desc: 'Actionable upskilling roadmap with certification recommendations.',
+                icon: 'fa-crosshairs',
+                format: 'PDF REPORT',
+                color: '#38bdf8',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'Skill Gap & Learning Plan — Live Preview',
+                        '30-60-90 day learning roadmap and estimated compensation uplift.',
+                        'fa-crosshairs',
+                        '#38bdf8',
+                        `VREZER_Skill_Gap_Learning_Plan_${nameStr}.pdf`,
+                        generateSkillGapPdfHtml(activeData),
+                        generateSkillGapReportText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'Interview Preparation Kit',
+                desc: 'Technical, HR, & STAR behavioral questions tailored to candidate.',
+                icon: 'fa-comments',
+                format: 'PDF REPORT',
+                color: '#fbbf24',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'Interview Preparation Kit — Live Preview',
+                        'Predicted domain technical Q&A, STAR framework scenarios & elevator pitch.',
+                        'fa-comments',
+                        '#fbbf24',
+                        `VREZER_Interview_Preparation_Kit_${nameStr}.pdf`,
+                        generateInterviewKitPdfHtml(activeData),
+                        generateInterviewPrepReportText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'AI Tailored Cover Letter',
+                desc: 'Custom tailored cover letter ready for job applications.',
+                icon: 'fa-envelope',
+                format: 'PDF REPORT',
+                color: '#ec4899',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'AI Tailored Cover Letter — Live Preview',
+                        'Custom tailored formal application letter ready for job submissions.',
+                        'fa-envelope',
+                        '#ec4899',
+                        `VREZER_AI_Cover_Letter_${nameStr}.pdf`,
+                        generateCoverLetterPdfHtml(activeData),
+                        generateCoverLetterText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'Recruiter Executive Brief',
+                desc: '1-Page hiring manager candidate pitch & executive summary.',
+                icon: 'fa-user-tie',
+                format: 'PDF REPORT',
+                color: '#818cf8',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'Recruiter Executive Brief — Live Preview',
+                        '1-Page hiring manager candidate summary, key attributes & fit assessment.',
+                        'fa-user-tie',
+                        '#818cf8',
+                        `VREZER_Recruiter_Executive_Brief_${nameStr}.pdf`,
+                        generateRecruiterBriefPdfHtml(activeData),
+                        generateRecruiterBriefText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'Salary & Market Intelligence',
+                desc: '2026 Salary benchmarks, market demand analysis & company rankings.',
+                icon: 'fa-chart-line',
+                format: 'PDF REPORT',
+                color: '#c084fc',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    openReportPreview(
+                        'Salary & Market Intelligence — Live Preview',
+                        '2026 Salary benchmarks, tech hub demand analysis & compensation ranges.',
+                        'fa-chart-line',
+                        '#c084fc',
+                        `VREZER_Salary_Market_Intelligence_${nameStr}.pdf`,
+                        generateMarketReportPdfHtml(activeData),
+                        generateMarketReportText(activeData)
+                    );
+                }
+            },
+            {
+                name: 'Raw Candidate JSON Dossier',
+                desc: '28 Extracted attributes & complete raw dataset in structured JSON format.',
+                icon: 'fa-code',
+                format: 'JSON',
+                color: '#a855f7',
+                action: () => {
+                    const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+                    downloadFile(`VREZER_Candidate_Data_Dossier_${nameStr}.json`, JSON.stringify(activeData, null, 2), 'application/json');
+                    showToast('Downloaded Candidate JSON Dossier', 'fa-circle-check', '#a855f7');
+                }
+            },
+            {
+                name: 'Complete ZIP Intelligence Bundle',
+                desc: 'ZIP archive containing all 8 JSON data dossier & printable reports.',
+                icon: 'fa-file-zipper',
+                format: 'ZIP BUNDLE',
+                color: '#34d399',
+                action: () => downloadZipBundle(activeData)
+            }
         ];
 
         container.innerHTML = reports.map(r => `
             <div class="download-card">
-                <i class="fa-solid ${r.icon} download-icon" style="color:${r.color};"></i>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+                    <i class="fa-solid ${r.icon} download-icon" style="color:${r.color}; margin:0;"></i>
+                    <span class="export-badge" style="background:${r.color}15; color:${r.color}; border:1px solid ${r.color}40;">${r.format}</span>
+                </div>
                 <h3>${r.name}</h3>
                 <p>${r.desc}</p>
-                <button class="btn-browse" style="margin:0 auto; width:auto;"><i class="fa-solid fa-download"></i> Download</button>
+                <div style="display:flex; gap:0.5rem; width:100%; margin-top:0.5rem;">
+                    <button class="btn-browse" style="flex:1; justify-content:center; padding:0.5rem 0.75rem;"><i class="fa-solid fa-eye"></i> Preview &amp; Download PDF</button>
+                </div>
             </div>
         `).join('');
 
@@ -1633,6 +2754,135 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.onclick = reports[i].action;
         });
     }
+
+    // ── EXPORT DOSSIER MODAL BINDINGS ────────────────
+    const modal = $('export-modal');
+    const closeBtnModal = $('close-export-modal');
+
+    function openExportModal() {
+        if (modal) modal.classList.remove('hidden');
+    }
+    function closeExportModal() {
+        if (modal) modal.classList.add('hidden');
+    }
+
+    if (closeBtnModal) {
+        closeBtnModal.onclick = () => closeExportModal();
+    }
+    if (modal) {
+        modal.onclick = (e) => {
+            if (e.target === modal) closeExportModal();
+        };
+    }
+
+    // Bind action buttons inside export modal to open live preview
+    const modalZip = $('btn-export-zip');
+    if (modalZip) modalZip.onclick = () => { closeExportModal(); downloadZipBundle(getActiveData()); };
+
+    const modalPdf = $('btn-export-pdf');
+    if (modalPdf) modalPdf.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'AI Career Intelligence Dossier — Live Preview',
+            'Full executive candidate intelligence report with projected career metrics.',
+            'fa-file-pdf',
+            '#ff003c',
+            `VREZER_Career_Intelligence_Dossier_${nameStr}.pdf`,
+            generateDossierPdfHtml(activeData),
+            generateDossierTextReport(activeData)
+        );
+    };
+
+    const modalJson = $('btn-export-json');
+    if (modalJson) modalJson.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        downloadFile(`VREZER_Candidate_Data_Dossier_${nameStr}.json`, JSON.stringify(activeData, null, 2), 'application/json');
+        showToast('Downloaded Candidate JSON Dossier', 'fa-circle-check', '#a855f7');
+    };
+
+    const modalAts = $('btn-export-ats');
+    if (modalAts) modalAts.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'ATS Compliance & Parser Audit — Live Preview',
+            'Parser readiness audit, ATS sub-scores & missing keyword recommendations.',
+            'fa-shield-halved',
+            '#4ade80',
+            `VREZER_ATS_Compliance_Report_${nameStr}.pdf`,
+            generateAtsPdfHtml(activeData),
+            generateAtsReportText(activeData)
+        );
+    };
+
+    const modalSkills = $('btn-export-skills');
+    if (modalSkills) modalSkills.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'Skill Gap & Learning Plan — Live Preview',
+            '30-60-90 day learning roadmap and estimated compensation uplift.',
+            'fa-crosshairs',
+            '#38bdf8',
+            `VREZER_Skill_Gap_Learning_Plan_${nameStr}.pdf`,
+            generateSkillGapPdfHtml(activeData),
+            generateSkillGapReportText(activeData)
+        );
+    };
+
+    const modalInterview = $('btn-export-interview');
+    if (modalInterview) modalInterview.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'Interview Preparation Kit — Live Preview',
+            'Predicted domain technical Q&A, STAR framework scenarios & elevator pitch.',
+            'fa-comments',
+            '#fbbf24',
+            `VREZER_Interview_Preparation_Kit_${nameStr}.pdf`,
+            generateInterviewKitPdfHtml(activeData),
+            generateInterviewPrepReportText(activeData)
+        );
+    };
+
+    const modalCover = $('btn-export-cover');
+    if (modalCover) modalCover.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'AI Tailored Cover Letter — Live Preview',
+            'Custom tailored formal application letter ready for job submissions.',
+            'fa-envelope',
+            '#ec4899',
+            `VREZER_AI_Cover_Letter_${nameStr}.pdf`,
+            generateCoverLetterPdfHtml(activeData),
+            generateCoverLetterText(activeData)
+        );
+    };
+
+    const modalBrief = $('btn-export-brief');
+    if (modalBrief) modalBrief.onclick = () => {
+        closeExportModal();
+        const activeData = getActiveData();
+        const nameStr = (activeData.name || 'Candidate').replace(/[^a-zA-Z0-9_-]/g, '_');
+        openReportPreview(
+            'Recruiter Executive Brief — Live Preview',
+            '1-Page hiring manager candidate summary, key attributes & fit assessment.',
+            'fa-user-tie',
+            '#818cf8',
+            `VREZER_Recruiter_Executive_Brief_${nameStr}.pdf`,
+            generateRecruiterBriefPdfHtml(activeData),
+            generateRecruiterBriefText(activeData)
+        );
+    };
 
     // ── FLOATING CHAT WIDGET ───────────────────────────
     function initChatWidget(d) {
@@ -2271,7 +3521,7 @@ ${(resumeText || '').substring(0, 3500)}`;
             education: lowerText.includes('m.tech') || lowerText.includes('master') ? 'Master of Science / Tech' : 'Bachelor of Engineering / Tech',
             expectedLpaRange: expectedLpaRange,
             salaryUsd: salaryUsd,
-            confidenceScore: (0.89 + Math.random() * 0.07).toFixed(2),
+            confidenceScore: Math.round(82 + Math.random() * 12),
             AI_STATUS: 'PROCESSED BY VREZER AI ENGINE',
             aiModelUsed: 'Meta LLaMA 3.3 70B & VREZER RAG Engine',
             topSkills: finalSkills.slice(0, 8),

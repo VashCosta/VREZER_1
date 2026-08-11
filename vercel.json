@@ -1,20 +1,12 @@
 {
   "version": 2,
-  "name": "vrezer-3-0",
-  "builds": [
+  "name": "vrezer-ai",
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
     {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -27,7 +19,7 @@
         },
         {
           "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, OPTIONS, PUT, DELETE"
+          "value": "GET, POST, OPTIONS, PUT, DELETE, PATCH"
         },
         {
           "key": "Access-Control-Allow-Headers",

@@ -310,9 +310,9 @@ public class ResumeParserService {
         List<Map<String, String>> results = new ArrayList<>();
 
         Pattern degreePattern = Pattern.compile(
-                "(?i)(B\\.?Tech|B\\.?E\\.?|Bachelor[s]? of (Engineering|Science|Technology|Arts|Commerce|Design)|" +
+                "(?i)(?<![a-zA-Z0-9])(B\\.?Tech|B\\.?E\\.?|Bachelor[s]? of (Engineering|Science|Technology|Arts|Commerce|Design)|" +
                 "M\\.?Tech|M\\.?E\\.?|Master[s]? of (Engineering|Science|Business|Computer|Design|Arts)|MBA|BCA|MCA|" +
-                "B\\.?Sc\\.?|M\\.?Sc\\.?|Ph\\.?D\\.?|B\\.?Com|B\\.?A\\.?|Diploma|HSC|SSC|12th|10th|SSLC|PUC|Chartered Accountant|CA)" +
+                "B\\.?Sc\\.?|M\\.?Sc\\.?|Ph\\.?D\\.?|B\\.?Com|B\\.?A\\.?|Diploma|HSC|SSC|12th|10th|SSLC|PUC|Chartered Accountant|C\\.A\\.)(?![a-zA-Z0-9])" +
                 "[^\\n]{0,140}"
         );
 

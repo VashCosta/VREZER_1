@@ -162,6 +162,7 @@ export interface AiAnalysisResult {
   education: string;
   cgpa: string;
   confidenceScore: number;
+  confidenceExplanation?: string;
   profileStrength: number;
   professionalSummary: string;
   strategicForecast: string;
