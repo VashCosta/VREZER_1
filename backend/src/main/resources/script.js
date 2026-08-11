@@ -4,6 +4,20 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const $ = id => document.getElementById(id);
+
+    // ── Centralized API Client Base URL Resolver ──────────
+    function getApiBaseUrl() {
+        if (typeof window !== 'undefined' && window.VREZER_API_URL) {
+            return window.VREZER_API_URL.replace(/\/$/, '');
+        }
+        if (typeof window !== 'undefined' && window.location) {
+            const host = window.location.hostname;
+            if (host.includes('vercel.app') || host.includes('github.io')) {
+                return 'https://vrezer-backend.onrender.com';
+            }
+        }
+        return '';
+    }
     const dropZone = $('drop-zone'), fileInput = $('file-input');
     const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
     const themeBtn = $('theme-toggle'), exportBtn = $('export-btn');
@@ -415,7 +429,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     try {
                         const fd = new FormData();
                         fd.append('file', currentFile);
-                        const exRes = await fetch('/api/analyzer/extract', { method: 'POST', body: fd });
+                        const exRes = await fetch(getApiBaseUrl() + '/api/analyzer/extract', { method: 'POST', body: fd });
                         if (exRes.ok) {
                             const exJson = await exRes.json();
                             return await callBackendAPI(exJson.text || '');
@@ -578,7 +592,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         if (customKey) {
             headers['X-GEMINI-API-KEY'] = customKey;
         }
-        const res = await fetch('/api/analyzer/analyze', {
+        const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({ 
