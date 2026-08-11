@@ -4246,7 +4246,15 @@ Respond with ONLY the JSON object, no markdown, no code blocks, no explanation.`
             'Machine Learning','Deep Learning','NLP','Computer Vision','Data Science',
             'C','C++','Rust','Go','Kotlin','Swift','Flutter','React Native','Figma'
         ];
-        const foundSkills = allSkillKeywords.filter(s => new RegExp(`\\b${s.replace('.', '\\.')}\\b`, 'i').test(text));
+        const foundSkills = allSkillKeywords.filter(s => {
+            const escaped = s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const pattern = `(?:^|\\b|\\s|[,./;|])${escaped}(?:$|\\b|\\s|[,./;|])`;
+            try {
+                return new RegExp(pattern, 'i').test(text);
+            } catch (e) {
+                return text.toLowerCase().includes(s.toLowerCase());
+            }
+        });
 
         // Detect career domain
         let careerDomain = 'Software Engineering';
