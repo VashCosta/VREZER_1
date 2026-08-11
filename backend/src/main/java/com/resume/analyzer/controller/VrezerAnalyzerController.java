@@ -27,6 +27,17 @@ public class VrezerAnalyzerController {
     @Autowired
     private com.resume.analyzer.service.MarketIntelligenceService marketIntelligenceService;
 
+    @GetMapping("/version")
+    public ResponseEntity<Map<String, Object>> getVersion() {
+        Map<String, Object> version = new LinkedHashMap<>();
+        version.put("commit", "3bec957");
+        version.put("status", "ONLINE");
+        version.put("environment", System.getenv("SPRING_PROFILES_ACTIVE") != null ? System.getenv("SPRING_PROFILES_ACTIVE") : "production");
+        version.put("backendVersion", "VREZER 3.0 Production Build");
+        version.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(version);
+    }
+
     @PostMapping("/extract")
     public ResponseEntity<Map<String, Object>> extractText(@RequestParam("file") MultipartFile file) {
         String filename = (file != null && file.getOriginalFilename() != null) ? file.getOriginalFilename() : "Resume";

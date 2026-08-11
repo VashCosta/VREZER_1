@@ -426,29 +426,54 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
             const fetchPromise = (async () => {
                 if (currentFile) {
-                    try {
-                        const fd = new FormData();
-                        fd.append('file', currentFile);
-                        const exRes = await fetch(getApiBaseUrl() + '/api/analyzer/extract', { method: 'POST', body: fd });
-                        if (exRes.ok) {
-                            const exJson = await exRes.json();
-                            return await callBackendAPI(exJson.text || '');
-                        } else {
-                            throw new Error("Backend API offline");
-                        }
-                    } catch (fetchErr) {
-                        console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js Client Neural Pipeline');
-                        const text = await extractPdfTextClientSide(currentFile);
-                        const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || '';
-                        if (userKey) {
-                            try {
-                                return await callGeminiDirectlyClientSide(text, userKey);
-                            } catch (aiErr) {
-                                console.warn('Direct Gemini AI Client Call failed, falling back to neural parser:', aiErr);
+                    const fd = new FormData();
+                    fd.append('file', currentFile);
+                    const baseUrl = getApiBaseUrl();
+                    
+                    let exRes = null;
+                    let lastErr = null;
+                    
+                    // Attempt backend call with automatic cold-start retry handling (up to 3 attempts for Render container boot)
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            if (attempt > 1 && loadMsg) {
+                                loadMsg.textContent = `Waking up VREZER Production AI Backend on Render (Attempt ${attempt}/3)…`;
+                            }
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 35000);
+                            exRes = await fetch(baseUrl + '/api/analyzer/extract', {
+                                method: 'POST',
+                                body: fd,
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+                            if (exRes.ok) break;
+                        } catch (e) {
+                            lastErr = e;
+                            console.warn(`Backend extraction attempt ${attempt} failed:`, e);
+                            if (attempt < 3) {
+                                await new Promise(r => setTimeout(r, 4000));
                             }
                         }
-                        return parseResumeClientSide(currentFile.name, text);
                     }
+
+                    if (exRes && exRes.ok) {
+                        const exJson = await exRes.json();
+                        return await callBackendAPI(exJson.text || '');
+                    }
+
+                    // Fallback to client-side pipeline only if backend is unreachable after retries
+                    console.log('Backend unreachable after retries. Switching to client-side neural pipeline:', lastErr);
+                    const text = await extractPdfTextClientSide(currentFile);
+                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || '';
+                    if (userKey) {
+                        try {
+                            return await callGeminiDirectlyClientSide(text, userKey);
+                        } catch (aiErr) {
+                            console.warn('Direct Gemini AI Client Call failed, falling back to neural parser:', aiErr);
+                        }
+                    }
+                    return parseResumeClientSide(currentFile.name, text);
                 } else {
                     throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
                 }
