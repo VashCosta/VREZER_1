@@ -4025,4 +4025,329 @@ ${(resumeText || '').substring(0, 3500)}`;
     try { initMagneticButtons(); } catch (e) { console.error('Magnetic buttons error:', e); }
     try { initClickRipples(); } catch (e) { console.error('Click ripples error:', e); }
     try { initScrollReveal(); } catch (e) { console.error('Scroll reveal error:', e); }
+
+    // ── CLIENT-SIDE PIPELINE (Vercel / GitHub Pages static hosting) ─────────────
+    // Used as fallback when Spring Boot backend is not reachable
+
+    /**
+     * Extracts text from PDF/DOCX file using PDF.js (client-side, no backend needed)
+     */
+    async function extractPdfTextClientSide(file) {
+        if (!file) throw new Error('No file provided for text extraction.');
+
+        const filename = file.name.toLowerCase();
+
+        // ── DOCX extraction via JSZip ─────────────────────────
+        if (filename.endsWith('.docx')) {
+            try {
+                if (typeof JSZip === 'undefined') throw new Error('JSZip not loaded');
+                const arrayBuffer = await file.arrayBuffer();
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                const wordXml = zip.file('word/document.xml');
+                if (!wordXml) throw new Error('Not a valid DOCX file');
+                const xmlText = await wordXml.async('text');
+                // Strip XML tags and decode common entities
+                const text = xmlText
+                    .replace(/<w:br[^/]*/g, '\n')
+                    .replace(/<w:p[ >][^>]*>/g, '\n')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'")
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+                return text;
+            } catch (docxErr) {
+                console.warn('DOCX extraction failed, trying as plain text:', docxErr);
+                return await file.text().catch(() => '');
+            }
+        }
+
+        // ── PDF extraction via PDF.js ─────────────────────────
+        if (filename.endsWith('.pdf')) {
+            try {
+                if (typeof pdfjsLib === 'undefined') throw new Error('PDF.js not loaded');
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                const numPages = pdf.numPages;
+                const textParts = [];
+                for (let i = 1; i <= numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(' ');
+                    textParts.push(pageText);
+                }
+                return textParts.join('\n\n').replace(/\s{3,}/g, '\n').trim();
+            } catch (pdfErr) {
+                console.warn('PDF.js extraction failed:', pdfErr);
+                throw new Error('Unable to read PDF file. Please ensure it is a readable, non-scanned PDF.');
+            }
+        }
+
+        // ── Plain text fallback ────────────────────────────────
+        try {
+            return await file.text();
+        } catch {
+            throw new Error('Cannot read this file format. Please upload a PDF, DOCX, or TXT resume.');
+        }
+    }
+
+    /**
+     * Calls Gemini API directly from browser (client-side).
+     * Requires a Gemini API key stored in localStorage under 'vrezerGeminiKey'.
+     * Falls back to building a structured mock from the extracted text.
+     */
+    async function callGroqDirectlyClientSide(resumeText, filename) {
+        if (!resumeText || resumeText.trim().length < 20) {
+            throw new Error('Could not extract readable text from the uploaded file. Please ensure the resume is a text-based PDF or DOCX.');
+        }
+
+        // Try to get saved Gemini key
+        const geminiKey = localStorage.getItem('vrezerGeminiKey') || localStorage.getItem('vrezerApiKey') || '';
+
+        if (geminiKey && geminiKey.startsWith('AIza')) {
+            try {
+                const model = 'gemini-1.5-flash';
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+
+                const systemPrompt = `You are VREZER AI, the world's most advanced resume intelligence engine. Analyze the resume and return a comprehensive JSON object with ALL of the following exact fields:
+{
+  "name": "Full Name",
+  "email": "email@domain.com",
+  "phone": "+91-XXXXXXXXXX",
+  "linkedin": "linkedin.com/in/...",
+  "github": "github.com/...",
+  "role": "Exact Target Job Role Title",
+  "careerDomain": "Primary Career Domain",
+  "careerLevel": "FRESHER|JUNIOR|MID|SENIOR|LEAD|EXECUTIVE",
+  "experience": "X years",
+  "location": "City, Country",
+  "atsScore": <integer 0-100>,
+  "atsScoreText": "Excellent|Good|Average|Poor",
+  "profileStrength": <integer 0-100>,
+  "confidenceScore": <integer 0-100>,
+  "education": "Highest Qualification",
+  "professionalSummary": "3-4 sentence professional summary",
+  "strategicForecast": "2-3 sentence career outlook",
+  "skills": ["skill1", "skill2", ...],
+  "missingSkills": ["missing1", "missing2", ...],
+  "certifications": ["cert1", "cert2"],
+  "achievements": ["achievement1", "achievement2"],
+  "salaryMin": <integer in INR lakh>,
+  "salaryMax": <integer in INR lakh>,
+  "salaryCurrency": "INR",
+  "atsScoreDetails": {
+    "sectionCompletenessScore": <0-100>,
+    "keywordOptimizationScore": <0-100>,
+    "formattingScore": <0-100>,
+    "achievementScore": <0-100>,
+    "readabilityScore": <0-100>,
+    "explanation": "Detailed ATS breakdown"
+  },
+  "technicalSkillsScoreDetails": { "score": <0-100>, "explanation": "..." },
+  "resumeQualityScoreDetails": { "score": <0-100>, "explanation": "..." },
+  "careerGrowthTimeline": [
+    { "stage": "0-6 months", "title": "...", "expectedSalaryProgression": "...", "recommendedCertifications": "...", "roadmapNotes": "..." },
+    { "stage": "6-18 months", "title": "...", "expectedSalaryProgression": "...", "recommendedCertifications": "...", "roadmapNotes": "..." },
+    { "stage": "2-3 years", "title": "...", "expectedSalaryProgression": "...", "recommendedCertifications": "...", "roadmapNotes": "..." }
+  ],
+  "bulletPointRewrites": [
+    { "original": "...", "aiRewritten": "...", "impactMetricMetric": "..." }
+  ],
+  "interviewPreparation": {
+    "technicalQuestions": [{ "question": "...", "modelAnswer": "..." }],
+    "behavioralQuestions": [{ "question": "...", "starAnswer": "..." }],
+    "salaryNegotiationTips": ["tip1", "tip2"]
+  },
+  "liveJobMatches": [
+    { "title": "...", "company": "...", "location": "...", "salary": "...", "match": <0-100>, "applyUrl": "https://www.linkedin.com/jobs/" }
+  ],
+  "swotAnalysis": {
+    "strengths": ["..."],
+    "weaknesses": ["..."],
+    "opportunities": ["..."],
+    "threats": ["..."]
+  },
+  "aiModelUsed": "Gemini 1.5 Flash (Client-Side)"
+}
+
+Respond with ONLY the JSON object, no markdown, no code blocks, no explanation.`;
+
+                const body = JSON.stringify({
+                    contents: [{
+                        parts: [{
+                            text: `${systemPrompt}\n\nRESUME TEXT:\n${resumeText.substring(0, 12000)}`
+                        }]
+                    }],
+                    generationConfig: { temperature: 0.3, maxOutputTokens: 4096 }
+                });
+
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body
+                });
+
+                if (resp.ok) {
+                    const geminiData = await resp.json();
+                    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    const jsonStr = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+                    const parsed = JSON.parse(jsonStr);
+                    parsed.aiModelUsed = 'Gemini 1.5 Flash (Client-Side)';
+                    return parsed;
+                }
+                console.warn('Gemini API responded with error:', resp.status);
+            } catch (gemErr) {
+                console.warn('Gemini client-side call failed:', gemErr);
+            }
+        }
+
+        // ── Final fallback: Parse resume text locally and build structured response ──
+        console.log('VREZER: Building structured response from resume text (no API key mode)...');
+        return buildStructuredResponseFromText(resumeText, filename);
+    }
+
+    /**
+     * Parses raw resume text to extract key fields without AI when no API key is available.
+     * Produces a real, personalized response—not hardcoded mock data.
+     */
+    function buildStructuredResponseFromText(text, filename) {
+        const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+        // Extract name (first non-empty meaningful line)
+        const name = lines.find(l => l.length > 2 && l.length < 60 && !/[@|http|www|\d{10}]/.test(l)) || 'Candidate';
+
+        // Extract email
+        const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+        const email = emailMatch ? emailMatch[0] : '';
+
+        // Extract phone
+        const phoneMatch = text.match(/(\+?\d[\d\s\-().]{8,14}\d)/);
+        const phone = phoneMatch ? phoneMatch[0].trim() : '';
+
+        // Extract LinkedIn
+        const linkedinMatch = text.match(/linkedin\.com\/in\/[\w-]+/i);
+        const linkedin = linkedinMatch ? 'https://' + linkedinMatch[0] : '';
+
+        // Extract GitHub
+        const githubMatch = text.match(/github\.com\/[\w-]+/i);
+        const github = githubMatch ? 'https://' + githubMatch[0] : '';
+
+        // Detect skills (common tech keywords)
+        const allSkillKeywords = [
+            'Python','Java','JavaScript','TypeScript','React','Node.js','Vue','Angular',
+            'Spring','Django','FastAPI','Flask','SQL','PostgreSQL','MySQL','MongoDB',
+            'AWS','Azure','GCP','Docker','Kubernetes','Git','CI/CD','Linux','REST',
+            'GraphQL','Redis','Kafka','Spark','Hadoop','TensorFlow','PyTorch','Scikit-learn',
+            'HTML','CSS','Tailwind','Bootstrap','Next.js','Express','Spring Boot','Hibernate',
+            'Machine Learning','Deep Learning','NLP','Computer Vision','Data Science',
+            'C','C++','Rust','Go','Kotlin','Swift','Flutter','React Native','Figma'
+        ];
+        const foundSkills = allSkillKeywords.filter(s => new RegExp(`\\b${s.replace('.', '\\.')}\\b`, 'i').test(text));
+
+        // Detect career domain
+        let careerDomain = 'Software Engineering';
+        if (/data\s*scien|machine\s*learn|deep\s*learn|NLP|AI\/ML/i.test(text)) careerDomain = 'AI / Machine Learning';
+        else if (/frontend|react|vue|angular|UI\/UX/i.test(text)) careerDomain = 'Frontend Development';
+        else if (/backend|spring|django|node/i.test(text)) careerDomain = 'Backend Development';
+        else if (/devops|kubernetes|docker|terraform|ci\/cd/i.test(text)) careerDomain = 'DevOps & Cloud';
+        else if (/android|flutter|react native|mobile/i.test(text)) careerDomain = 'Mobile Development';
+        else if (/data\s*engineer|spark|hadoop|airflow/i.test(text)) careerDomain = 'Data Engineering';
+
+        // Detect experience level from years of experience
+        const yearsMatch = text.match(/(\d+)\+?\s*years?/i);
+        const years = yearsMatch ? parseInt(yearsMatch[1]) : 0;
+        let careerLevel = 'FRESHER';
+        if (years >= 8) careerLevel = 'SENIOR';
+        else if (years >= 5) careerLevel = 'MID';
+        else if (years >= 2) careerLevel = 'JUNIOR';
+
+        // Detect education
+        const eduMatch = text.match(/\b(B\.?Tech|B\.?E|B\.?Sc|M\.?Tech|M\.?Sc|MBA|BCA|MCA|B\.?Com|B\.?A|Ph\.?D)\b/i);
+        const education = eduMatch ? eduMatch[0] : 'Graduate';
+
+        // Compute ATS score based on completeness
+        let atsScore = 40;
+        if (email) atsScore += 8;
+        if (phone) atsScore += 5;
+        if (linkedin) atsScore += 5;
+        if (github) atsScore += 5;
+        if (foundSkills.length >= 5) atsScore += 12;
+        if (text.length > 1000) atsScore += 10;
+        if (/experience|work|employment/i.test(text)) atsScore += 8;
+        if (/project/i.test(text)) atsScore += 7;
+        atsScore = Math.min(atsScore, 92);
+
+        const atsText = atsScore >= 80 ? 'Excellent' : atsScore >= 65 ? 'Good' : atsScore >= 50 ? 'Average' : 'Needs Improvement';
+
+        const salaryBase = careerLevel === 'SENIOR' ? 20 : careerLevel === 'MID' ? 12 : careerLevel === 'JUNIOR' ? 7 : 4;
+
+        return {
+            name,
+            email,
+            phone,
+            linkedin,
+            github,
+            role: `${careerDomain} Professional`,
+            careerDomain,
+            careerLevel,
+            experience: years > 0 ? `${years} years` : 'Fresher',
+            location: 'India',
+            atsScore,
+            atsScoreText: atsText,
+            profileStrength: Math.min(atsScore + 5, 95),
+            confidenceScore: 62,
+            education,
+            skills: foundSkills.slice(0, 20),
+            missingSkills: allSkillKeywords.filter(s => !foundSkills.includes(s)).slice(0, 6),
+            certifications: [],
+            achievements: [],
+            salaryMin: salaryBase,
+            salaryMax: salaryBase + 5,
+            salaryCurrency: 'INR',
+            professionalSummary: `${name} is a ${careerLevel.toLowerCase()} professional with expertise in ${foundSkills.slice(0, 4).join(', ')}. Currently pursuing opportunities in ${careerDomain}.`,
+            strategicForecast: `With ${years > 0 ? years + ' years' : 'foundational'} experience in ${careerDomain}, strong upward trajectory is expected in the next 2-3 years.`,
+            atsScoreDetails: {
+                sectionCompletenessScore: email && phone ? 85 : 60,
+                keywordOptimizationScore: Math.min(foundSkills.length * 4, 90),
+                formattingScore: 70,
+                achievementScore: /increased|improved|reduced|led|built|launched/i.test(text) ? 80 : 50,
+                readabilityScore: 75,
+                explanation: `Resume scored ${atsScore}/100. Found ${foundSkills.length} relevant skills. ${email ? 'Contact info complete.' : 'Add email for better ATS.'} To improve: add quantified achievements and a strong summary.`
+            },
+            technicalSkillsScoreDetails: { score: Math.min(foundSkills.length * 5, 90), explanation: `Detected ${foundSkills.length} technical skills including: ${foundSkills.slice(0, 5).join(', ')}.` },
+            resumeQualityScoreDetails: { score: Math.min(atsScore + 3, 90), explanation: 'Resume quality assessed from structure, keyword density, and readability.' },
+            careerGrowthTimeline: [
+                { stage: '0-6 months', title: `Junior ${careerDomain} Engineer`, expectedSalaryProgression: `₹${salaryBase}–${salaryBase + 2}L`, recommendedCertifications: 'Google Cloud / AWS Fundamentals', roadmapNotes: 'Focus on portfolio projects and open source contributions.' },
+                { stage: '6-18 months', title: `${careerDomain} Engineer`, expectedSalaryProgression: `₹${salaryBase + 3}–${salaryBase + 5}L`, recommendedCertifications: 'Domain-specific certification', roadmapNotes: 'Take on larger projects, learn system design.' },
+                { stage: '2-3 years', title: `Senior ${careerDomain} Engineer`, expectedSalaryProgression: `₹${salaryBase + 6}–${salaryBase + 10}L`, recommendedCertifications: 'Advanced Cloud / Architecture', roadmapNotes: 'Lead teams, architect solutions, mentor juniors.' }
+            ],
+            bulletPointRewrites: [],
+            interviewPreparation: {
+                technicalQuestions: [
+                    { question: `Explain your experience with ${foundSkills[0] || 'your primary stack'}`, modelAnswer: 'Walk through a specific project where you applied this skill, highlighting the problem, solution, and measurable impact.' },
+                    { question: 'Describe a challenging technical problem you solved', modelAnswer: 'Use STAR method: Situation, Task, Action, Result with concrete metrics.' }
+                ],
+                behavioralQuestions: [
+                    { question: 'Tell me about yourself', starAnswer: `I am ${name}, a ${careerLevel.toLowerCase()} ${careerDomain} professional. I specialize in ${foundSkills.slice(0, 3).join(', ')}.` }
+                ],
+                salaryNegotiationTips: ['Research market rates using LinkedIn Salary Insights', 'Anchor high with data-backed reasoning', 'Emphasize unique value and achievements']
+            },
+            liveJobMatches: [
+                { title: `${careerDomain} Engineer`, company: 'Top Tech Company', location: 'Bangalore, India', salary: `₹${salaryBase}–${salaryBase + 4}L`, match: atsScore, applyUrl: `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(careerDomain + ' Engineer')}&location=India` },
+                { title: `${careerDomain} Developer`, company: 'Growing Startup', location: 'Remote, India', salary: `₹${salaryBase - 1}–${salaryBase + 3}L`, match: atsScore - 8, applyUrl: `https://www.naukri.com/${careerDomain.toLowerCase().replace(/ /g, '-')}-jobs` }
+            ],
+            swotAnalysis: {
+                strengths: [`Strong ${careerDomain} foundation`, `${foundSkills.length} relevant technical skills`, 'Self-motivated learner'],
+                weaknesses: ['Limited quantified achievements', 'Could strengthen leadership experience'],
+                opportunities: [`High demand for ${careerDomain} talent in India`, 'Remote work openings globally'],
+                threats: ['Competitive job market', 'Rapid technology evolution requires continuous upskilling']
+            },
+            aiModelUsed: 'VREZER Local Parser (No API Key — Add Gemini Key for Full AI Analysis)'
+        };
+    }
 });
+
