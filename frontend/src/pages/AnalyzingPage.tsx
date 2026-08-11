@@ -6,7 +6,7 @@ import {
   Layers, Terminal, Zap, Radio, Activity, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { useResumeContext } from '../context/ResumeContext';
-import axios from 'axios';
+import { api } from '../lib/api';
 
 // Interactive Neural Constellation Particle Canvas
 const TelemetryParticleCanvas: React.FC = () => {
@@ -172,7 +172,7 @@ export const AnalyzingPage: React.FC = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (activeKey) headers['X-GEMINI-API-KEY'] = activeKey;
 
-    axios.post('/api/analyzer/analyze', payload, { headers, timeout: 120000 })
+    api.post('/api/analyzer/analyze', payload, { headers, timeout: 120000 })
       .then(response => {
         clearInterval(interval);
         if (response.data && (response.data.name || response.data.atsScore || response.data.careerDomain || response.data.role)) {

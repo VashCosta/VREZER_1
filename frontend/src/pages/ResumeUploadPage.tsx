@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Button } from '../components/ui/Button';
 import { UploadCloud, FileText, CheckCircle2, Sparkles, AlertTriangle, ShieldCheck, RefreshCw, Key, ArrowRight, Brain, Cpu, Zap, Layers } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../lib/api';
 import { Reveal } from '../components/ui/Reveal';
 import { useResumeContext } from '../context/ResumeContext';
 import { useNavigate } from 'react-router-dom';
@@ -133,7 +133,7 @@ export const ResumeUploadPage: React.FC = () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (apiKey) headers['X-GEMINI-API-KEY'] = apiKey;
 
-    axios.post('/api/analyzer/analyze', payload, { headers, timeout: 120000 })
+    api.post('/api/analyzer/analyze', payload, { headers, timeout: 120000 })
       .then(response => {
         clearInterval(interval);
         if (response.data && (response.data.name || response.data.atsScore || response.data.role)) {
@@ -165,7 +165,7 @@ export const ResumeUploadPage: React.FC = () => {
         console.warn("Backend analysis error/fallback:", err);
         const detail = err?.response?.data?.error || err?.message || '';
         if (err?.response?.status === 0 || err?.code === 'ERR_NETWORK') {
-          setErrorMsg("Failed to connect to the backend server. Please verify the backend is running on port 9000.");
+          setErrorMsg("Failed to connect to the backend server. Please verify the backend is running on port 7000.");
         } else {
           setErrorMsg(`Analysis failed: ${detail || 'Unknown error'}. Please check the backend logs and your API key configuration.`);
         }
@@ -183,7 +183,7 @@ export const ResumeUploadPage: React.FC = () => {
 
     try {
       // Step 1: Extract Text
-      const exRes = await axios.post('/api/analyzer/extract', formData);
+      const exRes = await api.post('/api/analyzer/extract', formData);
 
       if (exRes.data?.status === 'RESUME_EXTRACTION_FAILED' || !exRes.data?.text || exRes.data.text.trim().length < 20) {
         setLoading(false);

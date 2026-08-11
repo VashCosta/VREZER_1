@@ -8,7 +8,7 @@ import {
   Map, HelpCircle, DollarSign, Code, FileCheck, Briefcase, Linkedin, Layers
 } from 'lucide-react';
 import { useResumeContext } from '../context/ResumeContext';
-import axios from 'axios';
+import { api } from '../lib/api';
 
 /* ─────────── HERO PARTICLE CANVAS (Indigo / Cyan / Violet) ─────────── */
 const LiveParticleCanvas: React.FC = () => {
@@ -240,7 +240,7 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
       try {
         const fd = new FormData();
         fd.append('file', file);
-        const exRes = await axios.post('/api/analyzer/extract', fd);
+        const exRes = await api.post('/api/analyzer/extract', fd);
 
         extractedText = exRes.data?.text || '';
       } catch (_) {}
@@ -251,7 +251,7 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
 
       let result: any = null;
       try {
-        const res = await axios.post('/api/analyzer/analyze',
+        const res = await api.post('/api/analyzer/analyze',
           { resumeText: extractedText, jobDescription: '' },
           { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
         );

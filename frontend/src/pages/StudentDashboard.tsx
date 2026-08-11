@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useResumeContext } from '../context/ResumeContext';
 import { useTheme } from '../context/ThemeContext';
-import axios from 'axios';
+import { api } from '../lib/api';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
@@ -55,7 +55,7 @@ export const StudentDashboard: React.FC = () => {
       const activeKey = apiKey || localStorage.getItem('vrezerApiKey') || '';
       const prompt = `You are a Principal Technical Recruiter and Resume Optimizer. Rewrite the following weak resume bullet point into a high-impact, professional resume bullet point following the STAR / XYZ formula (Accomplished [X] as measured by [Y], by doing [Z]). Target Tone: ${bulletTone}.\n\nOriginal Bullet Point: "${customBulletInput}"\n\nFormat your response ONLY as JSON with keys: "aiRewritten" and "reasoning".`;
       
-      const response = await axios.post('/api/chat/ask', {
+      const response = await api.post('/api/chat/ask', {
         prompt,
         apiKey: activeKey,
         candidateContext: { role: aiAnalysisResult?.role, domain: aiAnalysisResult?.careerDomain }
@@ -103,7 +103,7 @@ export const StudentDashboard: React.FC = () => {
       const activeKey = apiKey || localStorage.getItem('vrezerApiKey') || '';
       const prompt = `You are a Technical Interviewer evaluating a candidate's answer.\n\nQuestion: "${questionText}"\nReference Answer: "${modelAnswerText}"\nCandidate Answer: "${userInterviewAnswer}"\n\nEvaluate the candidate answer on technical depth, clarity, and relevance. Respond ONLY as JSON with keys: "score" (integer 0-100), "remark" (short evaluation), "improvement" (one concrete tip to reach 100%).`;
       
-      const response = await axios.post('/api/chat/ask', {
+      const response = await api.post('/api/chat/ask', {
         prompt,
         apiKey: activeKey,
         candidateContext: { role: aiAnalysisResult?.role }
@@ -244,7 +244,7 @@ export const StudentDashboard: React.FC = () => {
         resumeText: rawText || "CANDIDATE RESUME TEXT",
         jobDescription: jdInput
       };
-      const response = await axios.post('/api/analyzer/analyze', payload, {
+      const response = await api.post('/api/analyzer/analyze', payload, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (response.data && response.data.name) {

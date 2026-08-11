@@ -5,7 +5,7 @@ import {
   DollarSign, ArrowUpRight, BadgeCheck, RefreshCw, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import { api } from '../../lib/api';
 
 export interface JobOpportunityItem {
   name?: string;
@@ -126,7 +126,7 @@ export const JobOpportunitiesPanel: React.FC<JobOpportunitiesPanelProps> = ({
       const loc = selectedCity ? `${selectedCity}, India` : (selectedCountry || "India");
       const exp = selectedExperience || "fresher";
 
-      const res = await axios.post('/api/analyzer/jobs', {
+      const res = await api.post('/api/analyzer/jobs', {
         query: q,
         location: loc,
         experienceLevel: exp.toUpperCase(),

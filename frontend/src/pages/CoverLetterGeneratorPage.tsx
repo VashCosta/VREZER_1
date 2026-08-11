@@ -4,7 +4,7 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { Button } from '../components/ui/Button';
 import { Briefcase, Sparkles, Copy, Check, ArrowRight, Loader2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../lib/api';
 
 export const CoverLetterGeneratorPage: React.FC = () => {
   const { aiAnalysisResult, apiKey } = useResumeContext();
@@ -71,7 +71,7 @@ Desired Tone: ${tone}
 
 Make it authentic, persuasive, well-structured (3-4 concise paragraphs), highlighting quantified achievements and passion for the target role.`;
 
-      const response = await axios.post('/api/chat/ask', {
+      const response = await api.post('/api/chat/ask', {
         prompt,
         apiKey: activeKey,
         candidateContext: { name: candidateName, role: res.role, domain: res.careerDomain, skills: res.topSkills }

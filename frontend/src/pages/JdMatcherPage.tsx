@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Button } from '../components/ui/Button';
 import { Target, Sparkles, CheckCircle2, XCircle, ArrowRight, ShieldCheck, AlertTriangle, FileText, Info } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../lib/api';
 import { useResumeContext } from '../context/ResumeContext';
 import { motion } from 'framer-motion';
 
@@ -40,7 +40,7 @@ export const JdMatcherPage: React.FC = () => {
         headers['X-GEMINI-API-KEY'] = apiKey;
       }
 
-      const response = await axios.post('/api/analyzer/jd-match', payload, { headers });
+      const response = await api.post('/api/analyzer/jd-match', payload, { headers });
 
       if (response.data) {
         setMatchResult(response.data);

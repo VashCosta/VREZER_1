@@ -8,6 +8,7 @@ import {
   BarChart3, Shield, Smartphone, Settings
 } from 'lucide-react';
 import axios from 'axios';
+import { api } from '../lib/api';
 import { useResumeContext } from '../context/ResumeContext';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -401,7 +402,7 @@ export const LiveJobsPage: React.FC = () => {
       };
       if (apiKey.trim()) payload.apiKey = apiKey.trim();
 
-      const res = await axios.post<JobListing[]>('/api/analyzer/jobs', payload, {
+      const res = await api.post<JobListing[]>('/api/analyzer/jobs', payload, {
         signal: abortRef.current.signal,
         timeout: 45_000,
       });

@@ -16,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -57,21 +58,23 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:*}")
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:https://vrezer-3-0.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:3000,http://localhost:7000}")
     private String allowedOrigins;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        if (allowedOrigins != null && !allowedOrigins.trim().isEmpty() && !allowedOrigins.equals("*")) {
-            List<String> origins = Arrays.stream(allowedOrigins.split(","))
+        List<String> originsList = new ArrayList<>();
+        if (allowedOrigins != null && !allowedOrigins.trim().isEmpty()) {
+            originsList.addAll(Arrays.stream(allowedOrigins.split(","))
                     .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .toList();
-            configuration.setAllowedOriginPatterns(origins);
-        } else {
-            configuration.setAllowedOriginPatterns(List.of("*"));
+                    .filter(s -> !s.isEmpty() && !s.equals("*"))
+                    .toList());
         }
+        if (originsList.isEmpty()) {
+            originsList = List.of("https://vrezer-3-0.vercel.app", "https://*.vercel.app", "http://localhost:5173", "http://localhost:3000", "http://localhost:7000");
+        }
+        configuration.setAllowedOriginPatterns(originsList);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "X-GEMINI-API-KEY", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
         configuration.setAllowCredentials(true);

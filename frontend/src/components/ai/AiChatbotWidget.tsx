@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Bot, X, Send, Sparkles, User as UserIcon } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../../lib/api';
 import { useResumeContext } from '../../context/ResumeContext';
 
 interface Message {
@@ -35,7 +35,7 @@ export const AiChatbotWidget: React.FC = () => {
       if (activeKey) {
         headers['X-GEMINI-API-KEY'] = activeKey;
       }
-      const response = await axios.post('/api/chat/ask', {
+      const response = await api.post('/api/chat/ask', {
         prompt: textToSend,
         apiKey: activeKey,
         candidateContext: aiAnalysisResult && Object.keys(aiAnalysisResult).length > 0 ? aiAnalysisResult : null

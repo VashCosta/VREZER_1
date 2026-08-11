@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Key, CheckCircle2, AlertTriangle, X, Sparkles, ShieldCheck, RefreshCw } from 'lucide-react';
-import axios from 'axios';
+import { api } from '../../lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ApiKeyModalProps {
@@ -25,7 +25,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, apiKe
     setValidating(true);
     setStatus(null);
     try {
-      const res = await axios.post('/api/analyzer/validate-key', { apiKey: inputKey.trim() });
+      const res = await api.post('/api/analyzer/validate-key', { apiKey: inputKey.trim() });
       if (res.data) {
         setStatus({
           valid: res.data.valid,
