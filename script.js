@@ -322,9 +322,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             throw new Error("Backend API offline");
                         }
                     } catch (fetchErr) {
-                        console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js + Meta LLaMA 3.3 70B Client Pipeline');
+                        console.log('Static Hosting Mode (Vercel / GitHub Pages): Running PDF.js Client Neural Pipeline');
                         const text = await extractPdfTextClientSide(currentFile);
-                        return await callGroqDirectlyClientSide(text, currentFile.name);
+                        return parseResumeClientSide(currentFile.name, text);
                     }
                 } else {
                     throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
@@ -3360,6 +3360,53 @@ ${(resumeText || '').substring(0, 3500)}`;
             console.warn('Groq client API fallback to local parser:', groqErr);
         }
         return parseResumeClientSide(fileName, resumeText);
+    }
+
+    async function extractPdfTextClientSide(file) {
+        if (!file) return '';
+        const filename = (file.name || '').toLowerCase();
+
+        if (filename.endsWith('.docx')) {
+            try {
+                if (typeof JSZip !== 'undefined') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const zip = await JSZip.loadAsync(arrayBuffer);
+                    const wordXml = zip.file('word/document.xml');
+                    if (wordXml) {
+                        const xmlText = await wordXml.async('text');
+                        return xmlText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                }
+            } catch (e) {
+                console.warn('DOCX client extraction warning:', e);
+            }
+        }
+
+        if (filename.endsWith('.pdf') || file.type === 'application/pdf') {
+            try {
+                if (typeof pdfjsLib !== 'undefined') {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let textParts = [];
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        const pageStr = content.items.map(item => item.str).join(' ');
+                        textParts.push(pageStr);
+                    }
+                    return textParts.join('\n');
+                }
+            } catch (e) {
+                console.warn('PDF.js client extraction warning:', e);
+            }
+        }
+
+        try {
+            return await file.text();
+        } catch (e) {
+            return '';
+        }
     }
 
     function readTextFromFile(file) {
