@@ -21,13 +21,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Create .nojekyll
-        run: touch .nojekyll
+      - name: Prepare static site for GitHub Pages
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+          cp script.js _site/script.js
+          cp style.css _site/style.css
+          touch _site/.nojekyll
 
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
   deploy:
     environment:
