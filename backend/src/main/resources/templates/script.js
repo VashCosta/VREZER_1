@@ -229,13 +229,114 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ── View Demo Button ───────────────────────────
+    // ── Hero Buttons & Sample Profiles ─────────────────────
+    const btnBrowse = $('btn-browse-trigger');
+    if (btnBrowse) {
+        btnBrowse.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (fileInput) fileInput.click();
+        });
+    }
+
     const btnDemo = $('btn-demo-trigger');
     if (btnDemo) {
         btnDemo.addEventListener('click', (e) => {
             e.stopPropagation();
             loadSampleProfile('software');
         });
+    }
+
+    document.querySelectorAll('.sample-resume-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const sampleType = btn.getAttribute('data-sample') || 'software';
+            loadSampleProfile(sampleType);
+        });
+    });
+
+    function loadSampleProfile(type) {
+        let sampleName = 'Software_SDE_Sample_Resume';
+        let sampleText = `Alex Mercer
+alex.mercer@email.com | +91 98765 43210 | linkedin.com/in/alex-mercer | github.com/alex-mercer
+Location: Bengaluru, Karnataka, India
+
+PROFESSIONAL SUMMARY
+Senior Software Development Engineer with 4+ years of experience in building scalable microservices, REST APIs, and distributed cloud applications. Proven expertise in Java, Spring Boot, Python, React, PostgreSQL, Docker, AWS, and system design.
+
+TECHNICAL SKILLS
+Languages: Java, Python, JavaScript, TypeScript, SQL, HTML, CSS
+Frameworks: Spring Boot, Node.js, Express, React, Hibernate
+Cloud & DevOps: AWS (EC2, S3, RDS), Docker, Kubernetes, CI/CD, Git, Linux
+Databases: PostgreSQL, MySQL, MongoDB, Redis
+Concepts: Microservices, REST APIs, System Design, Distributed Systems, Agile, Jira
+
+WORK EXPERIENCE
+Senior Software Engineer | Razorpay Technologies | 2022 - Present
+• Architected scalable payment processing microservices using Java 17 and Spring Boot, serving 5M+ daily requests with 99.99% uptime.
+• Reduced API query latency by 40% by implementing Redis caching layer and optimizing PostgreSQL queries.
+• Containerized core services using Docker and orchestrated deployments on AWS EKS with CI/CD pipelines.
+
+Software Engineer | TCS Digital | 2020 - 2022
+• Developed high-throughput backend services and web portals using Java, Spring Boot, React, and MySQL.
+• Collaborated with cross-functional Agile teams to design RESTful web services and automated integration tests.
+
+PROJECTS
+• Distributed E-Commerce Microservices Platform (Java, Spring Boot, Docker, Kafka, PostgreSQL)
+• Real-time Analytics Dashboard (Python, React, Node.js, AWS)
+
+EDUCATION
+B.Tech in Computer Science & Engineering | VTU Karnataka | 2016 - 2020`;
+
+        if (type === 'aiml') {
+            sampleName = 'AI_ML_Specialist_Sample_Resume';
+            sampleText = `Dr. Priya Sharma
+priya.sharma@aiml.org | +91 98765 12345 | linkedin.com/in/priya-sharma-ai | github.com/priya-ai
+Location: Bengaluru, India
+
+PROFESSIONAL SUMMARY
+AI / ML Specialist & Data Scientist with 5+ years of experience in Deep Learning, NLP, Computer Vision, and MLOps. Strong background in Python, PyTorch, TensorFlow, Scikit-learn, OpenCV, and deploying Transformer models on AWS.
+
+TECHNICAL SKILLS
+Core AI/ML: Machine Learning, Deep Learning, NLP, Computer Vision, Large Language Models (LLMs), RAG, Neural Networks
+Tools & Libraries: Python, PyTorch, TensorFlow, Scikit-learn, Pandas, NumPy, OpenCV, HuggingFace, LangChain
+Infrastructure: AWS SageMaker, Docker, Kubernetes, MLOps, MLflow, Git, Linux, SQL, PostgreSQL
+
+EXPERIENCE
+Lead AI Engineer | Swiggy AI Labs | 2021 - Present
+• Designed and deployed deep learning recommendation engine processing 10M+ daily user interactions.
+• Fine-tuned LLaMA & Transformer models using PyTorch & HuggingFace for real-time customer sentiment NLP analysis.
+• Optimized model inference speed by 3x using TensorRT and ONNX runtime on AWS GPU instances.
+
+EDUCATION
+M.Tech in Artificial Intelligence | IISc Bangalore | 2017 - 2019`;
+        } else if (type === 'cae') {
+            sampleName = 'Mechanical_CAE_Engineer_Sample_Resume';
+            sampleText = `Rohan Verma
+rohan.verma@engg.com | +91 98123 45678 | linkedin.com/in/rohan-verma-cae
+Location: Pune, Maharashtra, India
+
+PROFESSIONAL SUMMARY
+Mechanical CAE & Finite Element Analysis (FEA) Engineer with 4+ years of experience in structural crashworthiness, thermal simulation, and CAD modeling using ANSYS, SolidWorks, AutoCAD, and MATLAB.
+
+TECHNICAL SKILLS
+CAE & Simulation: ANSYS Workbench, FEA Analysis, Structural Analysis, Thermal Dynamics, Crashworthiness, Abaqus
+CAD Tools: SolidWorks, AutoCAD, CATIA V5, PTC Creo, GD&T
+Programming & Computation: MATLAB, Python for Automation, C++
+Domain Knowledge: Mechanical Engineering, Structural Design, Automotive Components, Manufacturing Engineering
+
+EXPERIENCE
+Senior CAE Engineer | Tata Motors R&D | 2021 - Present
+• Performed non-linear structural and impact FEA simulations for vehicle chassis using ANSYS Workbench.
+• Optimized component weight by 18% while maintaining structural rigidity standards and safety compliance.
+
+EDUCATION
+B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 2020`;
+        }
+
+        const blob = new Blob([sampleText], { type: 'text/plain' });
+        const sampleFile = new File([blob], `${sampleName}.txt`, { type: 'text/plain' });
+        handleFile(sampleFile);
+        setTimeout(() => runAnalysis(), 200);
     }
 
     function handleFile(file) {
