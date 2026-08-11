@@ -1,16 +1,6 @@
 {
   "version": 2,
   "name": "vrezer-3-0",
-  "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
   "routes": [
     {
       "src": "/api/chat",
@@ -19,18 +9,6 @@
     {
       "src": "/api/(.*)",
       "dest": "https://vrezer-backend.onrender.com/api/$1"
-    },
-    {
-      "src": "/style.css",
-      "dest": "/style.css"
-    },
-    {
-      "src": "/script.js",
-      "dest": "/script.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
     }
   ],
   "headers": [
