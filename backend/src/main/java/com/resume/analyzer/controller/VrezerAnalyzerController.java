@@ -30,7 +30,7 @@ public class VrezerAnalyzerController {
     @GetMapping("/version")
     public ResponseEntity<Map<String, Object>> getVersion() {
         Map<String, Object> version = new LinkedHashMap<>();
-        version.put("commit", "3bec957");
+        version.put("commit", "ebc12e0");
         version.put("status", "ONLINE");
         version.put("environment", System.getenv("SPRING_PROFILES_ACTIVE") != null ? System.getenv("SPRING_PROFILES_ACTIVE") : "production");
         version.put("backendVersion", "VREZER 3.0 Production Build");
