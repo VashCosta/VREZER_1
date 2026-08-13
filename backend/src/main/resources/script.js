@@ -3065,7 +3065,7 @@ ${generateMarketReportText(d)}
 
             // 1. Try Backend API (Localhost / Live Backend)
             try {
-                const res = await fetch('/api/chat/ask', {
+                const res = await fetch(getApiBaseUrl() + '/api/chat/ask', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 

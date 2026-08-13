@@ -1,19 +1,18 @@
 import axios from 'axios';
 
 const getBaseUrl = (): string => {
-  if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_URL) {
-    return (import.meta as any).env.VITE_API_URL;
-  }
-  if (typeof window !== 'undefined' && (window as any).VREZER_API_URL) {
-    return (window as any).VREZER_API_URL;
-  }
-  if (typeof window !== 'undefined' && window.location) {
+  let url = '';
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+    url = import.meta.env.VITE_API_URL;
+  } else if (typeof window !== 'undefined' && (window as any).VREZER_API_URL) {
+    url = (window as any).VREZER_API_URL;
+  } else if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
     if (host.includes('vercel.app') || host.includes('github.io')) {
-      return 'https://vrezer-backend.onrender.com';
+      url = 'https://vrezer.onrender.com';
     }
   }
-  return '';
+  return url ? url.replace(/\/+$/, '') : '';
 };
 
 const API_URL = getBaseUrl();

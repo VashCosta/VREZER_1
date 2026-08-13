@@ -3,7 +3,7 @@
   "name": "vrezer-3-0",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
