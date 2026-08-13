@@ -75,21 +75,10 @@ export const StudentDashboard: React.FC = () => {
           reasoning: jsonParsed.reasoning || "Optimized with quantifiable impact and strong action verbs."
         });
       } else {
-        // High quality algorithmic fallback
-        const clean = customBulletInput.replace(/^(worked on|built|created|helped with|did)\s*/i, '');
-        setRewrittenBulletResult({
-          original: customBulletInput,
-          aiRewritten: `Spearheaded and architected ${clean}, improving system performance and delivery efficiency`,
-          reasoning: "Transformed passive phrasing into strong action verbs with quantified outcome metrics."
-        });
+        alert("Bullet optimization failed. Please verify AI backend API availability.");
       }
     } catch (err) {
-      const clean = customBulletInput.replace(/^(worked on|built|created|helped with|did)\s*/i, '');
-      setRewrittenBulletResult({
-        original: customBulletInput,
-        aiRewritten: `Architected and deployed a scalable solution for ${clean}, improving reliability and maintainability`,
-        reasoning: "Enhanced with action verb lead, architectural framing, and measurable business impact."
-      });
+      alert("Failed to connect to AI engine to rewrite bullet point.");
     } finally {
       setIsRewritingBullet(false);
     }

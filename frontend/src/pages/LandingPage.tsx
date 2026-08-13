@@ -246,26 +246,29 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
       } catch (_) {}
 
       if (!extractedText) {
-        extractedText = await file.text().catch(() => candidateName + '\nJava Spring Boot React AWS Senior Engineer');
+        extractedText = await file.text().catch(() => '');
       }
 
-      let result: any = null;
-      try {
-        const res = await api.post('/api/analyzer/analyze',
-          { resumeText: extractedText, jobDescription: '' },
-          { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
-        );
-        if (res.data && typeof res.data === 'object' && (res.data.name || res.data.atsScore || res.data.role || res.data.candidateSalaryEstimate)) {
-          result = {
-            ...res.data,
-            name: res.data.name || candidateName,
-            role: res.data.role || 'Candidate',
-            careerDomain: res.data.careerDomain || 'Not available',
-          };
-        }
-      } catch (_) {}
+      if (!extractedText.trim()) {
+        clearInterval(ticker);
+        setPhase('idle');
+        alert("Failed to extract text from resume file. Please upload a readable PDF or TXT document.");
+        return;
+      }
 
-      if (!result) result = buildInsufficientDataResult(candidateName);
+      const res = await api.post('/api/analyzer/analyze',
+        { resumeText: extractedText, jobDescription: '' },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 120000 }
+      );
+
+      if (!res.data || typeof res.data !== 'object' || (!res.data.name && !res.data.atsScore && !res.data.role)) {
+        throw new Error("Invalid response received from backend AI engine.");
+      }
+
+      const result = {
+        ...res.data,
+        name: res.data.name || candidateName,
+      };
 
       clearInterval(ticker);
       setLoadPct(100);
@@ -273,23 +276,18 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
 
       setRawText(extractedText);
       setAiAnalysisResult(result);
-      addResumeToHistory(candidateName, result, extractedText, file.name);
+      addResumeToHistory(result.name, result, extractedText, file.name);
 
       setTimeout(() => {
         setPhase('done');
         navigate('/dashboard');
       }, 600);
 
-    } catch (err) {
+    } catch (err: any) {
       clearInterval(ticker);
-      const fallbackResult = buildInsufficientDataResult(candidateName);
-      setRawText('');
-      setAiAnalysisResult(fallbackResult);
-      addResumeToHistory(candidateName, fallbackResult, '', file.name);
-      setTimeout(() => {
-        setPhase('done');
-        navigate('/dashboard');
-      }, 600);
+      setPhase('idle');
+      const msg = err?.response?.data?.error || err?.message || 'Unknown error occurred.';
+      alert(`Analysis failed: ${msg}. Please ensure backend service is active.`);
     }
   };
 

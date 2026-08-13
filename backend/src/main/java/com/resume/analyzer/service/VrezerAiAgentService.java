@@ -182,14 +182,12 @@ public class VrezerAiAgentService {
     private String llamaUrl;
 
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-3.5-pro",           "v1beta" },
-        { "gemini-3.5-flash",         "v1beta" },
         { "gemini-2.5-flash",         "v1beta" },
-        { "gemini-2.5-pro",           "v1beta" },
         { "gemini-2.0-flash",         "v1beta" },
-        { "gemini-1.5-pro",           "v1beta" },
-        { "gemini-1.5-flash",         "v1beta" },
-        { "gemini-flash-latest",      "v1beta" }
+        { "gemini-1.5-flash-latest",  "v1beta" },
+        { "gemini-2.5-pro",           "v1beta" },
+        { "gemini-3.5-pro",           "v1beta" },
+        { "gemini-3.5-flash",         "v1beta" }
     };
 
     private static final String[] LLAMA_MODELS = {
@@ -524,14 +522,14 @@ public class VrezerAiAgentService {
         result.put("debugPanel", debugPanel);
 
         // 8. ATS Breakdown
+        // Safe Production Audit Log (No PII / Raw Text)
         System.out.println("================================================================================");
-        System.out.println("[PRODUCTION AUDIT LOG 8/10] ATS Breakdown: " + result.get("atsScoreDetails"));
-
-        // 9. Dashboard JSON
-        System.out.println("[PRODUCTION AUDIT LOG 9/10] Dashboard JSON Keys: " + result.keySet());
-
-        // 10. Execution Time
-        System.out.println("[PRODUCTION AUDIT LOG 10/10] Execution Time: " + executionTimeMs + " ms");
+        System.out.println("[SAFE AUDIT LOG] Resume Hash (SHA-256): " + sha256Hash);
+        System.out.println("[SAFE AUDIT LOG] Model Used: " + result.getOrDefault("modelUsed", result.getOrDefault("aiModel", "VREZER AI Engine")));
+        System.out.println("[SAFE AUDIT LOG] Backend Version: VREZER 3.0 Production Build");
+        System.out.println("[SAFE AUDIT LOG] ATS Score: " + result.get("atsScore"));
+        System.out.println("[SAFE AUDIT LOG] Detected Skills: " + result.get("topSkills"));
+        System.out.println("[SAFE AUDIT LOG] Execution Time: " + executionTimeMs + " ms");
         System.out.println("================================================================================");
 
         resumeCache.put(cacheKey, result);
@@ -981,6 +979,9 @@ public class VrezerAiAgentService {
             parsed.getOrDefault("name", "")))))
         ).trim();
 
+        if (name.toLowerCase().startsWith("resumetext")) {
+            name = name.replaceFirst("(?i)^resumetext\\s*", "").trim();
+        }
         if (name.isEmpty() || name.equalsIgnoreCase("Candidate") || name.equalsIgnoreCase("null")) {
             name = resumeParserService.extractName(resumeText);
         }
