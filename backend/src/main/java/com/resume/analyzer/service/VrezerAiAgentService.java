@@ -317,12 +317,20 @@ public class VrezerAiAgentService {
         String activeKey = (customKey != null && !customKey.trim().isEmpty()) ? customKey.trim() : geminiApiKey;
         boolean hasKey = isValidKey(activeKey);
 
-        String sha256Hash = computeSha256(resumeText);
+        if (resumeText == null || resumeText.trim().length() < 20) {
+            System.err.println("[VREZER AI AGENT] Refusing analysis on empty or short text (len=" + (resumeText == null ? 0 : resumeText.length()) + ")");
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("status", "ERROR");
+            err.put("error", "Resume text is empty or too short to analyze. Minimum 20 characters required.");
+            return err;
+        }
+
+        String sha256Hash = computeSha256(resumeText.trim());
         String analysisId = "an_" + UUID.randomUUID().toString().substring(0, 8);
         String cacheKey = "analysis:" + sha256Hash;
         if (resumeCache.containsKey(cacheKey)) {
             System.out.println("================================================================================");
-            System.out.println("[VREZER CACHE HIT] SHA-256 hash match: " + sha256Hash);
+            System.out.println("[VREZER CACHE HIT] SHA-256 hash match: " + sha256Hash + " (Text len: " + resumeText.trim().length() + ")");
             System.out.println("================================================================================");
             Map<String, Object> cachedResult = new LinkedHashMap<>(resumeCache.get(cacheKey));
             cachedResult.put("analysisId", analysisId);

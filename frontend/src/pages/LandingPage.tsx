@@ -148,7 +148,7 @@ const AnimCounter: React.FC<{ to: number; suffix?: string; prefix?: string; dura
 /* ─────────── MAIN LANDING PAGE ─────────── */
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setAiAnalysisResult, setRawText, addResumeToHistory } = useResumeContext();
+  const { setAiAnalysisResult, setRawText, addResumeToHistory, clearAiAnalysisResult } = useResumeContext();
 
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30 });
@@ -235,6 +235,9 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
       .trim();
     const candidateName = rawName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') || 'Candidate';
 
+    // Clear any previous candidate analysis state before starting a new upload
+    clearAiAnalysisResult();
+
     try {
       let extractedText = '';
       try {
@@ -267,7 +270,7 @@ Education: Computer Science Degree. Certifications: Cloud / DevOps training.`;
 
       const result = {
         ...res.data,
-        name: res.data.name || candidateName,
+        name: (res.data.name && res.data.name !== 'Candidate' && res.data.name !== 'Candidate Profile') ? res.data.name : 'Candidate Dossier',
       };
 
       clearInterval(ticker);

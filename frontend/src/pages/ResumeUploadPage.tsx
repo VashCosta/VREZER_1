@@ -175,6 +175,7 @@ export const ResumeUploadPage: React.FC = () => {
 
   const handleUploadAndAnalyze = async () => {
     if (!file) return;
+    clearAiAnalysisResult();
     setLoading(true);
     setErrorMsg(null);
 
