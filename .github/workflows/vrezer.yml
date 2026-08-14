@@ -21,25 +21,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - name: Prepare Site Assets
+      - name: Prepare Site Assets for GitHub Pages
         run: |
           mkdir -p _site
-          cp -r index.html script.js style.css _site/ 2>/dev/null || true
+          cp -r index.html script.js style.css _site/
           touch _site/.nojekyll
-          if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
-            cd frontend
-            npm install
-            npm run build || true
-            cd ..
-            if [ -d "frontend/dist" ]; then
-              cp -r frontend/dist/* _site/ 2>/dev/null || true
-            fi
-          fi
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
