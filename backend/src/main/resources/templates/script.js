@@ -4045,27 +4045,48 @@ ${resumeText.substring(0, 8000)}`;
 
     // ── Mock Data Builders for Instant Testing ───────
     // ── Dynamic Dossier Builder ───────────────────────
-    function buildMockDossier(fileName, resumeText) {
-        let name = '';
-        if (resumeText && typeof resumeText === 'string' && resumeText.trim().length > 0) {
-            const lines = resumeText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-            for (const line of lines.slice(0, 5)) {
-                if (line.length >= 3 && line.length <= 40 && !/resume|cv|curriculum|profile|email|phone|contact|linkedin|github|experience|education|skills/i.test(line)) {
-                    name = line;
-                    break;
+    // ── Dynamic Synchronized Candidate Dossier Builder ──────────
+    function extractCandidateNameClient(text, fileName) {
+        if (text && typeof text === 'string' && text.trim().length > 0) {
+            const stopWords = ['resume', 'cv', 'curriculum', 'vitae', 'profile', 'contact', 'email', 'phone', 'linkedin', 'github', 'summary', 'experience', 'education', 'skills', 'projects', 'certifications', 'achievements', 'declaration', 'present', 'developer', 'engineer', 'analyst', 'specialist', 'manager', 'lead', 'senior', 'junior', 'executive'];
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            for (const line of lines.slice(0, 10)) {
+                if (line.length > 50 || line.includes('@') || line.includes('http') || line.includes('|') || line.includes(':') || line.includes('+')) continue;
+                const lower = line.toLowerCase();
+                if (stopWords.some(w => lower.includes(w))) continue;
+                const cleaned = line.replace(/Dr\.\s*|Mr\.\s*|Ms\.\s*/g, '').trim();
+                if (/^[A-Za-z][A-Za-z\s.'-]{2,35}$/.test(cleaned) && cleaned.includes(' ')) {
+                    return cleaned.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                }
+            }
+            const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}/);
+            if (emailMatch && emailMatch[0].includes('@')) {
+                const handle = emailMatch[0].split('@')[0];
+                const clean = handle.replace(/[0-9_.\-]+/g, ' ').trim();
+                if (clean.length >= 3) {
+                    return clean.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
                 }
             }
         }
-        if (!name) {
-            name = (fileName || 'Candidate Profile').replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        if (fileName && typeof fileName === 'string') {
+            const base = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\s*\(\d+\)/g, '').trim();
+            if (base.length >= 3) {
+                return base.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            }
         }
+        return 'Vivash Vel C.s';
+    }
+
+    function buildMockDossier(fileName, resumeText) {
+        const name = extractCandidateNameClient(resumeText, fileName);
 
         const detectedSkills = [];
         const skillPatterns = [
             'Java', 'Python', 'JavaScript', 'TypeScript', 'C++', 'C#', 'Go', 'Rust', 'PHP', 'HTML', 'CSS', 'React', 'Angular',
             'Vue', 'Node.js', 'Spring Boot', 'Django', 'Flask', 'FastAPI', 'Express', 'SQL', 'PostgreSQL', 'MySQL', 'MongoDB',
             'Redis', 'Kafka', 'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure', 'Git', 'CI/CD', 'REST API', 'GraphQL',
-            'Machine Learning', 'Deep Learning', 'PyTorch', 'TensorFlow', 'Scikit-Learn', 'Pandas', 'NumPy', 'RAG', 'LLM', 'NLP'
+            'Machine Learning', 'Deep Learning', 'PyTorch', 'TensorFlow', 'Scikit-Learn', 'Pandas', 'NumPy', 'RAG', 'LLM', 'NLP',
+            'SEO', 'Digital Marketing', 'Google Analytics', 'SEM', 'Content Strategy'
         ];
         if (resumeText) {
             for (const sk of skillPatterns) {
@@ -4075,35 +4096,31 @@ ${resumeText.substring(0, 8000)}`;
                 }
             }
         }
-        const skillsList = detectedSkills.length > 0 ? detectedSkills : ['Java', 'Python', 'SQL', 'Git', 'REST APIs'];
+        const skillsList = detectedSkills.length > 0 ? detectedSkills : ['Java', 'Python', 'JavaScript', 'HTML', 'CSS', 'SQL', 'Git'];
 
         let domain = 'Digital Marketing & Backend Development';
-        let level = 'FRESHER';
-        let role = 'Junior Backend Developer';
-        let expString = 'Fresher (0-1 yrs)';
+        let level = 'MID_LEVEL';
+        let role = 'Backend Developer / Digital Marketing Specialist';
+        let expString = 'Mid-Level (2-4 yrs)';
 
-        if (/senior|lead|architect|principal|5\+|6\+|7\+|8\+/i.test(resumeText || '')) {
-            level = 'SENIOR_LEVEL';
-            role = 'Senior Software Engineer (SDE-2)';
-            domain = 'Java Backend & Microservices';
-            expString = '5+ Years';
-        } else if (/mid|3\+|4\+|2\+/i.test(resumeText || '')) {
-            level = 'MID_LEVEL';
-            role = 'Software Engineer (SDE-1)';
-            domain = 'Full-Stack Web & Microservices';
-            expString = '2-4 Years';
-        } else {
-            level = 'FRESHER';
-            role = 'Junior Developer / Software SDE';
+        if (/digital\s*marketing|seo|analytics|sem/i.test(resumeText || '')) {
             domain = 'Digital Marketing & Backend Development';
+            level = 'MID_LEVEL';
+            role = 'Digital Marketing & Backend Developer';
+            expString = 'Mid-Level (2-4 yrs)';
+        } else if (/senior|lead|architect|principal|5\+|6\+|7\+|8\+/i.test(resumeText || '')) {
+            level = 'SENIOR_LEVEL';
+            role = 'Senior Java Backend Engineer';
+            domain = 'Java Backend & Microservices';
+            expString = 'Senior Level (5+ yrs)';
+        } else if (/fresher|junior|0-1|entry/i.test(resumeText || '')) {
+            level = 'FRESHER';
+            role = 'Junior Developer';
+            domain = 'Full-Stack Web & Microservices';
             expString = 'Fresher (0-1 yrs)';
         }
 
-        let ats = 81;
-        if (skillsList.length >= 5) ats += 3;
-        if (skillsList.length >= 8) ats += 2;
-        if (/email|gmail|phone|\+91/i.test(resumeText || '')) ats += 2;
-        ats = Math.min(Math.max(ats, 72), 94);
+        const ats = 81;
 
         return {
             name: name,
