@@ -26,4 +26,19 @@ public class Application {
         factory.setReadTimeout(60000);
         return new RestTemplate(factory);
     }
+
+    @Bean
+    public org.springframework.boot.CommandLineRunner dbDiagnosticRunner(javax.sql.DataSource dataSource) {
+        return args -> {
+            try (java.sql.Connection conn = dataSource.getConnection()) {
+                System.out.println("================================================================================");
+                System.out.println("[VREZER DB DIAGNOSTIC] Connected Database: " + conn.getMetaData().getDatabaseProductName() + " " + conn.getMetaData().getDatabaseProductVersion());
+                System.out.println("[VREZER DB DIAGNOSTIC] Connection URL: " + conn.getMetaData().getURL());
+                System.out.println("[VREZER DB DIAGNOSTIC] DB User: " + conn.getMetaData().getUserName());
+                System.out.println("================================================================================");
+            } catch (Exception e) {
+                System.err.println("[VREZER DB DIAGNOSTIC] Database diagnostic warning: " + e.getMessage());
+            }
+        };
+    }
 }

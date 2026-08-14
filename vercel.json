@@ -3,6 +3,14 @@
   "name": "vrezer-3-0",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://vrezer-backend.onrender.com/api/$1"
+    },
+    {
+      "source": "/actuator/(.*)",
+      "destination": "https://vrezer-backend.onrender.com/actuator/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
