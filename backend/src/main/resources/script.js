@@ -3432,7 +3432,7 @@ ${(resumeText || '').substring(0, 3500)}`;
 
     async function callGeminiDirectlyClientSide(resumeText, apiKey) {
         if (!apiKey) throw new Error('No API key provided.');
-        let model = 'gemini-1.5-flash';
+        let model = 'gemini-2.5-flash';
         let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         
         if (apiKey.startsWith('gsk_')) {
@@ -3448,10 +3448,10 @@ ${(resumeText || '').substring(0, 3500)}`;
   "primaryDomain": "Primary Tech Domain",
   "secondaryDomain": "Cloud & Systems",
   "careerDomain": "Primary Tech Domain",
-  "atsScore": 85,
-  "atsScoreText": "EXCELLENT MATCH",
-  "profileStrength": 88,
-  "confidenceScore": 94,
+  "atsScore": 81,
+  "atsScoreText": "GOOD MATCH",
+  "profileStrength": 85,
+  "confidenceScore": 92,
   "yearsOfExperience": 3,
   "experienceLevel": "MID_LEVEL",
   "careerLevel": "MID_LEVEL",
@@ -3465,7 +3465,7 @@ ${(resumeText || '').substring(0, 3500)}`;
   "strategicForecast": "2-3 sentence strategic forecast",
   "AI_STATUS": "ACTIVE",
   "RAG_STATUS": "ACTIVE",
-  "aiModelUsed": "Gemini 1.5 Flash (Direct AI Pipeline)",
+  "aiModelUsed": "Gemini 2.5 Flash (Direct AI Pipeline)",
   "topSkills": ["Skill1", "Skill2", "Skill3"],
   "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
   "missingSkills": ["Cloud Architecture", "Distributed Systems"],
@@ -3524,7 +3524,7 @@ ${(resumeText || '').substring(0, 3500)}`;
 }
 
 RESUME TEXT:
-${resumeText.substring(0, 8000)}`;
+${resumeText.substring(0, 12000)}`;
 
         if (apiKey.startsWith('gsk_')) {
             const resp = await fetch(url, {
@@ -3536,7 +3536,7 @@ ${resumeText.substring(0, 8000)}`;
                 body: JSON.stringify({
                     model: 'llama-3.3-70b-versatile',
                     messages: [{ role: 'user', content: promptText }],
-                    temperature: 0.2
+                    temperature: 0.0
                 })
             });
             const data = await resp.json();
@@ -3546,19 +3546,31 @@ ${resumeText.substring(0, 8000)}`;
             parsed.aiModelUsed = 'Groq / Meta LLaMA 3.3 70B (Direct AI)';
             return parsed;
         } else {
-            const resp = await fetch(url, {
+            let resp = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { temperature: 0.2, maxOutputTokens: 3500 }
+                    generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
                 })
             });
+            if (!resp.ok) {
+                // Fallback to gemini-1.5-flash if 2.5 is unavailable
+                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                resp = await fetch(fallbackUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptText }] }],
+                        generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
+                    })
+                });
+            }
             const data = await resp.json();
             const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
             const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Google Gemini 1.5 Flash (Direct AI)';
+            parsed.aiModelUsed = 'Google Gemini 2.5 Flash (Direct AI)';
             return parsed;
         }
     }
