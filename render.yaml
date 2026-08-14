@@ -30,6 +30,6 @@ services:
       - key: SPRING_JPA_DIALECT
         value: org.hibernate.dialect.PostgreSQLDialect
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://vrezer-3-0.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:7000,http://localhost:9000"
+        value: "https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:7000,http://localhost:9000"
       - key: JAVA_TOOL_OPTIONS
         value: "-Xmx400m -Xss512k"

@@ -9,7 +9,7 @@ const getBaseUrl = (): string => {
   } else if (typeof window !== 'undefined' && window.location) {
     const host = window.location.hostname;
     if (host.includes('vercel.app') || host.includes('github.io')) {
-      url = 'https://vrezer.onrender.com';
+      url = 'https://vrezer-backend.onrender.com';
     }
   }
   return url ? url.replace(/\/+$/, '') : '';

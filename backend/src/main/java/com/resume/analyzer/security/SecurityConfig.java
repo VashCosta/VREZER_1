@@ -58,7 +58,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:https://vrezer-3-0.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000,http://127.0.0.1:*}")
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000,http://127.0.0.1:*}")
     private String allowedOrigins;
 
     @Bean
@@ -72,7 +72,7 @@ public class SecurityConfig {
                     .toList());
         }
         if (originsList.isEmpty()) {
-            originsList = List.of("https://vrezer-3-0.vercel.app", "https://*.vercel.app", "http://localhost:5173", "http://localhost:3000", "http://localhost:7000", "http://localhost:9000", "http://127.0.0.1:*");
+            originsList = List.of("https://vrezer-3-0.vercel.app", "https://*.vercel.app", "https://*.github.io", "http://localhost:5173", "http://localhost:3000", "http://localhost:7000", "http://localhost:9000", "http://127.0.0.1:*");
         }
         configuration.setAllowedOriginPatterns(originsList);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
