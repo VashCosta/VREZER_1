@@ -433,11 +433,10 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     let exRes = null;
                     let lastErr = null;
                     
-                    // If baseUrl is relative/empty (localhost), hit local Spring Boot server.
-                    // If baseUrl is remote (Vercel/GitHub Pages), use fast timeout so user doesn't wait 105s when remote backend is 404/down.
-                    const isRemote = Boolean(baseUrl && (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')));
-                    const timeoutMs = isRemote ? 3500 : 15000;
-                    const maxAttempts = isRemote ? 1 : 2;
+                    // Standardized 60s timeout & 2 retry attempts across both local and production environments
+                    // so Render cold starts and deep Java multi-agent pipelines complete successfully without premature client aborts.
+                    const timeoutMs = 60000;
+                    const maxAttempts = 2;
 
                     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
                         try {
@@ -530,85 +529,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         }
     }
 
-    async function loadSampleProfile(type) {
-        show(loadSect);
-        hide(uploadSect, dashSect);
 
-        const startTime = Date.now();
-        const TOTAL_DURATION_MS = 15000; // Full 15 seconds deep neural analysis
-
-        const steps = [
-            { text: 'Phase 1/5: Loading Sample Profile & Extracting Benchmark Vectors…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
-            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
-        ];
-
-        let stepIdx = 0;
-        const loadPhase = $('load-phase');
-
-        const iv = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
-
-            if (progFill) progFill.style.width = progressPct + '%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-
-            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
-            if (currentPhaseIdx !== stepIdx) {
-                stepIdx = currentPhaseIdx;
-            }
-
-            if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
-            if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
-
-            steps.forEach((st, idx) => {
-                const stepEl = $(st.id);
-                if (stepEl) {
-                    if (idx < stepIdx) {
-                        stepEl.classList.remove('active');
-                        stepEl.classList.add('done');
-                    } else if (idx === stepIdx) {
-                        stepEl.classList.add('active');
-                        stepEl.classList.remove('done');
-                    } else {
-                        stepEl.classList.remove('active', 'done');
-                    }
-                }
-            });
-        }, 100);
-
-        let sampleData;
-        if (type === 'aiml') {
-            sampleData = buildMockAimlDossier();
-        } else if (type === 'cae') {
-            sampleData = buildMockCaeDossier();
-        } else {
-            sampleData = buildMockDossier('Aarav Sharma — Software SDE');
-        }
-
-        await new Promise(r => setTimeout(r, TOTAL_DURATION_MS));
-
-        clearInterval(iv);
-        if (progFill) progFill.style.width = '100%';
-        const progPct = $('prog-pct');
-        if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
-        if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
-
-        setTimeout(() => {
-            try {
-                renderDash(sampleData);
-            } catch (e) {
-                console.error('Sample render error:', e);
-            } finally {
-                show(dashSect);
-                hide(loadSect, uploadSect);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-        }, 400);
-    }
 
     async function callBackendAPI(resumeText) {
         const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
