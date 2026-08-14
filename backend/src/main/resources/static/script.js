@@ -3870,8 +3870,10 @@ ${resumeText.substring(0, 8000)}`;
         // 7. Salary LPA & USD
         let baseLpaMin = 7 + yearsOfExperience * 2.8;
         let baseLpaMax = 14 + yearsOfExperience * 4.8;
-        const expectedLpaRange = `₹${baseLpaMin.toFixed(1)} LPA - ₹${baseLpaMax.toFixed(1)} LPA`;
-        const salaryUsd = `$${Math.round(baseLpaMin * 1200).toLocaleString()} - $${Math.round(baseLpaMax * 1400).toLocaleString()} USD/yr`;
+        const baseMinStr = baseLpaMin.toFixed(1);
+        const baseMaxStr = baseLpaMax.toFixed(1);
+        const expectedLpaRange = `${baseMinStr} - ${baseMaxStr} LPA`;
+        const salaryUsd = `$ ${Math.round(baseLpaMin * 1.2)}K - ${Math.round(baseLpaMax * 1.3)}K USD`;
 
         // 8. Line-by-Line Evidence Citations
         const citations = [
@@ -3973,6 +3975,31 @@ ${resumeText.substring(0, 8000)}`;
             }
         ];
 
+        const swotObj = {
+            strengths: [
+                `Strong core technical mastery in ${finalSkills.slice(0, 3).join(', ')}`,
+                `Proven domain background in ${primaryDomain}`,
+                `Demonstrated ${yearsOfExperience}+ years hands-on technical execution`
+            ],
+            weaknesses: [
+                `Could add more explicit quantitative metrics (%, $ throughput) to bullet points`,
+                `Expand certifications in Cloud Infrastructure / System Design`
+            ],
+            opportunities: [
+                `High market demand for ${role} professionals in top tech hubs`,
+                `AWS / Kubernetes / System Design certification unlocks Tier-1 salaries`
+            ],
+            threats: [
+                `Rapid evolution of modern dev tools requires continuous learning`,
+                `Heavy competition for unoptimized ATS resume submissions`
+            ],
+            improvements: [
+                'Quantify key achievements with metrics (e.g., Improved throughput by 38%, reduced latency by 45%).',
+                'Include active GitHub project repository links to boost recruiter verification.'
+            ],
+            missingSkills: ['Distributed System Architecture', 'CI/CD Automation', 'Cloud Security', 'Kubernetes']
+        };
+
         return {
             name: name,
             email: email,
@@ -3984,7 +4011,7 @@ ${resumeText.substring(0, 8000)}`;
             secondaryDomain: secondaryDomain,
             careerDomain: primaryDomain,
             atsScore: atsScore,
-            atsScoreText: atsScore >= 80 ? 'EXCELLENT MATCH' : atsScore >= 70 ? 'HIGH COMPATIBILITY' : 'MODERATE FIT',
+            atsScoreText: atsScore >= 85 ? 'EXCELLENT' : atsScore >= 70 ? 'GOOD' : atsScore >= 55 ? 'AVERAGE' : 'NEEDS IMPROVEMENT',
             profileStrength: Math.min(98, atsScore + 4),
             confidenceScore: 94,
             confidenceExplanation: `Analysis verified with strong evidence including ${finalSkills.length} technical competencies and ${yearsOfExperience}+ years domain experience.`,
@@ -3999,6 +4026,8 @@ ${resumeText.substring(0, 8000)}`;
             salaryUsd: salaryUsd,
             professionalSummary: `${name} is a ${experienceLevel} ${role} specializing in ${primaryDomain}. Proven track record using ${finalSkills.slice(0, 4).join(', ')}, focused on building high-performance, resilient engineering systems.`,
             strategicForecast: `With ${yearsOfExperience}+ years of technical execution in ${primaryDomain}, candidate is well-positioned for senior engineering and leadership roles across Tier-1 tech platforms.`,
+            dataDisclaimer: 'Insights derived from resume analysis; salary benchmarks are market reference projections.',
+            agentPipelineStatus: { resumeParserAgent: 'Completed', atsAnalysisAgent: 'Completed', skillGapAgent: 'Completed', jobMatchAgent: 'Completed', careerAdvisorAgent: 'Completed', reportGeneratorAgent: 'Completed' },
             AI_STATUS: 'ACTIVE',
             RAG_STATUS: 'ACTIVE',
             aiModelUsed: 'VREZER Neural AI Intelligence Engine',
@@ -4007,26 +4036,10 @@ ${resumeText.substring(0, 8000)}`;
             missingSkills: ['Distributed Systems', 'CI/CD Automation', 'Cloud Security', 'Kubernetes'],
             programmingLanguages: finalSkills.filter(s => ['Java', 'Python', 'JavaScript', 'TypeScript', 'C++', 'C#', 'SQL', 'HTML', 'CSS'].includes(s)),
             toolsAndTechnologies: finalSkills.filter(s => !['Java', 'Python', 'JavaScript', 'TypeScript', 'C++', 'C#', 'SQL', 'HTML', 'CSS'].includes(s)),
-            swotAnalysis: {
-                strengths: [
-                    `Strong core technical mastery in ${finalSkills.slice(0, 3).join(', ')}`,
-                    `Proven domain background in ${primaryDomain}`,
-                    `Demonstrated ${yearsOfExperience}+ years hands-on technical execution`
-                ],
-                weaknesses: [
-                    `Could add more explicit quantitative metrics (%, $ throughput) to bullet points`,
-                    `Expand certifications in Cloud Infrastructure / System Design`
-                ],
-                opportunities: [
-                    `High market demand for ${role} professionals in top tech hubs`,
-                    `AWS / Kubernetes / System Design certification unlocks Tier-1 salaries`
-                ],
-                threats: [
-                    `Rapid evolution of modern dev tools requires continuous learning`,
-                    `Heavy competition for unoptimized ATS resume submissions`
-                ]
-            },
+            swot: swotObj,
+            swotAnalysis: swotObj,
             atsScoreDetails: {
+                score: atsScore,
                 sectionCompletenessScore: emailMatch && phoneMatch ? 95 : 75,
                 keywordOptimizationScore: Math.min(96, finalSkills.length * 9),
                 formattingScore: 92,
@@ -4042,9 +4055,9 @@ ${resumeText.substring(0, 8000)}`;
             recommendedCompanies: ['Razorpay', 'Zoho', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'],
             retrievedJobOpportunities: retrievedJobOpportunities,
             careerGrowthTimeline: [
-                { stage: '0-6 months', title: `Core / Senior ${role}`, expectedSalaryProgression: `₹${baseLpaMin.toFixed(1)} - ₹${(baseLpaMin + 4).toFixed(1)} LPA`, recommendedCertifications: 'AWS Certified Solutions Architect / System Design', roadmapNotes: 'Master production architecture and system optimization.' },
-                { stage: '6-18 months', title: `Lead ${role}`, expectedSalaryProgression: `₹${(baseLpaMin + 5).toFixed(1)} - ₹${(baseLpaMax + 4).toFixed(1)} LPA`, recommendedCertifications: 'Certified Kubernetes Administrator (CKA)', roadmapNotes: 'Drive core module design and cross-functional team delivery.' },
-                { stage: '2-3 years', title: `Staff / Principal ${role}`, expectedSalaryProgression: `₹${(baseLpaMax + 5).toFixed(1)} - ₹${(baseLpaMax + 15).toFixed(1)} LPA`, recommendedCertifications: 'Executive Tech Leadership & Enterprise System Design', roadmapNotes: 'Drive engineering strategy, platform design, and organization hiring.' }
+                { stage: '0-6 months', title: `Core / Senior ${role}`, expectedSalaryProgression: `${baseMinStr} - ${(baseLpaMin + 4).toFixed(1)} LPA`, recommendedCertifications: 'AWS Certified Solutions Architect / System Design', roadmapNotes: 'Master production architecture and system optimization.' },
+                { stage: '6-18 months', title: `Lead ${role}`, expectedSalaryProgression: `${(baseLpaMin + 5).toFixed(1)} - ${(baseLpaMax + 4).toFixed(1)} LPA`, recommendedCertifications: 'Certified Kubernetes Administrator (CKA)', roadmapNotes: 'Drive core module design and cross-functional team delivery.' },
+                { stage: '2-3 years', title: `Staff / Principal ${role}`, expectedSalaryProgression: `${(baseLpaMax + 5).toFixed(1)} - ${(baseLpaMax + 15).toFixed(1)} LPA`, recommendedCertifications: 'Executive Tech Leadership & Enterprise System Design', roadmapNotes: 'Drive engineering strategy, platform design, and organization hiring.' }
             ],
             interviewPreparation: {
                 technicalQuestions: [
@@ -4055,7 +4068,7 @@ ${resumeText.substring(0, 8000)}`;
                     { question: `Describe a challenging engineering task with tight deadlines or shifting requirements.`, starAnswer: `Situation: Critical launch deadline. Task: Deliver core system functionality. Action: Prioritized high-impact modules, automated regression tests. Result: Delivered on schedule with zero P0 bugs.` }
                 ],
                 salaryNegotiationTips: [
-                    `Anchor expectations on target market data (₹${baseLpaMin.toFixed(1)} - ₹${baseLpaMax.toFixed(1)} LPA).`,
+                    `Anchor expectations on target market data (${baseMinStr} - ${baseMaxStr} LPA).`,
                     `Highlight your strong combination of core competencies: ${finalSkills.slice(0, 3).join(', ')}.`
                 ]
             },

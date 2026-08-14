@@ -195,7 +195,7 @@ export const AnalyzingPage: React.FC = () => {
         console.error("Analysis API Error:", err);
         const detail = err?.response?.data?.error || err?.message || '';
         if (err?.code === 'ERR_NETWORK' || err?.response?.status === 0) {
-          setErrorMessage("Unable to reach backend server on port 9000. Please verify Spring Boot application is running.");
+          setErrorMessage("Unable to connect to VREZER AI analysis server. Please check your internet connection or try again.");
         } else {
           setErrorMessage(`Analysis failed: ${detail || 'Unknown server error'}. Please try again.`);
         }
