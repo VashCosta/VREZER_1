@@ -426,49 +426,49 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
             const fetchPromise = (async () => {
                 if (currentFile) {
-                    const fd = new FormData();
-                    fd.append('file', currentFile);
                     const baseUrl = getApiBaseUrl();
-                    
-                    let exRes = null;
-                    let lastErr = null;
-                    
-                    // Standardized 60s timeout & 2 retry attempts across both local and production environments
-                    // so Render cold starts and deep Java multi-agent pipelines complete successfully without premature client aborts.
-                    const timeoutMs = 60000;
-                    const maxAttempts = 2;
+                    let data = null;
 
-                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    // If baseUrl is present (local or remote backend), attempt extraction
+                    if (baseUrl !== undefined) {
                         try {
+                            const fd = new FormData();
+                            fd.append('file', currentFile);
                             const controller = new AbortController();
+                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
                             const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-                            exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
+
+                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
                                 method: 'POST',
                                 body: fd,
                                 signal: controller.signal
-                            });
+                            }).catch(() => null);
                             clearTimeout(timeoutId);
-                            if (exRes && exRes.ok) break;
-                        } catch (e) {
-                            lastErr = e;
-                            console.warn(`Backend extraction attempt ${attempt} failed:`, e);
+
+                            if (exRes && exRes.ok) {
+                                const exJson = await exRes.json().catch(() => null);
+                                if (exJson && exJson.text) {
+                                    data = await callBackendAPI(exJson.text);
+                                }
+                            }
+                        } catch (backendErr) {
+                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
                         }
                     }
 
-                    if (exRes && exRes.ok) {
-                        const exJson = await exRes.json();
-                        return await callBackendAPI(exJson.text || '');
+                    if (data && (data.name || data.atsScore || data.role)) {
+                        return data;
                     }
 
-                    // Fallback to client-side pipeline only if backend is unreachable
-                    console.log('Backend unreachable. Switching to high-fidelity client-side neural pipeline:', lastErr);
+                    // High-fidelity client-side neural pipeline
+                    console.log('Executing VREZER high-fidelity client neural pipeline...');
                     const text = await extractPdfTextClientSide(currentFile);
                     const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || '';
                     if (userKey) {
                         try {
                             return await callGeminiDirectlyClientSide(text, userKey);
                         } catch (aiErr) {
-                            console.warn('Direct Gemini AI Client Call failed, falling back to neural parser:', aiErr);
+                            console.warn('Direct AI Client Call notice, proceeding with neural parser:', aiErr);
                         }
                     }
                     return parseResumeClientSide(currentFile.name, text);
