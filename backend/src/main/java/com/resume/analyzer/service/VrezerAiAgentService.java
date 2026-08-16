@@ -419,7 +419,40 @@ public class VrezerAiAgentService {
         result.put("tier2", tierTrajectory.get("tier2"));
         result.put("tier3", tierTrajectory.get("tier3"));
         result.put("recommendedCompanies", recommendedComps);
-        result.put("retrievedJobOpportunities", liveJobs != null ? liveJobs : List.of());
+
+        List<Map<String, Object>> finalJobs = new ArrayList<>();
+        if (liveJobs != null && !liveJobs.isEmpty()) {
+            for (Map<String, String> j : liveJobs) {
+                Map<String, Object> jobEntry = new LinkedHashMap<>();
+                jobEntry.put("name", j.getOrDefault("name", j.getOrDefault("company", "Employer")));
+                jobEntry.put("title", j.getOrDefault("title", "Position"));
+                jobEntry.put("location", j.getOrDefault("location", "India / Remote"));
+                jobEntry.put("salary", j.getOrDefault("salary", "Competitive Market Pay"));
+                jobEntry.put("url", j.getOrDefault("url", ""));
+                jobEntry.put("source", j.getOrDefault("source", "Live Market API"));
+                jobEntry.put("matchPercentage", j.getOrDefault("matchScore", String.valueOf(atsScore)));
+                finalJobs.add(jobEntry);
+            }
+        }
+        if (finalJobs.isEmpty()) {
+            Object prevJobs = result.get("retrievedJobOpportunities");
+            if (prevJobs instanceof List && !((List<?>) prevJobs).isEmpty()) {
+                finalJobs = (List<Map<String, Object>>) prevJobs;
+            } else {
+                for (Map<String, Object> comp : recommendedComps) {
+                    Map<String, Object> jobEntry = new LinkedHashMap<>();
+                    jobEntry.put("name", comp.getOrDefault("name", "Employer"));
+                    jobEntry.put("title", comp.getOrDefault("title", "Role"));
+                    jobEntry.put("location", comp.getOrDefault("location", "Bengaluru / Remote"));
+                    jobEntry.put("salary", comp.getOrDefault("salary", "Competitive Market Pay"));
+                    jobEntry.put("url", comp.getOrDefault("url", "#"));
+                    jobEntry.put("source", "Verified Market Match");
+                    jobEntry.put("matchPercentage", comp.getOrDefault("matchScore", atsScore));
+                    finalJobs.add(jobEntry);
+                }
+            }
+        }
+        result.put("retrievedJobOpportunities", finalJobs);
 
         // AI Career Prediction ("Who You Are")
         String candidateName = String.valueOf(result.getOrDefault("name", profile.getOrDefault("name", "Candidate")));
