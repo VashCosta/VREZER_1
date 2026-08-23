@@ -2639,6 +2639,59 @@ body.dark::before {
     border: 1px solid rgba(255, 0, 127, 0.35) !important;
 }
 
+/* ══════════ HIGH-IMPACT CYBER CURSOR & LASER TRAIL ══════════ */
+.cyber-cursor-dot {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 8px;
+    height: 8px;
+    background: #ff003c;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 999999;
+    box-shadow: 0 0 10px #ff003c, 0 0 20px #ff007f;
+    transform: translate(-50%, -50%);
+    will-change: transform, left, top;
+    transition: transform 0.04s ease-out, background 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
 
+.cyber-cursor-ring {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 32px;
+    height: 32px;
+    border: 1.5px solid rgba(255, 0, 127, 0.75);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 999998;
+    box-shadow: 0 0 14px rgba(255, 0, 60, 0.45), inset 0 0 8px rgba(255, 0, 127, 0.25);
+    transform: translate(-50%, -50%);
+    will-change: transform, left, top;
+    transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), height 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s ease, background 0.22s ease;
+}
 
+.cyber-cursor-ring.active {
+    width: 52px;
+    height: 52px;
+    border-color: #ff003c;
+    background: rgba(255, 0, 60, 0.12);
+    box-shadow: 0 0 25px rgba(255, 0, 60, 0.7), inset 0 0 12px rgba(255, 0, 127, 0.3);
+}
 
+.cyber-cursor-ring.clicked {
+    transform: translate(-50%, -50%) scale(0.7);
+    background: rgba(255, 0, 127, 0.25);
+    border-color: #ffffff;
+}
+
+#cursor-trail-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 999997;
+}

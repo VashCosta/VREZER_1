@@ -118,6 +118,10 @@ public class ResumeParserService {
     private static final List<String> LANGUAGES_HEADERS = Arrays.asList(
             "languages", "languages known", "spoken languages"
     );
+    private static final List<String> SUMMARY_HEADERS = Arrays.asList(
+            "summary", "professional summary", "career summary", "about me", "profile",
+            "career objective", "objective", "executive summary", "personal summary"
+    );
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Main entry point
@@ -158,8 +162,15 @@ public class ResumeParserService {
 
         result.put("programmingLanguages", detectedLangs);
         result.put("frameworks",           detectedFrameworks);
-        result.put("softSkills",           matchSkills(lower, SOFT_SKILLS));
+        List<String> detectedSoftSkills = matchSkills(lower, SOFT_SKILLS);
+        result.put("softSkills",           detectedSoftSkills);
+        result.put("transferableSkills",   detectedSoftSkills);
         result.put("allDetectedSkills",    allDetected);
+
+        // Professional Summary & Objective
+        String summary = extractProfessionalSummary(text);
+        result.put("professionalSummary", summary);
+        result.put("careerObjective",     summary);
 
         // Career sections — strictly extracted from text
         List<Map<String, String>> expList = extractExperienceFromText(text);
@@ -511,6 +522,55 @@ public class ResumeParserService {
             }
         }
         return lines.length;
+    }
+
+    // ── Professional Summary Extractor ────────────────────────────────────────
+    public String extractProfessionalSummary(String text) {
+        if (text == null || text.trim().isEmpty()) return "";
+        String[] lines = text.split("\\r?\\n");
+
+        int startIdx = findSectionStart(lines, SUMMARY_HEADERS);
+        if (startIdx >= 0) {
+            int endIdx = findSectionEnd(lines, startIdx,
+                    EXPERIENCE_HEADERS, PROJECT_HEADERS, EDUCATION_HEADERS, SKILLS_HEADERS, CERTIFICATIONS_HEADERS, ACHIEVEMENTS_HEADERS);
+            StringBuilder sb = new StringBuilder();
+            for (int i = startIdx + 1; i < endIdx && i < lines.length; i++) {
+                String line = lines[i].trim().replaceAll("^[•\\-*–>]\\s*", "");
+                if (!line.isEmpty() && line.length() > 3) {
+                    sb.append(line).append(" ");
+                }
+            }
+            String result = sb.toString().trim();
+            if (result.length() >= 25) return result;
+        }
+
+        // If no explicit header, inspect top lines for opening summary paragraph
+        StringBuilder topSummary = new StringBuilder();
+        int limit = Math.min(lines.length, 14);
+        for (int i = 0; i < limit; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty() || line.length() > 350) continue;
+            String low = line.toLowerCase();
+            if (low.contains("@") || low.contains("linkedin.com") || low.contains("github.com") || low.contains("phone") || low.contains("+91") || low.contains("http")) continue;
+            if (low.equals("education") || low.equals("experience") || low.equals("skills") || low.equals("projects")) break;
+
+            if (low.contains("aspiring") || low.contains("passionate") || low.contains("experienced")
+                    || low.contains("student with") || low.contains("specialist with") || low.contains("skilled in")
+                    || low.contains("hands-on experience") || low.contains("proven track record") || low.contains("seeking a")
+                    || low.contains("developer with") || low.contains("engineer with") || low.contains("motivated")) {
+                topSummary.append(line.replaceAll("^[•\\-*–>]\\s*", "")).append(" ");
+                for (int j = i + 1; j < limit && j < lines.length; j++) {
+                    String nextLine = lines[j].trim();
+                    if (nextLine.isEmpty()) break;
+                    String nextLow = nextLine.toLowerCase();
+                    if (nextLow.contains("@") || nextLow.contains("http") || nextLow.contains("202") || nextLow.equals("education") || nextLow.equals("experience")) break;
+                    topSummary.append(nextLine.replaceAll("^[•\\-*–>]\\s*", "")).append(" ");
+                }
+                break;
+            }
+        }
+
+        return topSummary.toString().trim();
     }
 
     // ── Utility Helpers ────────────────────────────────────────────────────────

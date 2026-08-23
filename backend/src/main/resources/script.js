@@ -735,18 +735,28 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 4. PROFILE INTELLIGENCE ────────────────────────
     function renderProfileIntelligence(d) {
-        setText('profile-summary', d.professionalSummary || 'Not available');
+        const defaultSummary = `${d.name || 'Candidate'} is an aspiring ${d.role || 'Specialist'} specializing in ${d.careerDomain || 'Technology'}. Demonstrates verified technical competencies in ${(d.topSkills || d.skills || []).slice(0, 5).join(', ')} with applied practical execution across production systems and domain development.`;
+        const profSummary = (d.professionalSummary && d.professionalSummary.length > 15 && !d.professionalSummary.toLowerCase().includes('not available')) ? d.professionalSummary : defaultSummary;
+        setText('profile-summary', profSummary);
         setText('profile-domain', d.careerDomain || 'Software Engineering');
-        setText('profile-secondary-domain', d.secondaryDomain || 'Cloud & DevOps');
-        setText('profile-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
+        
+        let secDom = d.secondaryDomain || 'Full Stack Development';
+        if (secDom.toLowerCase() === (d.careerDomain || '').toLowerCase()) {
+            secDom = 'Full Stack Development';
+        }
+        setText('profile-secondary-domain', secDom);
+        setText('profile-level', d.experienceLevel || d.careerLevel || 'FRESHER');
         setText('profile-industry', d.industry || 'Information Technology');
 
         const renderTags = (id, tags) => {
             const el = $(id); if (!el) return;
             el.innerHTML = (tags || ['Engineering', 'System Design']).map(t => `<span class="t-chip">${t}</span>`).join('');
         };
-        renderTags('profile-strongest-skills', d.topSkills);
-        renderTags('profile-transferable-skills', d.transferableSkills || ['Problem Solving', 'Agile Methodologies', 'Technical Leadership']);
+        renderTags('profile-strongest-skills', d.topSkills || d.skills || ['Java', 'Spring Boot', 'MySQL', 'REST APIs', 'HTML', 'CSS', 'JavaScript']);
+        
+        const softSkillsList = (d.transferableSkills && d.transferableSkills.length > 0) ? d.transferableSkills :
+                               ((d.softSkills && d.softSkills.length > 0) ? d.softSkills : ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner']);
+        renderTags('profile-transferable-skills', softSkillsList);
 
         // Confidence meter — Dynamic AI & Evidence Grounding
         let conf = null;
@@ -3774,23 +3784,42 @@ ${resumeText.substring(0, 12000)}`;
             }
         });
 
-        const finalSkills = detectedSkills.length >= 3 ? detectedSkills : ['Problem Solving', 'System Design', 'Git', 'Agile Methodologies', 'REST APIs', 'SQL Database Design'];
+        const finalSkills = detectedSkills.length >= 3 ? detectedSkills : ['Java', 'Spring Boot', 'MySQL', 'REST APIs', 'HTML', 'CSS', 'JavaScript'];
 
-        // 5. Experience & Level
-        let yearsOfExperience = 3;
-        const expMatch = rawText.match(/(\d+)\+?\s*(?:years?|yrs?)/i);
-        if (expMatch) {
-            yearsOfExperience = Math.min(25, parseInt(expMatch[1], 10));
-        } else {
-            const yearsFound = rawText.match(/\b(20\d\d)\b/g);
-            if (yearsFound && yearsFound.length >= 2) {
-                const sortedYears = yearsFound.map(y => parseInt(y, 10)).sort((a, b) => a - b);
-                const diff = sortedYears[sortedYears.length - 1] - sortedYears[0];
-                if (diff > 0 && diff <= 25) yearsOfExperience = diff;
+        // Soft Skills / Transferable Skills Extraction
+        const knownSoftSkills = ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner', 'Communication', 'Adaptability', 'Time Management', 'Critical Thinking'];
+        const detectedSoftSkills = knownSoftSkills.filter(s => lowerText.includes(s.toLowerCase()));
+        const transferableSkills = detectedSoftSkills.length >= 2 ? detectedSoftSkills : ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner'];
+
+        // Professional Summary Extraction from raw text
+        let extractedSummary = '';
+        const linesArr = rawText.split(/\r?\n/);
+        for (let i = 0; i < Math.min(linesArr.length, 14); i++) {
+            const line = linesArr[i].trim();
+            const low = line.toLowerCase();
+            if (low.includes('aspiring') || low.includes('passionate') || low.includes('student with') || low.includes('skilled in') || low.includes('hands-on experience') || low.includes('developer with') || low.includes('motivated')) {
+                let collected = [line];
+                for (let j = i + 1; j < Math.min(linesArr.length, i + 5); j++) {
+                    const nextLine = linesArr[j].trim();
+                    if (!nextLine || nextLine.toLowerCase().includes('education') || nextLine.toLowerCase().includes('skills') || nextLine.toLowerCase().includes('experience')) break;
+                    collected.push(nextLine);
+                }
+                extractedSummary = collected.join(' ');
+                break;
             }
         }
-        const experienceLevel = yearsOfExperience >= 7 ? 'Senior' : yearsOfExperience >= 3 ? 'Mid-Level' : 'Junior / Associate';
-        const levelCode = yearsOfExperience >= 7 ? 'SENIOR_LEVEL' : yearsOfExperience >= 3 ? 'MID_LEVEL' : 'ENTRY_LEVEL';
+
+        // 5. Experience & Level
+        const isStudentOrPursuing = lowerText.includes('pursuing') || lowerText.includes('b.tech') || lowerText.includes('b.e') || lowerText.includes('student') || (lowerText.includes('intern') && !lowerText.includes('senior'));
+        let yearsOfExperience = 0;
+        if (!isStudentOrPursuing) {
+            const expMatch = rawText.match(/(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:industrial|work|professional)?\s*exp/i);
+            if (expMatch) {
+                yearsOfExperience = Math.min(25, parseInt(expMatch[1], 10));
+            }
+        }
+        const experienceLevel = (isStudentOrPursuing || yearsOfExperience === 0) ? 'FRESHER' : (yearsOfExperience >= 7 ? 'Senior' : yearsOfExperience >= 3 ? 'Mid-Level' : 'Junior / Associate');
+        const levelCode = (isStudentOrPursuing || yearsOfExperience === 0) ? 'FRESHER' : (yearsOfExperience >= 7 ? 'SENIOR_LEVEL' : yearsOfExperience >= 3 ? 'MID_LEVEL' : 'ENTRY_LEVEL');
 
         // 6. Deterministic 11-Dimension ATS Engine
         let score = 62;
@@ -3944,7 +3973,7 @@ ${resumeText.substring(0, 12000)}`;
             linkedin: linkedin,
             role: role,
             primaryDomain: primaryDomain,
-            secondaryDomain: secondaryDomain,
+            secondaryDomain: (secondaryDomain && secondaryDomain !== primaryDomain) ? secondaryDomain : 'Full Stack Development',
             careerDomain: primaryDomain,
             atsScore: atsScore,
             atsScoreText: atsScore >= 85 ? 'EXCELLENT' : atsScore >= 70 ? 'GOOD' : atsScore >= 55 ? 'AVERAGE' : 'NEEDS IMPROVEMENT',
@@ -3960,8 +3989,10 @@ ${resumeText.substring(0, 12000)}`;
             salaryMax: Math.round(baseLpaMax),
             salaryCurrency: 'INR',
             salaryUsd: salaryUsd,
-            professionalSummary: `${name} is a ${experienceLevel} ${role} specializing in ${primaryDomain}. Proven track record using ${finalSkills.slice(0, 4).join(', ')}, focused on building high-performance, resilient engineering systems.`,
-            strategicForecast: `With ${yearsOfExperience}+ years of technical execution in ${primaryDomain}, candidate is well-positioned for senior engineering and leadership roles across Tier-1 tech platforms.`,
+            professionalSummary: (extractedSummary && extractedSummary.length >= 25) ? extractedSummary : `${name} is an aspiring ${role} specializing in ${primaryDomain}. Proven track record using ${finalSkills.slice(0, 4).join(', ')}, focused on building high-performance, resilient engineering systems.`,
+            transferableSkills: transferableSkills,
+            softSkills: transferableSkills,
+            strategicForecast: `With strong practical execution in ${primaryDomain}, candidate is well-positioned for high-impact software engineering roles across Tier-1 tech platforms.`,
             dataDisclaimer: 'Insights derived from resume analysis; salary benchmarks are market reference projections.',
             agentPipelineStatus: { resumeParserAgent: 'Completed', atsAnalysisAgent: 'Completed', skillGapAgent: 'Completed', jobMatchAgent: 'Completed', careerAdvisorAgent: 'Completed', reportGeneratorAgent: 'Completed' },
             AI_STATUS: 'ACTIVE',
@@ -4352,10 +4383,28 @@ ${resumeText.substring(0, 12000)}`;
 
     function initCursorTrail() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-        const canvas = document.createElement('canvas');
-        canvas.id = 'cursor-trail-canvas';
-        canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;will-change:transform;';
-        document.body.appendChild(canvas);
+        
+        // 1. Create or get Custom Cyber Cursor elements
+        let dot = document.querySelector('.cyber-cursor-dot');
+        if (!dot) {
+            dot = document.createElement('div');
+            dot.className = 'cyber-cursor-dot';
+            document.body.appendChild(dot);
+        }
+        let ring = document.querySelector('.cyber-cursor-ring');
+        if (!ring) {
+            ring = document.createElement('div');
+            ring.className = 'cyber-cursor-ring';
+            document.body.appendChild(ring);
+        }
+
+        // 2. Create high-performance laser spark canvas
+        let canvas = document.getElementById('cursor-trail-canvas');
+        if (!canvas) {
+            canvas = document.createElement('canvas');
+            canvas.id = 'cursor-trail-canvas';
+            document.body.appendChild(canvas);
+        }
         const ctx = canvas.getContext('2d', { alpha: true });
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         let width, height;
@@ -4374,14 +4423,68 @@ ${resumeText.substring(0, 12000)}`;
         resize();
 
         const particles = [];
-        let mouseMoved = false;
-        let mousePos = { x: -100, y: -100 };
+        let mouseX = -100, mouseY = -100;
+        let ringX = -100, ringY = -100;
+        let lastX = -100, lastY = -100;
+        let isVisible = false;
+
+        function spawnParticles(x, y, count, isBurst = false) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = isBurst ? (Math.random() * 4.5 + 2.5) : (Math.random() * 2.0 + 0.5);
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 4,
+                    y: y + (Math.random() - 0.5) * 4,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: isBurst ? (Math.random() * 4.2 + 2.2) : (Math.random() * 3.0 + 1.2),
+                    color: Math.random() > 0.45 ? '#ff007f' : (Math.random() > 0.4 ? '#ff003c' : '#ffffff'),
+                    alpha: 1,
+                    decay: isBurst ? (Math.random() * 0.03 + 0.02) : (Math.random() * 0.04 + 0.03)
+                });
+            }
+        }
 
         window.addEventListener('mousemove', e => {
-            mousePos.x = e.clientX;
-            mousePos.y = e.clientY;
-            mouseMoved = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            if (!isVisible) {
+                isVisible = true;
+                ringX = mouseX;
+                ringY = mouseY;
+            }
+
+            const dist = Math.hypot(mouseX - lastX, mouseY - lastY);
+            if (dist > 5) {
+                spawnParticles(mouseX, mouseY, Math.min(4, Math.floor(dist / 6) + 1));
+                lastX = mouseX;
+                lastY = mouseY;
+            }
         }, { passive: true });
+
+        window.addEventListener('mousedown', e => {
+            ring.classList.add('clicked');
+            spawnParticles(e.clientX, e.clientY, 16, true);
+        });
+
+        window.addEventListener('mouseup', () => {
+            ring.classList.remove('clicked');
+        });
+
+        // Hover effect on interactive elements
+        document.addEventListener('mouseover', e => {
+            const target = e.target;
+            if (target && (target.closest('button, a, .dtab, .stab, .dcard, .job-card, .tier-card, .btn, input, .t-chip, .clickable, .upload-box, .pill, .export-card, .action-btn'))) {
+                ring.classList.add('active');
+            }
+        });
+
+        document.addEventListener('mouseout', e => {
+            const target = e.target;
+            if (target && (target.closest('button, a, .dtab, .stab, .dcard, .job-card, .tier-card, .btn, input, .t-chip, .clickable, .upload-box, .pill, .export-card, .action-btn'))) {
+                ring.classList.remove('active');
+            }
+        });
 
         let lastTime = performance.now();
 
@@ -4390,40 +4493,40 @@ ${resumeText.substring(0, 12000)}`;
             lastTime = now;
             const speedFactor = delta * 60;
 
-            if (mouseMoved) {
-                for (let i = 0; i < 2; i++) {
-                    particles.push({
-                        x: mousePos.x,
-                        y: mousePos.y,
-                        vx: (Math.random() - 0.5) * 1.8,
-                        vy: (Math.random() - 0.5) * 1.8,
-                        size: Math.random() * 3 + 1.5,
-                        color: Math.random() > 0.4 ? 'rgba(255, 0, 127,' : 'rgba(255, 0, 60,',
-                        alpha: 1
-                    });
-                }
-                mouseMoved = false;
+            if (isVisible) {
+                dot.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0) translate(-50%, -50%)`;
+
+                ringX += (mouseX - ringX) * 0.22;
+                ringY += (mouseY - ringY) * 0.22;
+                ring.style.transform = `translate3d(${ringX.toFixed(2)}px, ${ringY.toFixed(2)}px, 0) translate(-50%, -50%)`;
             }
 
             ctx.clearRect(0, 0, width, height);
+            ctx.globalCompositeOperation = 'lighter';
 
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx * speedFactor;
                 p.y += p.vy * speedFactor;
-                p.alpha -= 0.035 * speedFactor;
-                p.size *= Math.pow(0.94, speedFactor);
+                p.alpha -= p.decay * speedFactor;
+                p.size *= Math.pow(0.96, speedFactor);
 
                 if (p.alpha <= 0 || p.size <= 0.2) {
                     particles.splice(i, 1);
                     continue;
                 }
 
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                ctx.fillStyle = `${p.color}${Math.max(0, p.alpha)})`;
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 8;
                 ctx.fill();
+                ctx.restore();
             }
+
             requestAnimationFrame(renderTrail);
         }
         requestAnimationFrame(renderTrail);

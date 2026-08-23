@@ -55,6 +55,7 @@ public class ResumeIntelligenceEngine {
 
         String text = resumeText == null ? "" : resumeText;
         String lower = text.toLowerCase();
+        String candidateName = String.valueOf(baseParsed.getOrDefault("name", "Candidate"));
 
         // 1. Education
         List<Map<String, String>> eduList = (List<Map<String, String>>) baseParsed.getOrDefault("education", List.of());
@@ -256,6 +257,16 @@ public class ResumeIntelligenceEngine {
         profile.put("github", github);
         profile.put("linkedin", linkedin);
         profile.put("careerObjective", careerObjective);
+        
+        String professionalSummary = String.valueOf(baseParsed.getOrDefault("professionalSummary", ""));
+        if (professionalSummary.isEmpty() || professionalSummary.equals("null") || professionalSummary.length() < 25) {
+            professionalSummary = candidateName + " is an aspiring " + primaryTargetRole
+                + " with core competencies in " + String.join(", ", techSkills.subList(0, Math.min(5, techSkills.size())))
+                + ". Demonstrated practical execution across " + careerDomainCombined + " projects and applied system development.";
+        }
+        profile.put("professionalSummary", professionalSummary);
+        profile.put("transferableSkills", (softSkills != null && !softSkills.isEmpty()) ? softSkills : List.of("Problem Solving", "Analytical Thinking", "Teamwork", "Quick Learner", "Creative Content"));
+        
         profile.put("preferredWorkMode", preferredWorkMode);
         profile.put("expectedSalary", lpaRange);
         profile.put("targetRoles", targetRoles);
@@ -476,12 +487,18 @@ public class ResumeIntelligenceEngine {
                 .toList();
 
         String primary = !sorted.isEmpty() ? sorted.get(0).getKey() : "Backend Development";
-        String secondary = (sorted.size() > 1 && sorted.get(1).getValue() >= 2) ? sorted.get(1).getKey() : "";
+        String secondary = (sorted.size() > 1 && sorted.get(1).getValue() >= 2 && !sorted.get(1).getKey().equalsIgnoreCase(primary)) ? sorted.get(1).getKey() : "";
+        if (secondary.isEmpty() || secondary.equalsIgnoreCase(primary)) {
+            if (primary.equals("Digital Marketing")) secondary = "Full Stack Development";
+            else if (primary.equals("Backend Development")) secondary = "AI & Data Science";
+            else if (primary.equals("AI & Machine Learning")) secondary = "Full Stack Development";
+            else secondary = "Cloud & DevOps";
+        }
 
         Map<String, String> result = new LinkedHashMap<>();
         result.put("primaryDomain", primary);
         result.put("secondaryDomain", secondary);
-        result.put("careerDomain", secondary.isEmpty() ? primary : (primary + " & " + secondary));
+        result.put("careerDomain", primary.equals(secondary) ? primary : (primary + " & " + secondary));
         return result;
     }
 
