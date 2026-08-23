@@ -563,14 +563,21 @@ public class ResumeParserService {
                     String nextLine = lines[j].trim();
                     if (nextLine.isEmpty()) break;
                     String nextLow = nextLine.toLowerCase();
-                    if (nextLow.contains("@") || nextLow.contains("http") || nextLow.contains("202") || nextLow.equals("education") || nextLow.equals("experience")) break;
+                    if (nextLow.contains("@") || nextLow.contains("http") || nextLow.contains("202") || nextLow.contains("+91") || nextLow.contains("phone") || nextLow.equals("education") || nextLow.equals("experience")) break;
                     topSummary.append(nextLine.replaceAll("^[•\\-*–>]\\s*", "")).append(" ");
                 }
                 break;
             }
         }
 
-        return topSummary.toString().trim();
+        return cleanSummary(topSummary.toString().trim());
+    }
+
+    private String cleanSummary(String summary) {
+        if (summary == null || summary.trim().isEmpty()) return "";
+        return summary.replaceAll("(?i)\\b(?:thiruparankundram|madurai|chennai|india|\\+91|phone|tel|email|contact|[0-9]{10}).*", "")
+                      .replaceAll("[\\s,;–-]+$", "")
+                      .trim();
     }
 
     // ── Utility Helpers ────────────────────────────────────────────────────────

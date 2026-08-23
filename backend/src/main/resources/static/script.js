@@ -3804,7 +3804,10 @@ ${resumeText.substring(0, 12000)}`;
                     if (!nextLine || nextLine.toLowerCase().includes('education') || nextLine.toLowerCase().includes('skills') || nextLine.toLowerCase().includes('experience')) break;
                     collected.push(nextLine);
                 }
-                extractedSummary = collected.join(' ');
+                extractedSummary = collected.join(' ')
+                    .replace(/\b(?:thiruparankundram|madurai|chennai|india|\+91|phone|tel|email|contact|[0-9]{10}).*/i, '')
+                    .replace(/[\s,;–-]+$/, '')
+                    .trim();
                 break;
             }
         }
