@@ -93,7 +93,17 @@ public class ResumeIntelligenceEngine {
         
         double yearsOfExp = calculateYearsOfExperienceFromDates(expList, internships, text);
         String experienceLevel = determineExperienceLevel(yearsOfExp, expList, internships, text);
-        String experienceSummary = yearsOfExp <= 0.0 ? "Fresher / Entry Level" : String.format(Locale.US, "%.1f Years Industrial Experience", yearsOfExp);
+        
+        String experienceSummary;
+        if (yearsOfExp <= 0.0) {
+            if (internships != null && !internships.isEmpty()) {
+                experienceSummary = "Internship Experience";
+            } else {
+                experienceSummary = "Fresher / Entry Level";
+            }
+        } else {
+            experienceSummary = String.format(Locale.US, "%.1f Years Experience", yearsOfExp);
+        }
 
         List<String> internshipTitles = internships.stream()
                 .map(i -> i.getOrDefault("role", i.getOrDefault("company", "Intern")))
@@ -291,73 +301,78 @@ public class ResumeIntelligenceEngine {
     }
 
     /**
-     * Accurately parses date ranges from resume experience entries without adding education degree dates.
+     * Accurately parses date ranges from genuine work experience entries without adding education degree or schooling dates.
      */
     public double calculateYearsOfExperienceFromDates(List<Map<String, String>> expList, List<Map<String, String>> internships, String fullText) {
         int currentYear = LocalDate.now().getYear();
-        double totalYears = 0.0;
-        Set<Integer> activeYears = new HashSet<>();
-
-        String workText = fullText;
-        // Exclude Education section if present to avoid treating B.Tech graduation years (e.g. 2011-2015) as work experience
         String lowerFull = fullText.toLowerCase();
-        int eduIdx = lowerFull.indexOf("education");
-        if (eduIdx != -1) {
-            int nextSec = lowerFull.indexOf("experience", eduIdx + 10);
-            if (nextSec == -1) nextSec = lowerFull.indexOf("projects", eduIdx + 10);
-            if (nextSec == -1) nextSec = lowerFull.indexOf("skills", eduIdx + 10);
-            if (nextSec > eduIdx) {
-                workText = fullText.substring(0, eduIdx) + " " + fullText.substring(nextSec);
+
+        boolean isStudentOrFresher = lowerFull.contains("pursuing") || lowerFull.contains("student") 
+                || lowerFull.contains("currently in ") || lowerFull.contains("fresher")
+                || lowerFull.contains("expected graduation");
+
+        if (expList == null || expList.isEmpty()) {
+            return 0.0;
+        }
+
+        // Check if all experience items are internships / trainee roles
+        boolean allInternships = true;
+        List<Map<String, String>> fullTimeRoles = new ArrayList<>();
+        for (Map<String, String> exp : expList) {
+            String role = exp.getOrDefault("role", "").toLowerCase();
+            String comp = exp.getOrDefault("company", "").toLowerCase();
+            String desc = exp.getOrDefault("description", "").toLowerCase();
+            if (role.contains("intern") || comp.contains("intern") || desc.contains("intern") || role.contains("trainee")) {
+                // internship
             } else {
-                workText = fullText.substring(0, eduIdx);
+                allInternships = false;
+                fullTimeRoles.add(exp);
             }
         }
 
-        Pattern yearRangePattern = Pattern.compile("(?i)\\b(20\\d{2}|19\\d{2})\\s*[-–—/to]+\\s*(20\\d{2}|19\\d{2}|present|current|now)\\b");
-        
-        Matcher m = yearRangePattern.matcher(workText);
-        while (m.find()) {
-            try {
-                int start = Integer.parseInt(m.group(1));
-                String endStr = m.group(2).toLowerCase();
-                int end = (endStr.contains("present") || endStr.contains("current") || endStr.contains("now"))
-                        ? currentYear
-                        : Integer.parseInt(endStr);
-                if (start <= end && start >= 1995 && end <= currentYear + 1) {
-                    for (int y = start; y < end; y++) {
-                        activeYears.add(y);
-                    }
-                    if (start == end) {
-                        activeYears.add(start);
-                    }
-                }
-            } catch (Exception ignored) {}
+        if (isStudentOrFresher || allInternships || fullTimeRoles.isEmpty()) {
+            return 0.0;
         }
 
-        if (!activeYears.isEmpty()) {
-            totalYears = activeYears.size();
-        } else if (expList != null && !expList.isEmpty()) {
-            totalYears = Math.min(expList.size() * 1.5, 10.0);
-        } else {
-            Matcher expPhrase = Pattern.compile("(?i)(\\d+)\\+?\\s*(?:years|yrs)\\s*(?:of)?\\s*(?:experience|exp)").matcher(fullText);
-            if (expPhrase.find()) {
+        // Calculate years only from genuine full-time roles
+        Set<Integer> activeYears = new HashSet<>();
+        Pattern yearRangePattern = Pattern.compile("(?i)\\b(20\\d{2}|19\\d{2})\\s*[-–—/to]+\\s*(20\\d{2}|19\\d{2}|present|current|now)\\b");
+
+        for (Map<String, String> role : fullTimeRoles) {
+            String roleText = role.getOrDefault("duration", "") + " " + role.getOrDefault("description", "");
+            Matcher m = yearRangePattern.matcher(roleText);
+            while (m.find()) {
                 try {
-                    totalYears = Double.parseDouble(expPhrase.group(1));
+                    int start = Integer.parseInt(m.group(1));
+                    String endStr = m.group(2).toLowerCase();
+                    int end = (endStr.contains("present") || endStr.contains("current") || endStr.contains("now"))
+                            ? currentYear
+                            : Integer.parseInt(endStr);
+                    if (start <= end && start >= 1995 && end <= currentYear + 1) {
+                        for (int y = start; y < end; y++) {
+                            activeYears.add(y);
+                        }
+                        if (start == end) {
+                            activeYears.add(start);
+                        }
+                    }
                 } catch (Exception ignored) {}
             }
         }
 
-        // Student / Fresher check
-        boolean isStudent = lowerFull.contains("student") || lowerFull.contains("pursuing") || lowerFull.contains("expected graduation") || lowerFull.contains("fresher");
-        if (isStudent && totalYears <= 2.0) {
-            totalYears = 0.0;
+        if (!activeYears.isEmpty()) {
+            return Math.min(30.0, (double) activeYears.size());
         }
 
-        return Math.max(0.0, Math.min(30.0, totalYears));
+        return Math.min(fullTimeRoles.size() * 1.5, 10.0);
     }
 
     public String determineExperienceLevel(double years, List<Map<String, String>> expList, List<Map<String, String>> internships, String fullText) {
         String lower = fullText.toLowerCase();
+        boolean isStudent = lower.contains("student") || lower.contains("pursuing") || lower.contains("currently in ") || lower.contains("fresher");
+        if (isStudent || years <= 0.0) {
+            return "FRESHER";
+        }
         if (years >= 8.0 || lower.contains("lead engineer") || lower.contains("principal engineer") || lower.contains("director") || lower.contains("vp ")) {
             return "LEAD";
         }

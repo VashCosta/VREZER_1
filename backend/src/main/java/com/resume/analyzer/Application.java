@@ -32,7 +32,9 @@ public class Application {
         return args -> {
             try (java.sql.Connection conn = dataSource.getConnection()) {
                 System.out.println("================================================================================");
-                System.out.println("[VREZER DB DIAGNOSTIC] Connected Database: " + conn.getMetaData().getDatabaseProductName() + " " + conn.getMetaData().getDatabaseProductVersion());
+                System.out.println(
+                        "[VREZER DB DIAGNOSTIC] Connected Database: " + conn.getMetaData().getDatabaseProductName()
+                                + " " + conn.getMetaData().getDatabaseProductVersion());
                 System.out.println("[VREZER DB DIAGNOSTIC] Connection URL: " + conn.getMetaData().getURL());
                 System.out.println("[VREZER DB DIAGNOSTIC] DB User: " + conn.getMetaData().getUserName());
                 System.out.println("================================================================================");

@@ -1,6 +1,7 @@
 package com.resume.analyzer;
 
 import com.resume.analyzer.service.AtsAnalysisEngine;
+import com.resume.analyzer.service.FileParsingService;
 import com.resume.analyzer.service.ResumeIntelligenceEngine;
 import com.resume.analyzer.service.ResumeParserService;
 import com.resume.analyzer.service.VrezerAiAgentService;
@@ -8,7 +9,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.mock.web.MockMultipartFile;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +23,9 @@ public class ResumeAnalysisIntegrationTest {
 
     @Autowired
     private ResumeParserService resumeParserService;
+
+    @Autowired
+    private FileParsingService fileParsingService;
 
     @Autowired
     private ResumeIntelligenceEngine resumeIntelligenceEngine;
@@ -162,5 +169,88 @@ public class ResumeAnalysisIntegrationTest {
         int scoreMarketing = (Integer) resultMarketing.get("atsScore");
         assertTrue(scoreJava > 0 && scoreJava <= 100);
         assertTrue(scoreMarketing > 0 && scoreMarketing <= 100);
+    }
+
+    @Test
+    void testActualHighClassAtsPdfExtraction() throws Exception {
+        File pdfFile = new File("C:\\Users\\vivas\\Downloads\\Vivash_Vel_CS_Resume_Final_ATS_Professional.pdf");
+        if (!pdfFile.exists()) {
+            System.out.println("Test PDF not present at path, skipping.");
+            return;
+        }
+
+        try (FileInputStream fis = new FileInputStream(pdfFile)) {
+            MockMultipartFile multipartFile = new MockMultipartFile(
+                "file",
+                "Vivash_Vel_CS_Resume_Final_ATS_Professional.pdf",
+                "application/pdf",
+                fis
+            );
+
+            // Run end-to-end extraction through FileParsingService
+            Map<String, Object> extractionResult = fileParsingService.extractAndStructure(multipartFile);
+            assertNotNull(extractionResult);
+
+            String rawText = (String) extractionResult.get("rawText");
+            assertNotNull(rawText);
+            assertTrue(rawText.length() > 1000, "Raw extracted text length should be > 1000 chars, but was " + rawText.length());
+
+            // Check candidate name
+            String name = (String) extractionResult.get("name");
+            assertNotNull(name);
+            assertTrue(name.toLowerCase().contains("vivash"), "Name should contain 'Vivash' but was: " + name);
+
+            // Check contact details
+            String phone = (String) extractionResult.get("phone");
+            assertTrue(phone.contains("8610552795"), "Phone should contain 8610552795 but was: " + phone);
+
+            String linkedin = (String) extractionResult.get("linkedin");
+            assertTrue(linkedin.contains("vivashvel"), "LinkedIn should contain vivashvel but was: " + linkedin);
+
+            // Check Education
+            List<?> eduList = (List<?>) extractionResult.get("education");
+            assertFalse(eduList.isEmpty(), "Education list should not be empty");
+
+            // Check Skills
+            List<String> skills = (List<String>) extractionResult.get("allDetectedSkills");
+            assertNotNull(skills);
+            assertTrue(skills.size() >= 8, "Expected at least 8 detected skills, but got: " + skills);
+            assertTrue(skills.contains("Java") || skills.contains("Spring Boot"), "Skills should contain Java/Spring Boot");
+
+            // Check Projects
+            List<?> projList = (List<?>) extractionResult.get("projects");
+            assertFalse(projList.isEmpty(), "Projects should not be empty");
+
+            // Check Internships / Experience
+            List<?> expList = (List<?>) extractionResult.get("experience");
+            assertFalse(expList.isEmpty(), "Experience should not be empty");
+
+            // Check Certifications
+            List<?> certList = (List<?>) extractionResult.get("certifications");
+            assertFalse(certList.isEmpty(), "Certifications should not be empty");
+
+            // Test Dossier generation & ATS scoring
+            Map<String, Object> dossier = vrezerAiAgentService.buildDynamicLocalEngineDossier(rawText, null);
+            assertNotNull(dossier);
+            int atsScore = (Integer) dossier.get("atsScore");
+            assertTrue(atsScore >= 70, "ATS Score should be >= 70 for this rich resume, but was: " + atsScore);
+
+            // Verify Experience is proper (NOT 13 years)
+            String expSummary = (String) dossier.get("experience");
+            assertNotNull(expSummary);
+            assertFalse(expSummary.contains("13"), "Experience should NOT be 13 years! Found: " + expSummary);
+            assertTrue(expSummary.contains("Internship") || expSummary.contains("Fresher") || expSummary.contains("Entry Level"), "Expected Internship/Fresher experience, but was: " + expSummary);
+
+            // Verify Experience level is FRESHER (student pursuing B.Tech)
+            String expLevel = (String) dossier.get("experienceLevel");
+            assertEquals("FRESHER", expLevel, "Experience level for a pursuing student should be FRESHER");
+
+            System.out.println("==== TEST SUCCESS: HIGH CLASS ATS RESUME EXTRACTED PERFECTLY ====");
+            System.out.println("Candidate Name: " + name);
+            System.out.println("Experience: " + expSummary + " (Level: " + expLevel + ")");
+            System.out.println("Role: " + dossier.get("role"));
+            System.out.println("Detected Skills (" + skills.size() + "): " + skills);
+            System.out.println("ATS Score: " + atsScore + " (" + dossier.get("atsScoreText") + ")");
+        }
     }
 }

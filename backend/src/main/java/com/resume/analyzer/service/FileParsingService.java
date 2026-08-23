@@ -1,8 +1,6 @@
 package com.resume.analyzer.service;
 
 import com.resume.analyzer.dto.StructuredResumeDto;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.tika.Tika;
@@ -17,29 +15,30 @@ import java.io.InputStream;
 import java.util.*;
 
 /**
- * FileParsingService — Tika-first resume extraction pipeline.
+ * FileParsingService — Autonomous multi-layer resume extraction pipeline.
  *
- * Extraction order (per spec):
- *  1. Apache Tika AutoDetectParser  — handles PDF, DOCX, DOC, RTF, TXT, ODP, etc.
- *  2. Apache PDFBox (PDFTextStripper) — fallback for PDFs Tika cannot fully extract.
- *  3. Apache POI (XWPFWordExtractor) — fallback for Word documents.
+ * Extraction order:
+ *  1. PdfExtractorService (Position-sorted PDF extraction + Link Harvester + Windows Media OCR)
+ *  2. Apache Tika AutoDetectParser (DOCX, RTF, TXT, ODT)
+ *  3. Apache POI (XWPFWordExtractor) for Word documents
  *
  * After raw text extraction, builds a StructuredResumeDto via ResumeParserService
- * for AI prompt grounding.
+ * for AI prompt grounding and ATS analysis.
  */
 @Service
 public class FileParsingService {
 
-    // Tika instances are thread-safe and should be reused
     private final Tika tikaMimeDetector = new Tika();
     private final AutoDetectParser tikaParser = new AutoDetectParser();
 
     @Autowired
     private ResumeParserService resumeParserService;
 
+    @Autowired
+    private PdfExtractorService pdfExtractorService;
+
     /**
      * Primary entry point — extracts raw text from any uploaded resume file.
-     * Strategy: Tika first (handles all formats), PDFBox/POI as fallback.
      *
      * @param file The uploaded MultipartFile (PDF, DOCX, DOC, RTF, TXT)
      * @return Extracted raw text
@@ -56,7 +55,33 @@ public class FileParsingService {
         String lowerName = filename.toLowerCase().trim();
         System.out.println("[FILE PARSING] Extracting text from: " + filename + " (" + file.getSize() + " bytes)");
 
-        // ── Strategy 1: Apache Tika AutoDetectParser (primary, format-agnostic) ──
+        // ── Strategy 1: Dedicated PDF Extractor (with Link harvesting & OCR fallback) ──
+        if (lowerName.endsWith(".pdf")) {
+            try {
+                String pdfText = pdfExtractorService.extractTextFromPdf(file);
+                if (pdfText != null && pdfText.trim().length() > 60) {
+                    System.out.println("[FILE PARSING] PDF extractor succeeded. Length: " + pdfText.length());
+                    return pdfText.trim();
+                }
+            } catch (Exception pdfEx) {
+                System.err.println("[FILE PARSING] Dedicated PDF extractor failed, trying Tika fallback: " + pdfEx.getMessage());
+            }
+        }
+
+        // ── Strategy 2: Apache POI for Word documents (.docx / .doc) ──
+        if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
+            try {
+                String docxText = extractTextFromDocx(file.getInputStream());
+                if (docxText != null && docxText.trim().length() > 50) {
+                    System.out.println("[FILE PARSING] POI DOCX extraction succeeded. Length: " + docxText.length());
+                    return docxText.trim();
+                }
+            } catch (Exception docxEx) {
+                System.err.println("[FILE PARSING] POI DOCX extraction failed: " + docxEx.getMessage());
+            }
+        }
+
+        // ── Strategy 3: Apache Tika AutoDetectParser (generic fallback) ──
         try {
             String tikaText = extractWithTika(file.getInputStream());
             if (tikaText != null && tikaText.trim().length() > 50) {
@@ -64,36 +89,10 @@ public class FileParsingService {
                 return tikaText.trim();
             }
         } catch (Exception tikaEx) {
-            System.err.println("[FILE PARSING] Tika AutoDetectParser failed, trying format-specific fallback: " + tikaEx.getMessage());
+            System.err.println("[FILE PARSING] Tika AutoDetectParser failed: " + tikaEx.getMessage());
         }
 
-        // ── Strategy 2a: Apache PDFBox for PDFs (fallback) ──
-        if (lowerName.endsWith(".pdf")) {
-            try {
-                String pdfText = extractTextFromPdf(file.getInputStream());
-                if (pdfText != null && pdfText.trim().length() > 50) {
-                    System.out.println("[FILE PARSING] PDFBox fallback succeeded. Length: " + pdfText.length());
-                    return pdfText.trim();
-                }
-            } catch (Exception pdfEx) {
-                System.err.println("[FILE PARSING] PDFBox fallback failed: " + pdfEx.getMessage());
-            }
-        }
-
-        // ── Strategy 2b: Apache POI for Word documents (fallback) ──
-        if (lowerName.endsWith(".docx") || lowerName.endsWith(".doc")) {
-            try {
-                String docxText = extractTextFromDocx(file.getInputStream());
-                if (docxText != null && docxText.trim().length() > 50) {
-                    System.out.println("[FILE PARSING] POI DOCX fallback succeeded. Length: " + docxText.length());
-                    return docxText.trim();
-                }
-            } catch (Exception docxEx) {
-                System.err.println("[FILE PARSING] POI DOCX fallback failed: " + docxEx.getMessage());
-            }
-        }
-
-        // ── Strategy 3: Tika simple string parsing (last resort) ──
+        // ── Strategy 4: Tika simple string parsing (last resort) ──
         try {
             String simpleText = tikaMimeDetector.parseToString(file.getInputStream());
             if (simpleText != null && !simpleText.trim().isEmpty()) {
@@ -104,7 +103,7 @@ public class FileParsingService {
             System.err.println("[FILE PARSING] All extraction strategies failed: " + ex.getMessage());
         }
 
-        throw new RuntimeException("Unable to extract text from the uploaded file. Please ensure the file is a valid, non-encrypted PDF or DOCX document.");
+        throw new RuntimeException("Unable to extract text from the uploaded file. Please ensure the file is a valid, non-encrypted document.");
     }
 
     /**
@@ -128,37 +127,25 @@ public class FileParsingService {
         System.out.println("[FILE PARSING] Structured extraction complete: name=" + dto.getName()
                 + ", skills=" + dto.getAllDetectedSkills().size()
                 + ", education=" + dto.getEducation().size()
-                + ", experience=" + dto.getExperience().size());
+                + ", experience=" + dto.getExperience().size()
+                + ", projects=" + dto.getProjects().size());
 
         return parsed;
     }
 
     /**
      * Apache Tika AutoDetectParser — handles PDF, DOCX, DOC, RTF, ODT, TXT, etc.
-     * Content handler is capped at 1MB of text to prevent memory issues.
      */
     private String extractWithTika(InputStream inputStream) throws Exception {
         BodyContentHandler handler = new BodyContentHandler(1024 * 1024); // 1MB cap
         Metadata metadata = new Metadata();
         tikaParser.parse(inputStream, handler, metadata, new org.apache.tika.parser.ParseContext());
         String text = handler.toString();
-        // Tika sometimes returns lots of whitespace — normalize
         return text.replaceAll("\\s{3,}", "\n").trim();
     }
 
     /**
-     * Apache PDFBox — Fallback PDF extractor preserving column order better for some scanned PDFs.
-     */
-    public String extractTextFromPdf(InputStream inputStream) throws Exception {
-        try (PDDocument document = PDDocument.load(inputStream)) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true); // better column ordering
-            return stripper.getText(document);
-        }
-    }
-
-    /**
-     * Apache POI — Fallback DOCX extractor for complex Word documents.
+     * Apache POI — DOCX extractor for complex Word documents.
      */
     public String extractTextFromDocx(InputStream inputStream) throws Exception {
         try (XWPFDocument doc = new XWPFDocument(inputStream);
@@ -169,7 +156,6 @@ public class FileParsingService {
 
     /**
      * Builds a validated StructuredResumeDto from raw text and pre-parsed map.
-     * Validates each field: strips whitespace, removes empty entries, normalizes lists.
      */
     @SuppressWarnings("unchecked")
     private StructuredResumeDto buildStructuredDto(String rawText, Map<String, Object> parsed) {
@@ -197,7 +183,7 @@ public class FileParsingService {
 
         // ── Experience & Projects ───────────────────────────────────────────
         dto.setExperience((List<Map<String, String>>) parsed.getOrDefault("experience", List.of()));
-        dto.setInternships(extractInternships(parsed));
+        dto.setInternships((List<Map<String, String>>) parsed.getOrDefault("internships", List.of()));
         dto.setProjects((List<Map<String, String>>) parsed.getOrDefault("projects", List.of()));
 
         // ── Skills ──────────────────────────────────────────────────────────
@@ -206,21 +192,19 @@ public class FileParsingService {
         dto.setSoftSkills(safeList(parsed.get("softSkills")));
         dto.setAllDetectedSkills(safeList(parsed.get("allDetectedSkills")));
 
-        // Categorize additional skill sub-lists from the allDetectedSkills pool
+        // Categorize additional skill sub-lists from allDetectedSkills pool
         List<String> allSkills = dto.getAllDetectedSkills();
         dto.setDatabases(filterByKeywords(allSkills, DB_KEYWORDS));
         dto.setCloudPlatforms(filterByKeywords(allSkills, CLOUD_KEYWORDS));
         dto.setLibraries(filterByKeywords(allSkills, LIB_KEYWORDS));
         dto.setTools(filterByKeywords(allSkills, TOOL_KEYWORDS));
-        dto.setTechnicalSkills(allSkills); // full set
+        dto.setTechnicalSkills(allSkills);
 
         // ── Credentials ─────────────────────────────────────────────────────
-        dto.setCertifications(extractCertifications(rawText));
-        dto.setAchievements(extractAchievements(rawText));
-        dto.setResearchPapers(extractResearchPapers(rawText));
-        dto.setVolunteerWork(extractVolunteerWork(rawText));
-        dto.setLanguagesSpoken(extractLanguagesSpoken(rawText));
-        dto.setCareerObjective(extractCareerObjective(rawText));
+        dto.setCertifications(safeList(parsed.get("certifications")));
+        dto.setAchievements(safeList(parsed.get("achievements")));
+        dto.setLanguagesSpoken(safeList(parsed.get("languages")));
+        dto.setCareerObjective(safe(parsed.get("careerObjective")));
 
         // ── Metadata ────────────────────────────────────────────────────────
         int detected = countDetectedFields(dto);
@@ -229,8 +213,6 @@ public class FileParsingService {
 
         return dto;
     }
-
-    // ── Extraction Helper Methods ──────────────────────────────────────────
 
     private static final List<String> DB_KEYWORDS = Arrays.asList(
         "MySQL", "PostgreSQL", "MongoDB", "Redis", "Oracle", "SQLite", "Cassandra",
@@ -246,7 +228,7 @@ public class FileParsingService {
     );
     private static final List<String> TOOL_KEYWORDS = Arrays.asList(
         "Git", "GitHub", "GitLab", "Docker", "Kubernetes", "Jenkins", "Postman",
-        "JIRA", "Confluence", "Figma", "Tableau", "Power BI", "Swagger", "IntelliJ"
+        "JIRA", "Confluence", "Figma", "Tableau", "Power BI", "Swagger", "IntelliJ", "VS Code", "Canva"
     );
 
     private List<String> filterByKeywords(List<String> skills, List<String> keywords) {
@@ -260,165 +242,6 @@ public class FileParsingService {
             }
         }
         return result;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, String>> extractInternships(Map<String, Object> parsed) {
-        // Check for explicit internships list from parser
-        Object internshipsRaw = parsed.get("internships");
-        if (internshipsRaw instanceof List) {
-            List<?> list = (List<?>) internshipsRaw;
-            if (!list.isEmpty()) {
-                return (List<Map<String, String>>) internshipsRaw;
-            }
-        }
-        // Try to identify internships from experience list (entries with "intern" in title/description)
-        List<Map<String, String>> expList = (List<Map<String, String>>) parsed.getOrDefault("experience", List.of());
-        List<Map<String, String>> internships = new ArrayList<>();
-        for (Map<String, String> exp : expList) {
-            String title = exp.getOrDefault("title", "").toLowerCase();
-            String desc = exp.getOrDefault("description", "").toLowerCase();
-            if (title.contains("intern") || desc.contains("internship")) {
-                internships.add(exp);
-            }
-        }
-        return internships;
-    }
-
-    private List<String> extractCertifications(String rawText) {
-        List<String> certs = new ArrayList<>();
-        String[] lines = rawText.split("\\n");
-        boolean inCertSection = false;
-        for (String line : lines) {
-            String lower = line.toLowerCase().trim();
-            if (lower.matches(".*(certification|certifications|certified|credential|license|accreditation).*")) {
-                inCertSection = true;
-                continue;
-            }
-            if (inCertSection) {
-                if (isSectionHeader(lower) && !lower.contains("certif")) { inCertSection = false; continue; }
-                String clean = line.trim().replaceAll("^[•\\-*–]\\s*", "");
-                if (clean.length() > 5 && clean.length() < 120 && !clean.isEmpty()) {
-                    certs.add(clean);
-                    if (certs.size() >= 10) break;
-                }
-            }
-        }
-        return certs;
-    }
-
-    private List<String> extractAchievements(String rawText) {
-        List<String> achievements = new ArrayList<>();
-        String[] lines = rawText.split("\\n");
-        boolean inAchievSection = false;
-        for (String line : lines) {
-            String lower = line.toLowerCase().trim();
-            if (lower.matches(".*(achievement|accomplishment|award|honor|recognition|distinction|winner|rank).*") && lower.length() < 50) {
-                inAchievSection = true;
-                continue;
-            }
-            if (inAchievSection) {
-                if (isSectionHeader(lower) && !lower.contains("achiev")) { inAchievSection = false; continue; }
-                String clean = line.trim().replaceAll("^[•\\-*–]\\s*", "");
-                if (clean.length() > 5 && clean.length() < 150 && !clean.isEmpty()) {
-                    achievements.add(clean);
-                    if (achievements.size() >= 8) break;
-                }
-            }
-        }
-        return achievements;
-    }
-
-    private List<String> extractResearchPapers(String rawText) {
-        List<String> papers = new ArrayList<>();
-        String[] lines = rawText.split("\\n");
-        boolean inResearchSection = false;
-        for (String line : lines) {
-            String lower = line.toLowerCase().trim();
-            if (lower.matches(".*(research|publication|paper|journal|conference|ieee|acm|arxiv).*") && lower.length() < 50) {
-                inResearchSection = true;
-                continue;
-            }
-            if (inResearchSection) {
-                if (isSectionHeader(lower) && !lower.contains("research") && !lower.contains("paper")) {
-                    inResearchSection = false; continue;
-                }
-                String clean = line.trim().replaceAll("^[•\\-*–]\\s*", "");
-                if (clean.length() > 10 && clean.length() < 250 && !clean.isEmpty()) {
-                    papers.add(clean);
-                    if (papers.size() >= 5) break;
-                }
-            }
-        }
-        return papers;
-    }
-
-    private List<String> extractVolunteerWork(String rawText) {
-        List<String> volunteer = new ArrayList<>();
-        String[] lines = rawText.split("\\n");
-        boolean inVolunteerSection = false;
-        for (String line : lines) {
-            String lower = line.toLowerCase().trim();
-            if (lower.matches(".*(volunteer|community|social work|ngo|non-profit|charity|service).*") && lower.length() < 50) {
-                inVolunteerSection = true;
-                continue;
-            }
-            if (inVolunteerSection) {
-                if (isSectionHeader(lower) && !lower.contains("volunteer")) { inVolunteerSection = false; continue; }
-                String clean = line.trim().replaceAll("^[•\\-*–]\\s*", "");
-                if (clean.length() > 5 && clean.length() < 150 && !clean.isEmpty()) {
-                    volunteer.add(clean);
-                    if (volunteer.size() >= 5) break;
-                }
-            }
-        }
-        return volunteer;
-    }
-
-    private List<String> extractLanguagesSpoken(String rawText) {
-        List<String> langs = new ArrayList<>();
-        String lower = rawText.toLowerCase();
-        // Common spoken language keywords
-        String[] commonLangs = {
-            "English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam", "Marathi",
-            "Bengali", "Gujarati", "Punjabi", "Spanish", "French", "German", "Arabic",
-            "Mandarin", "Japanese", "Korean", "Portuguese", "Italian", "Russian", "Urdu"
-        };
-        // Only extract if there's a "Languages" section header
-        if (lower.contains("language")) {
-            for (String lang : commonLangs) {
-                if (rawText.contains(lang) || rawText.contains(lang.toLowerCase())) {
-                    langs.add(lang);
-                }
-            }
-        }
-        return langs;
-    }
-
-    private String extractCareerObjective(String rawText) {
-        String[] lines = rawText.split("\\n");
-        boolean inObjectiveSection = false;
-        StringBuilder objective = new StringBuilder();
-        for (String line : lines) {
-            String lower = line.toLowerCase().trim();
-            if (lower.matches(".*(objective|career objective|summary|professional summary|profile|about me).*") && lower.length() < 50) {
-                inObjectiveSection = true;
-                continue;
-            }
-            if (inObjectiveSection) {
-                if (isSectionHeader(lower) && objective.length() > 20) break;
-                if (!line.trim().isEmpty()) {
-                    objective.append(line.trim()).append(" ");
-                    if (objective.length() > 400) break;
-                }
-            }
-        }
-        return objective.toString().trim();
-    }
-
-    private boolean isSectionHeader(String lower) {
-        return lower.matches(".*(experience|education|skills|projects|internship|certifi|achievement|award|publication|research|volunteer|language|contact|reference|summary|objective|profile|career).*")
-               && lower.length() < 60;
     }
 
     private int countDetectedFields(StructuredResumeDto dto) {
@@ -435,7 +258,6 @@ public class FileParsingService {
         if (!dto.getAchievements().isEmpty()) count++;
         if (!dto.getLinkedin().isEmpty()) count++;
         if (!dto.getGithub().isEmpty()) count++;
-        if (!dto.getCareerObjective().isEmpty()) count++;
         return count;
     }
 

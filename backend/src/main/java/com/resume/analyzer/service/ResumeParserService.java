@@ -3,8 +3,6 @@ package com.resume.analyzer.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -24,9 +22,9 @@ public class ResumeParserService {
     // ── Regex Patterns ─────────────────────────────────────────────────────────
     private static final Pattern EMAIL_PATTERN    = Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6}");
     private static final Pattern PHONE_PATTERN    = Pattern.compile("(\\+\\d{1,3}[\\s.-]?)?\\(?\\d{3,5}\\)?[\\s.-]?\\d{3,4}[\\s.-]?\\d{3,4}");
-    private static final Pattern LINKEDIN_PATTERN = Pattern.compile("(https?://)?(www\\.)?linkedin\\.com/in/[a-zA-Z0-9_%-]+");
-    private static final Pattern GITHUB_PATTERN   = Pattern.compile("(https?://)?(www\\.)?github\\.com/[a-zA-Z0-9_-]+");
-    private static final Pattern CGPA_PATTERN     = Pattern.compile("(?i)(cgpa|gpa|marks|score|percentage|grade)\\s*[:/]?\\s*(\\d{1,2}\\.?\\d{0,2}\\s*[/]?\\s*\\d{0,2})");
+    private static final Pattern LINKEDIN_PATTERN = Pattern.compile("(?i)(https?://)?(www\\.)?linkedin\\.com/in/[a-zA-Z0-9_%-]+");
+    private static final Pattern GITHUB_PATTERN   = Pattern.compile("(?i)(https?://)?(www\\.)?github\\.com/[a-zA-Z0-9_-]+");
+    private static final Pattern CGPA_PATTERN     = Pattern.compile("(?i)(cgpa|gpa|marks|score|percentage|grade)\\s*[:/]?\\s*(\\d{1,2}\\.?\\d{0,2}\\s*[/]?\\s*\\d{0,2}%?)");
     private static final Pattern YEAR_RANGE_PATTERN = Pattern.compile("(?i)(20\\d{2}|19\\d{2})\\s*[-–—/to]+\\s*(20\\d{2}|19\\d{2}|present|current|now)");
     private static final Pattern MONTH_YEAR_RANGE_PATTERN = Pattern.compile("(?i)(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december)\\s*(\\d{4})?\\s*[-–—/to]+\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december|present|current|now)\\s*(\\d{4})?");
 
@@ -34,29 +32,29 @@ public class ResumeParserService {
     private static final List<String> PROGRAMMING_LANGUAGES = Arrays.asList(
             "Java", "Python", "JavaScript", "TypeScript", "C++", "C#", "C", "Go", "Golang",
             "Rust", "Ruby", "PHP", "Kotlin", "Swift", "Scala", "R", "MATLAB", "Dart",
-            "Bash", "Shell", "Perl", "Haskell", "Lua", "Julia", "Elixir", "Erlang", "SQL", "HTML", "CSS"
+            "Bash", "Shell", "Perl", "Haskell", "Lua", "Julia", "Elixir", "Erlang", "SQL", "HTML", "CSS", "HTML5", "CSS3"
     );
 
-    // Cross-domain frameworks and tools
+    // Cross-domain frameworks, platforms, and tools
     private static final List<String> FRAMEWORKS_TOOLS = Arrays.asList(
-            // Web & Backend
+            // Web & Backend & Architecture
             "React", "React Native", "Angular", "Vue.js", "Next.js", "Nuxt.js", "Svelte",
             "Node.js", "Express.js", "Spring Boot", "Spring MVC", "Spring Security", "Spring Cloud",
             "Django", "Flask", "FastAPI", "Laravel", "Ruby on Rails", "ASP.NET", ".NET Core",
-            "Hibernate", "JPA", "MyBatis", "GraphQL", "REST API", "gRPC", "Microservices",
-            "PostgreSQL", "MySQL", "MariaDB", "MongoDB", "Redis", "Elasticsearch", "Cassandra",
+            "Hibernate", "JPA", "MyBatis", "GraphQL", "REST APIs", "REST API", "gRPC", "Microservices",
+            "MVC Architecture", "MVC", "PostgreSQL", "MySQL", "MariaDB", "MongoDB", "Redis", "Elasticsearch", "Cassandra",
             "SQLite", "Oracle", "Firebase", "DynamoDB", "Supabase", "Prisma", "Sequelize",
-            // Cloud & DevOps
+            // Cloud & DevOps & Tools
             "Docker", "Kubernetes", "Helm", "Terraform", "Ansible", "Jenkins", "GitHub Actions",
             "CI/CD", "GitLab CI", "CircleCI", "Travis CI", "ArgoCD", "Linux", "Ubuntu",
             "AWS", "Azure", "GCP", "Google Cloud", "Heroku", "Vercel", "Netlify", "DigitalOcean",
             "Lambda", "EC2", "S3", "RDS", "CloudFront", "SQS", "SNS", "ECS", "EKS",
             "Kafka", "RabbitMQ", "Celery", "Nginx", "Apache", "Tomcat",
-            "Git", "GitHub", "GitLab", "Bitbucket", "JIRA", "Confluence", "Postman", "Swagger",
+            "Git", "GitHub", "GitLab", "Bitbucket", "JIRA", "Confluence", "Postman", "Swagger", "VS Code", "Visual Studio Code", "Canva",
             // AI, ML & Data Science
-            "TensorFlow", "PyTorch", "Keras", "scikit-learn", "OpenCV", "Hugging Face",
-            "Pandas", "NumPy", "Matplotlib", "Seaborn", "SciPy", "NLTK", "spaCy",
-            "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Generative AI",
+            "Artificial Intelligence", "Machine Learning", "Data Science", "Generative AI", "Deep Learning", "NLP",
+            "Computer Vision", "TensorFlow", "PyTorch", "Keras", "scikit-learn", "OpenCV", "Hugging Face",
+            "Pandas", "NumPy", "Matplotlib", "Seaborn", "SciPy", "NLTK", "spaCy", "AI Tools",
             "LangChain", "LlamaIndex", "RAG", "Vector Database", "Pinecone", "ChromaDB", "Milvus", "Qdrant",
             "Hadoop", "Spark", "Airflow", "dbt", "Snowflake", "BigQuery", "Databricks",
             // Data / Business Analysis
@@ -67,15 +65,14 @@ public class ResumeParserService {
             "Usability Testing", "Design Systems", "Information Architecture", "Interaction Design",
             "Photoshop", "Illustrator", "TailwindCSS", "Bootstrap", "Material UI",
             // Digital Marketing & Growth
-            "SEO", "SEM", "Google Ads", "Meta Ads", "Facebook Ads", "GA4", "Google Analytics",
-            "HubSpot", "Marketo", "MailChimp", "Content Marketing", "Social Media Marketing",
-            "Copywriting", "A/B Testing", "Conversion Rate Optimization", "CRO", "Growth Hacking",
-            "Email Marketing", "Performance Marketing", "CRM", "Salesforce",
+            "Digital Marketing", "SEO", "SEM", "Google Ads", "Meta Ads", "Facebook Ads", "GA4", "Google Analytics",
+            "HubSpot", "Marketo", "MailChimp", "Content Marketing", "Social Media Marketing", "Keyword Research",
+            "Content Strategy", "Copywriting", "A/B Testing", "Conversion Rate Optimization", "CRO", "Growth Hacking",
+            "Email Marketing", "Performance Marketing", "CRM", "Salesforce", "Meta Ads Manager",
             "PPC", "Pay Per Click", "Search Engine Optimization", "Google Search Console", "GSC",
             "Ahrefs", "SEMrush", "Screaming Frog", "Google Tag Manager", "GTM", "Looker Studio",
             "Social Media Optimization", "SMO", "Influencer Marketing", "Affiliate Marketing",
-            "Content Strategy", "Funnel Optimization", "CTR", "CPC", "ROAS", "CPM", "CPA",
-            "Lead Generation", "Canva", "WordPress Marketing", "Shopify Marketing", "Klaviyo", "Attentive", "Sprinklr",
+            "CTR", "CPC", "ROAS", "CPM", "CPA", "Lead Generation", "WordPress Marketing", "Shopify Marketing", "Klaviyo", "Attentive", "Sprinklr",
             // Finance & Accounting
             "Financial Modeling", "Valuation", "DCF", "LBO", "Taxation", "Audit", "Tally", "GST",
             "Equity Research", "Corporate Finance", "Ledger Reconciliation", "IFRS", "GAAP",
@@ -90,10 +87,10 @@ public class ResumeParserService {
     );
 
     private static final List<String> SOFT_SKILLS = Arrays.asList(
-            "Leadership", "Problem Solving", "Communication", "Team Collaboration", "Agile",
-            "Scrum", "Kanban", "Critical Thinking", "Time Management", "Mentoring",
-            "Project Management", "Stakeholder Management", "Presentation", "Decision Making",
-            "Strategic Planning", "Analytical Thinking", "Negotiation", "Adaptability"
+            "Leadership", "Problem Solving", "Analytical Thinking", "Communication", "Team Collaboration",
+            "Teamwork", "Quick Learner", "Creative Content", "Agile", "Scrum", "Kanban", "Critical Thinking",
+            "Time Management", "Mentoring", "Project Management", "Stakeholder Management", "Presentation",
+            "Decision Making", "Strategic Planning", "Negotiation", "Adaptability"
     );
 
     // Section header markers
@@ -109,11 +106,17 @@ public class ResumeParserService {
             "education", "academic background", "qualifications", "academic qualifications",
             "educational background", "academics"
     );
+    private static final List<String> SKILLS_HEADERS = Arrays.asList(
+            "skills", "technical skills", "skills & abilities", "competencies", "tools & platforms", "technologies"
+    );
     private static final List<String> CERTIFICATIONS_HEADERS = Arrays.asList(
             "certifications", "certificates", "professional certifications", "licenses", "courses", "trainings"
     );
     private static final List<String> ACHIEVEMENTS_HEADERS = Arrays.asList(
             "achievements", "awards", "honors", "accomplishments", "recognition", "extracurricular"
+    );
+    private static final List<String> LANGUAGES_HEADERS = Arrays.asList(
+            "languages", "languages known", "spoken languages"
     );
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -171,8 +174,9 @@ public class ResumeParserService {
                 .toList();
         result.put("internships",     internshipList);
         result.put("projects",        extractProjectsFromText(text));
-        result.put("certifications",  extractSectionBullets(text, CERTIFICATIONS_HEADERS, 10));
+        result.put("certifications",  extractSectionBullets(text, CERTIFICATIONS_HEADERS, 12));
         result.put("achievements",    extractSectionBullets(text, ACHIEVEMENTS_HEADERS, 10));
+        result.put("languages",       extractLanguagesSpoken(text));
 
         return result;
     }
@@ -183,8 +187,7 @@ public class ResumeParserService {
             "SUMMARY", "EXPERIENCE", "EDUCATION", "SKILLS", "PROJECTS", "CERTIFICATIONS", "ACHIEVEMENTS",
             "DECLARATION", "INTERNSHIPS", "PROFILE", "CONTACT", "INTERNSHIP", "PRESENT", "MONTH", "YEAR",
             "NAME", "EMAIL", "PHONE", "LINKEDIN", "GITHUB", "PORTFOLIO", "WORK", "DETAILS", "RESPONSIBILITIES",
-            "DESCRIPTION", "DUTIES", "CURRICULUM", "VITAE", "RESUME", "REVIEWS", "DEVELOPER", "ENGINEER",
-            "ANALYST", "SPECIALIST", "MANAGER", "LEAD", "SENIOR", "JUNIOR", "EXECUTIVE", "TITLES", "HEADING",
+            "DESCRIPTION", "DUTIES", "CURRICULUM", "VITAE", "RESUME", "REVIEWS", "TITLES", "HEADING",
             "SECTION", "PAGE", "ADDRESS", "CITY", "STATE", "COUNTRY", "INDIA", "GLOBAL", "BACHELOR", "MASTER",
             "UNIVERSITY", "COLLEGE", "INSTITUTE", "SCHOOL", "DEGREE", "GPA", "CGPA", "MARKS", "SUMM", "EXP",
             "EDU", "PROJ", "CERT", "INFO", "OVERVIEW", "OBJECTIVE", "BACKGROUND", "HISTORY", "QUALIFICATIONS"
@@ -196,49 +199,16 @@ public class ResumeParserService {
         }
 
         List<String> clean = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         for (String s : rawSkills) {
             if (s == null || s.trim().length() < 2) continue;
             String upper = s.trim().toUpperCase();
-            if (!stops.contains(upper) && !stops.contains(upper.replaceAll("[^A-Z]", ""))) {
+            if (!stops.contains(upper) && !stops.contains(upper.replaceAll("[^A-Z]", "")) && !seen.contains(upper)) {
                 clean.add(s.trim());
+                seen.add(upper);
             }
         }
         return clean;
-    }
-
-    private List<String> extractAcronyms(String text, String candidateName) {
-        List<String> results = new ArrayList<>();
-        Pattern acronymPattern = Pattern.compile("\\b[A-Z][A-Z0-9+#.\\-]{1,9}\\b");
-        Matcher am = acronymPattern.matcher(text);
-        Set<String> extraSkills = new LinkedHashSet<>();
-        Set<String> stops = new HashSet<>(Arrays.asList(
-            "USA", "UK", "IN", "INR", "USD", "BTECH", "MTECH", "MBA", "BCA", "MCA", "BSC", "MSC", "PHD", 
-            "HSC", "SSC", "SSLC", "PUC", "GPA", "CGPA", "AND", "THE", "FOR", "NOT", "YES", "NEW", 
-            "API", "URL", "JSON", "XML", "PDF", "DOCX", "CV", "HR", "ITI", "DATE", "NAME", "WORK",
-            "YEAR", "WITH", "ROLE", "FROM", "TEAM", "LEAD", "SUMMARY", "EXPERIENCE", "EDUCATION",
-            "SKILLS", "PROJECTS", "CERTIFICATIONS", "ACHIEVEMENTS", "DECLARATION", "INTERNSHIPS",
-            "PROFILE", "CONTACT", "INTERNSHIP", "PRESENT", "MONTH", "DETAILS", "RESPONSIBILITIES",
-            "DESCRIPTION", "DUTIES", "CURRICULUM", "VITAE", "RESUME", "REVIEWS", "DEVELOPER",
-            "ENGINEER", "ANALYST", "SPECIALIST", "MANAGER", "EXECUTIVE", "TITLES", "HEADING",
-            "SECTION", "PAGE", "ADDRESS", "CITY", "STATE", "COUNTRY", "INDIA", "GLOBAL", "PHONE",
-            "EMAIL", "LINKEDIN", "GITHUB", "PORTFOLIO", "BACHELOR", "MASTER", "UNIVERSITY", "COLLEGE",
-            "INSTITUTE", "SCHOOL", "DEGREE", "MAJOR", "MINOR", "COURSE", "COURSES", "GPA", "MARKS"
-        ));
-
-        if (candidateName != null && !candidateName.trim().isEmpty()) {
-            for (String w : candidateName.toUpperCase().split("\\s+")) {
-                if (!w.trim().isEmpty()) stops.add(w.trim());
-            }
-        }
-
-        while (am.find()) {
-            String skill = am.group();
-            if (!stops.contains(skill.toUpperCase()) && skill.length() >= 2) {
-                extraSkills.add(skill);
-            }
-        }
-        results.addAll(extraSkills);
-        return results;
     }
 
     // ── Name Extraction ────────────────────────────────────────────────────────
@@ -250,26 +220,31 @@ public class ResumeParserService {
                 "resume", "curriculum", "vitae", "cv", "contact", "email", "phone",
                 "profile", "summary", "experience", "education", "skills", "projects",
                 "page", "objective", "address", "linkedin", "github", "portfolio",
-                "certificate", "achievement", "declaration", "objective", "header"
+                "certificate", "achievement", "declaration", "b.tech", "b.e", "bachelor",
+                "master", "pursuing", "student", "developer", "engineer", "intern", "madurai",
+                "chennai", "india", "pune", "bengaluru", "delhi", "mumbai"
         );
-        Pattern namePattern = Pattern.compile("^[A-Z][a-zA-Z.'-]+(?:\\s+[A-Z][a-zA-Z.'-]+){1,3}$");
 
-        int limit = Math.min(lines.length, 15);
+        int limit = Math.min(lines.length, 12);
         for (int i = 0; i < limit; i++) {
             String line = lines[i].trim();
             if (line.isEmpty() || line.length() > 50 || line.contains("@")
                     || line.contains("http") || line.contains("|") || line.contains(":") || line.contains("+")) continue;
 
             String lineLower = line.toLowerCase();
-            boolean hasStop = stopWords.stream().anyMatch(lineLower::contains);
+            boolean hasStop = stopWords.stream().anyMatch(w -> lineLower.startsWith(w) || lineLower.equals(w));
             if (hasStop) continue;
 
-            // Title-case name: e.g. "Karthick Raja" or "Dr. Elena Rostova"
-            String cleanedLine = line.replace("Dr. ", "").replace("Mr. ", "").replace("Ms. ", "").trim();
-            if (namePattern.matcher(cleanedLine).matches()) return formatName(line);
+            // Remove titles like Mr., Dr., Ms.
+            String cleanedLine = line.replaceAll("(?i)^(mr\\.|ms\\.|mrs\\.|dr\\.)\\s+", "").trim();
 
-            // ALL CAPS name: e.g. "ALEX RIVERS"
-            if (line.matches("^[A-Z][A-Z\\s.'-]{2,35}$") && line.contains(" ")) return formatName(line);
+            // Match full names (Title Case or ALL CAPS with 2-4 tokens)
+            if (cleanedLine.matches("^[A-Za-z.'-]+(\\s+[A-Za-z.'-]+){1,3}$") && cleanedLine.length() >= 3) {
+                // Ensure it's not a common degree line
+                if (!cleanedLine.toUpperCase().contains("B.TECH") && !cleanedLine.toUpperCase().contains("ENGINEERING")) {
+                    return formatName(cleanedLine);
+                }
+            }
         }
 
         // Email handle fallback
@@ -290,7 +265,7 @@ public class ResumeParserService {
                 .reduce((a, b) -> a + " " + b).orElse(raw.trim());
     }
 
-    // ── CGPA ──────────────────────────────────────────────────────────────────
+    // ── CGPA & Percentage ──────────────────────────────────────────────────────
     private String extractCgpa(String text) {
         Matcher m = CGPA_PATTERN.matcher(text);
         if (m.find()) {
@@ -310,9 +285,9 @@ public class ResumeParserService {
         List<Map<String, String>> results = new ArrayList<>();
 
         Pattern degreePattern = Pattern.compile(
-                "(?i)(?<![a-zA-Z0-9])(B\\.?Tech|B\\.?E\\.?|Bachelor[s]? of (Engineering|Science|Technology|Arts|Commerce|Design)|" +
-                "M\\.?Tech|M\\.?E\\.?|Master[s]? of (Engineering|Science|Business|Computer|Design|Arts)|MBA|BCA|MCA|" +
-                "B\\.?Sc\\.?|M\\.?Sc\\.?|Ph\\.?D\\.?|B\\.?Com|B\\.?A\\.?|Diploma|HSC|SSC|12th|10th|SSLC|PUC|Chartered Accountant|C\\.A\\.)(?![a-zA-Z0-9])" +
+                "(?i)(?<![a-zA-Z0-9])(B\\.?Tech|B\\.?E\\.?|Bachelor[s]? of [A-Za-z\\s&]+|" +
+                "M\\.?Tech|M\\.?E\\.?|Master[s]? of [A-Za-z\\s&]+|MBA|BCA|MCA|" +
+                "B\\.?Sc\\.?|M\\.?Sc\\.?|Ph\\.?D\\.?|B\\.?Com|B\\.?A\\.?|Diploma|Class 12 \\(HSC\\)|Class 10 \\(SSLC\\)|HSC|SSLC|12th|10th)(?![a-zA-Z0-9])" +
                 "[^\\n]{0,140}"
         );
 
@@ -320,27 +295,28 @@ public class ResumeParserService {
         Set<String> seen = new HashSet<>();
         while (dm.find()) {
             String line = dm.group().trim().replaceAll("\\s+", " ");
-            if (!seen.contains(line.toLowerCase()) && line.length() < 200) {
-                seen.add(line.toLowerCase());
+            String key = line.toLowerCase().replaceAll("[^a-z0-9]", "");
+            if (key.length() > 3 && !seen.contains(key) && line.length() < 180) {
+                seen.add(key);
                 Map<String, String> edu = new LinkedHashMap<>();
                 edu.put("degree", line);
                 edu.put("cgpa",   extractCgpa(extractNearbyLines(text, dm.start(), 3)));
                 edu.put("years",  extractYearsNear(text, dm.start()));
                 results.add(edu);
-                if (results.size() >= 4) break;
+                if (results.size() >= 5) break;
             }
         }
         return results;
     }
 
-    // ── Experience Extractor ───────────────────────────────────────────────────
+    // ── Experience & Internships Extractor ──────────────────────────────────────
     private List<Map<String, String>> extractExperienceFromText(String text) {
         List<Map<String, String>> results = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
 
         int startIdx = findSectionStart(lines, EXPERIENCE_HEADERS);
         int endIdx   = findSectionEnd(lines, startIdx, PROJECT_HEADERS, EDUCATION_HEADERS,
-                Arrays.asList("skills", "certifications", "achievements", "references", "declaration"));
+                SKILLS_HEADERS, CERTIFICATIONS_HEADERS, ACHIEVEMENTS_HEADERS);
 
         if (startIdx < 0) return results;
 
@@ -350,12 +326,12 @@ public class ResumeParserService {
 
         for (int i = startIdx + 1; i < endIdx && i < lines.length; i++) {
             String line = lines[i].trim();
-            if (line.isEmpty() || line.length() > 200) continue;
+            if (line.isEmpty() || line.length() > 250) continue;
 
             boolean hasDate = dateRange.matcher(line).find() && (line.contains("-") || line.contains("–") || line.contains("—") || line.toLowerCase().contains("to") || line.toLowerCase().contains("present"));
-            boolean isBullet = line.startsWith("•") || line.startsWith("-") || line.startsWith("*") || line.startsWith("–") || line.startsWith(">");
+            boolean isBullet = line.startsWith("•") || line.startsWith("-") || line.startsWith("*") || line.startsWith("–") || line.startsWith(">") || line.startsWith("–");
 
-            if (!isBullet && line.length() < 120 && (hasDate || looksLikeJobTitle(line))) {
+            if (!isBullet && line.length() < 130 && (looksLikeJobTitle(line) || hasDate || line.contains(" - ") || line.contains(" – "))) {
                 if (currentEntry != null && (!currentEntry.get("company").isEmpty() || !currentEntry.get("role").isEmpty())) {
                     currentEntry.put("description", bullets.toString().trim());
                     results.add(currentEntry);
@@ -366,8 +342,8 @@ public class ResumeParserService {
                 currentEntry.put("company", "");
                 currentEntry.put("duration", hasDate ? line : "");
 
-                if (line.contains("—") || line.contains("-") || line.contains("|")) {
-                    String[] parts = line.split("[—\\-|]");
+                if (line.contains("—") || line.contains("-") || line.contains("–") || line.contains("|")) {
+                    String[] parts = line.split("[—–\\-|]");
                     if (parts.length >= 2) {
                         currentEntry.put("role", parts[0].trim());
                         currentEntry.put("company", parts[1].replaceAll("\\(.*?\\)", "").trim());
@@ -381,8 +357,11 @@ public class ResumeParserService {
                 }
             } else if (isBullet && currentEntry != null) {
                 bullets.append(line.replaceAll("^[•\\-*–>]\\s*", "")).append(" | ");
-            } else if (currentEntry != null && !isBullet && line.length() < 80) {
-                if (currentEntry.get("company").isEmpty() && !looksLikeJobTitle(line)) {
+            } else if (currentEntry != null && !isBullet && line.length() > 5) {
+                // If it's descriptive prose under the entry
+                if (line.length() > 60 || line.startsWith("Developed") || line.startsWith("Built") || line.startsWith("Engineered") || line.startsWith("Trained") || line.startsWith("Created") || line.startsWith("Performed")) {
+                    bullets.append(line).append(" | ");
+                } else if (currentEntry.get("company").isEmpty()) {
                     currentEntry.put("company", line);
                 } else if (currentEntry.get("role").isEmpty()) {
                     currentEntry.put("role", line);
@@ -398,15 +377,14 @@ public class ResumeParserService {
         return results;
     }
 
-    // ── Project Extractor ─────────────────────────────────────────────────────
+    // ── Projects Extractor ─────────────────────────────────────────────────────
     private List<Map<String, String>> extractProjectsFromText(String text) {
         List<Map<String, String>> results = new ArrayList<>();
         String[] lines = text.split("\\r?\\n");
 
         int startIdx = findSectionStart(lines, PROJECT_HEADERS);
         int endIdx   = findSectionEnd(lines, startIdx,
-                EXPERIENCE_HEADERS, EDUCATION_HEADERS,
-                Arrays.asList("skills", "certifications", "achievements", "references", "declaration"));
+                EXPERIENCE_HEADERS, EDUCATION_HEADERS, SKILLS_HEADERS, CERTIFICATIONS_HEADERS, ACHIEVEMENTS_HEADERS);
 
         if (startIdx < 0) return results;
 
@@ -419,7 +397,7 @@ public class ResumeParserService {
 
             boolean isBullet = line.startsWith("•") || line.startsWith("-") || line.startsWith("*") || line.startsWith("–") || line.startsWith(">");
 
-            if (!isBullet && line.length() <= 100 && !looksLikeDateLine(line)) {
+            if (!isBullet && line.length() <= 100 && !looksLikeDateLine(line) && !line.startsWith("Developed") && !line.startsWith("Implemented") && !line.startsWith("Engineered") && !line.startsWith("Designed") && !line.startsWith("Applied")) {
                 if (currentProj != null && !currentProj.get("title").isEmpty()) {
                     currentProj.put("description", desc.toString().trim());
                     results.add(currentProj);
@@ -435,6 +413,12 @@ public class ResumeParserService {
                     currentProj.put("tech", extractTechFromLine(clean));
                 } else {
                     desc.append(clean).append(" ");
+                    // Also extract any mentioned tech from descriptions
+                    String techInDesc = extractTechFromLine(clean);
+                    if (!techInDesc.isEmpty()) {
+                        String existing = currentProj.getOrDefault("tech", "");
+                        currentProj.put("tech", existing.isEmpty() ? techInDesc : existing + ", " + techInDesc);
+                    }
                 }
             }
         }
@@ -454,7 +438,7 @@ public class ResumeParserService {
 
         int startIdx = findSectionStart(lines, headerKeywords);
         int endIdx   = findSectionEnd(lines, startIdx,
-                EXPERIENCE_HEADERS, PROJECT_HEADERS, EDUCATION_HEADERS);
+                EXPERIENCE_HEADERS, PROJECT_HEADERS, EDUCATION_HEADERS, SKILLS_HEADERS, LANGUAGES_HEADERS);
 
         if (startIdx < 0) return results;
 
@@ -466,6 +450,23 @@ public class ResumeParserService {
             }
         }
         return results;
+    }
+
+    // ── Spoken Languages ───────────────────────────────────────────────────────
+    private List<String> extractLanguagesSpoken(String text) {
+        List<String> langs = new ArrayList<>();
+        String lower = text.toLowerCase();
+        String[] commonLangs = {
+            "English", "Tamil", "Hindi", "Telugu", "Kannada", "Malayalam", "Marathi",
+            "Bengali", "Gujarati", "Punjabi", "Spanish", "French", "German", "Arabic",
+            "Mandarin", "Japanese", "Korean", "Portuguese", "Italian", "Russian"
+        };
+        for (String lang : commonLangs) {
+            if (lower.contains(lang.toLowerCase())) {
+                langs.add(lang);
+            }
+        }
+        return langs;
     }
 
     // ── Skill Matching ────────────────────────────────────────────────────────
@@ -535,10 +536,10 @@ public class ResumeParserService {
 
     private boolean looksLikeJobTitle(String line) {
         String l = line.toLowerCase();
-        return l.contains("engineer") || l.contains("developer") || l.contains("analyst")
-                || l.contains("intern") || l.contains("manager") || l.contains("architect")
-                || l.contains("lead") || l.contains("scientist") || l.contains("consultant")
-                || l.contains("specialist") || l.contains("designer") || l.contains("associate")
+        return l.contains("intern") || l.contains("developer") || l.contains("engineer")
+                || l.contains("specialist") || l.contains("manager") || l.contains("analyst")
+                || l.contains("architect") || l.contains("lead") || l.contains("scientist")
+                || l.contains("consultant") || l.contains("designer") || l.contains("associate")
                 || l.contains("executive") || l.contains("strategist") || l.contains("researcher")
                 || l.contains("accountant") || l.contains("officer") || l.contains("trainee");
     }

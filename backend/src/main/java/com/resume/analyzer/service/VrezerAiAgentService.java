@@ -1802,12 +1802,14 @@ public class VrezerAiAgentService {
         Map<String, Object> tempProfile = resumeIntelligenceEngine.extractCandidateProfile(resumeText, parsed);
         String expLevel = String.valueOf(tempProfile.getOrDefault("experienceLevel", "FRESHER"));
         double expYears = (Double) tempProfile.getOrDefault("yearsOfExperience", 0.0);
+        List<Map<String, String>> internshipsList = (List<Map<String, String>>) parsed.getOrDefault("internships", List.of());
         String careerLevel = expLevel.equals("LEAD") ? "Lead / Principal" :
                              expLevel.equals("SENIOR") ? "Senior Level" :
                              expLevel.equals("MID_LEVEL") ? "Mid-Level Specialist" :
                              expLevel.equals("JUNIOR") ? "Junior / Fresher" : "Fresher / Entry Level";
-        String experience = expYears <= 0.0 ? "Entry Level / Fresher" :
-                            String.format(java.util.Locale.US, "%.1f Years Industrial Experience", expYears);
+        String experience = (expYears <= 0.0) ?
+                            ((internshipsList != null && !internshipsList.isEmpty()) ? "Internship Experience" : "Fresher / Entry Level") :
+                            String.format(java.util.Locale.US, "%.1f Years Experience", expYears);
 
         List<Map<String, String>> projList = (List<Map<String, String>>) parsed.getOrDefault("projects", List.of());
         List<String> projectTitles = projList.stream().map(p -> p.getOrDefault("title", "Project Execution")).toList();
@@ -1816,9 +1818,12 @@ public class VrezerAiAgentService {
         }
 
         // Step 2: Classify domain — experience level already computed via date-range above
-        String domain = classifyCareerDomain(resumeText, allSkills);
-        String targetRole = allSkills.isEmpty() ? domain + " Specialist" :
-                            (!progLangs.isEmpty() ? progLangs.get(0) + " / " + domain + " Engineer" : domain + " Specialist");
+        String domain = String.valueOf(tempProfile.getOrDefault("careerDomain", classifyCareerDomain(resumeText, allSkills)));
+        String targetRole = String.valueOf(tempProfile.getOrDefault("targetJobRole", ""));
+        if (targetRole.isEmpty() || targetRole.equalsIgnoreCase("Software Development Engineer")) {
+            targetRole = allSkills.isEmpty() ? domain + " Specialist" :
+                         (!progLangs.isEmpty() ? (expLevel.equals("FRESHER") ? "Junior " : "") + progLangs.get(0) + " / " + domain + " Developer" : domain + " Specialist");
+        }
 
         // Step 3: Query Live Job APIs in parallel via RAG Retrieval Service
         Map<String, Object> ragContext = ragRetrievalService.retrieveMarketData(domain, allSkills, careerLevel, education, "", resumeText);
@@ -1886,6 +1891,7 @@ public class VrezerAiAgentService {
         result.put("role", targetRole);
         result.put("careerDomain", domain);
         result.put("careerLevel", careerLevel);
+        result.put("experienceLevel", expLevel);
         result.put("experience", experience);
         result.put("education", education);
         result.put("cgpa", cgpa.isEmpty() ? "N/A" : cgpa);

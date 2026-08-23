@@ -592,6 +592,9 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         setText('ai-prediction', d.professionalSummary || (name + ' is a ' + (d.experienceLevel || 'capable') + ' specialist evaluated across ' + (d.careerDomain || 'Technology') + '.'));
         
         let expText = d.experience || 'Fresher / Entry Level';
+        if (expText.toLowerCase().includes('0.0 years') || expText.toLowerCase().includes('0 years') || expText.trim() === '' || expText.trim() === 'null') {
+            expText = (d.internships && d.internships.length > 0) ? 'Internship Experience' : 'Fresher / Entry Level';
+        }
         if (expText.toLowerCase().endsWith('exp')) expText = expText.substring(0, expText.length - 3).trim();
         setText('drc-exp', expText);
 
