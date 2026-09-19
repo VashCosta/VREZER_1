@@ -552,99 +552,28 @@ public class CompanyClassificationService {
      */
     public Map<String, Map<String, String>> buildTierTrajectory(List<Map<String, String>> liveJobs, String domain, List<String> candidateSkills, String careerLevel, int atsScore) {
         Map<String, Map<String, String>> trajectory = new LinkedHashMap<>();
+        if (liveJobs == null || liveJobs.isEmpty()) return trajectory;
 
-        Map<String, String> tier1Job = null;
-        Map<String, String> tier2Job = null;
-        Map<String, String> tier3Job = null;
+        int tier = 1;
+        for (Map<String, String> job : liveJobs) {
+            if (tier > 3) break;
+            String company = job.getOrDefault("name", job.getOrDefault("company", "")).trim();
+            String role = job.getOrDefault("title", "").trim();
+            if (company.isEmpty() || role.isEmpty()) continue;
 
-        if (liveJobs != null && !liveJobs.isEmpty()) {
-            for (Map<String, String> job : liveJobs) {
-                String title = job.getOrDefault("title", "").toLowerCase();
-                if (title.contains("sales") || title.contains("service desk") || title.contains("writer") || title.contains("helpdesk")) {
-                    continue;
-                }
-
-                if (tier1Job == null) {
-                    tier1Job = job;
-                } else if (tier2Job == null) {
-                    tier2Job = job;
-                } else if (tier3Job == null) {
-                    tier3Job = job;
-                }
-            }
+            Map<String, String> card = new LinkedHashMap<>();
+            card.put("company", company);
+            card.put("role", role);
+            card.put("city", job.getOrDefault("location", ""));
+            String salary = job.getOrDefault("salary", "").trim();
+            card.put("salary", salary.isEmpty() ? "Salary not disclosed" : salary);
+            card.put("expectedLpaRange", salary.isEmpty() ? "Salary not disclosed" : salary);
+            card.put("url", job.getOrDefault("url", ""));
+            card.put("matchScore", job.getOrDefault("matchScore", ""));
+            card.put("source", job.getOrDefault("source", "Verified Live API"));
+            trajectory.put("tier" + tier, card);
+            tier++;
         }
-
-        String roleStr = (domain != null && !domain.trim().isEmpty()) ? domain.trim() : "Specialist";
-
-        // Build Tier 1 (FAANG+ / Top Product Tier)
-        Map<String, String> t1 = new LinkedHashMap<>();
-        if (tier1Job != null) {
-            t1.put("company", tier1Job.getOrDefault("name", tier1Job.getOrDefault("company", "Google India / Microsoft IDC")));
-            t1.put("role", tier1Job.getOrDefault("title", "Lead / Staff " + roleStr));
-            t1.put("city", tier1Job.getOrDefault("location", "Bengaluru / Remote"));
-            t1.put("salary", tier1Job.getOrDefault("salary", "22 - 38 LPA"));
-            t1.put("expectedLpaRange", tier1Job.getOrDefault("salary", "22 - 38 LPA"));
-            t1.put("url", tier1Job.getOrDefault("url", "https://careers.google.com"));
-            t1.put("matchScore", tier1Job.getOrDefault("matchScore", String.valueOf(Math.min(98, Math.max(88, atsScore + 4)))));
-            t1.put("source", tier1Job.getOrDefault("source", "Top Product Scale"));
-        } else {
-            t1.put("company", "Google India / Microsoft IDC / Salesforce");
-            t1.put("role", "Lead / Staff " + roleStr);
-            t1.put("city", "Bengaluru / Hyderabad / Remote");
-            t1.put("salary", "22 - 38 LPA");
-            t1.put("expectedLpaRange", "22 - 38 LPA");
-            t1.put("url", "https://careers.google.com");
-            t1.put("matchScore", String.valueOf(Math.min(98, Math.max(88, atsScore + 4))));
-            t1.put("source", "Top Product Scale");
-        }
-        trajectory.put("tier1", t1);
-
-        // Build Tier 2 (Product Unicorns / Scaleups)
-        Map<String, String> t2 = new LinkedHashMap<>();
-        if (tier2Job != null) {
-            t2.put("company", tier2Job.getOrDefault("name", tier2Job.getOrDefault("company", "Razorpay / Swiggy / Zomato")));
-            t2.put("role", tier2Job.getOrDefault("title", "Senior " + roleStr));
-            t2.put("city", tier2Job.getOrDefault("location", "Bengaluru / Hyderabad"));
-            t2.put("salary", tier2Job.getOrDefault("salary", "12 - 28 LPA"));
-            t2.put("expectedLpaRange", tier2Job.getOrDefault("salary", "12 - 28 LPA"));
-            t2.put("url", tier2Job.getOrDefault("url", "https://careers.razorpay.com"));
-            t2.put("matchScore", tier2Job.getOrDefault("matchScore", String.valueOf(Math.max(80, atsScore))));
-            t2.put("source", tier2Job.getOrDefault("source", "Market Leader"));
-        } else {
-            t2.put("company", "Razorpay / Swiggy / Zomato / Freshworks");
-            t2.put("role", "Senior " + roleStr);
-            t2.put("city", "Bengaluru / Hyderabad / Remote");
-            t2.put("salary", "12 - 28 LPA");
-            t2.put("expectedLpaRange", "12 - 28 LPA");
-            t2.put("url", "https://careers.razorpay.com");
-            t2.put("matchScore", String.valueOf(Math.max(80, atsScore)));
-            t2.put("source", "Market Leader");
-        }
-        trajectory.put("tier2", t2);
-
-        // Build Tier 3 (Established Industry Baseline)
-        Map<String, String> t3 = new LinkedHashMap<>();
-        if (tier3Job != null) {
-            t3.put("company", tier3Job.getOrDefault("name", tier3Job.getOrDefault("company", "Ogilvy / Dentsu / Publicis / Infosys")));
-            t3.put("role", tier3Job.getOrDefault("title", roleStr + " Specialist"));
-            t3.put("city", tier3Job.getOrDefault("location", "Chennai / Hyderabad / Remote"));
-            t3.put("salary", tier3Job.getOrDefault("salary", "6 - 12 LPA"));
-            t3.put("expectedLpaRange", tier3Job.getOrDefault("salary", "6 - 12 LPA"));
-            t3.put("url", tier3Job.getOrDefault("url", "https://www.infosys.com/careers"));
-            t3.put("matchScore", tier3Job.getOrDefault("matchScore", String.valueOf(Math.max(70, atsScore - 10))));
-            t3.put("source", tier3Job.getOrDefault("source", "Industry Baseline"));
-        } else {
-            t3.put("company", "Ogilvy / Dentsu / Publicis / Infosys");
-            t3.put("role", roleStr + " Specialist");
-            t3.put("city", "Chennai / Hyderabad / Remote");
-            t3.put("salary", "6 - 12 LPA");
-            t3.put("expectedLpaRange", "6 - 12 LPA");
-            t3.put("url", "https://www.infosys.com/careers");
-            t3.put("matchScore", String.valueOf(Math.max(70, atsScore - 10)));
-            t3.put("source", "Industry Baseline");
-        }
-        trajectory.put("tier3", t3);
-
         return trajectory;
     }
 
@@ -682,36 +611,7 @@ public class CompanyClassificationService {
             }
         }
 
-        // 2. Ensure at least 7 high-affinity verified companies matching the candidate's domain
-        if (compMap.size() < 7) {
-            String[][] fallbackComps = {
-                {"Razorpay", "Performance Marketing / " + domainClean, "Bengaluru, India", "₹18 - ₹28 LPA", "https://careers.razorpay.com", "93"},
-                {"Zoho Corporation", domainClean + " Lead", "Chennai, India", "₹14 - ₹22 LPA", "https://www.zoho.com/careers", "88"},
-                {"Swiggy", "Senior " + domainClean, "Bengaluru / Hyderabad", "₹20 - ₹32 LPA", "https://careers.swiggy.com", "86"},
-                {"Atlassian", domainClean + " Lead", "Pune / Remote, India", "₹22 - ₹38 LPA", "https://www.atlassian.com/company/careers", "90"},
-                {"GitLab", "Senior " + domainClean, "Remote (Global)", "$65,000 - $95,000 USD/yr", "https://about.gitlab.com/jobs", "85"},
-                {"Google India", domainClean + " Lead", "Bengaluru / Hyderabad", "₹25 - ₹42 LPA", "https://careers.google.com", "95"},
-                {"Microsoft India", "Senior " + domainClean, "Bengaluru, India", "₹24 - ₹38 LPA", "https://careers.microsoft.com", "92"}
-            };
-
-            for (String[] fc : fallbackComps) {
-                if (!compMap.containsKey(fc[0].toLowerCase())) {
-                    Map<String, Object> input = new LinkedHashMap<>();
-                    input.put("name", fc[0]);
-                    input.put("title", fc[1]);
-                    input.put("location", fc[2]);
-                    input.put("salary", fc[3]);
-                    input.put("url", fc[4]);
-                    input.put("matchScore", fc[5]);
-                    input.put("source", "Verified Market Match");
-                    Map<String, Object> enriched = enrichCompanyData(input, domainClean, skillsClean);
-                    compMap.put(fc[0].toLowerCase(), enriched);
-                    if (compMap.size() >= 10) break;
-                }
-            }
-        }
-
-        return new ArrayList<>(compMap.values());
+        // No live jobs means no company recommendations. Never fabricate companies or salaries.\n        return new ArrayList<>(compMap.values());
     }
 
     /**
