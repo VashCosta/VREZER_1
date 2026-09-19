@@ -1223,7 +1223,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const source = String(j.source || 'Verified Live API');
             const match = Number(j.matchPercentage || j.matchScore);
             const explanation = String(j.explanation || j.matchReason || 'Backend candidate-job match.');
-            const url = /^https?:\\/\\//i.test(String(j.url || '')) ? String(j.url) : '';
+            const url = /^https?:\/\//i.test(String(j.url || '')) ? String(j.url) : '';
             const apply = url
                 ? '<a href="'+url.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" class="job-apply-btn">Apply Now</a>'
                 : '<span class="job-apply-btn" style="opacity:.55;cursor:not-allowed;">Application link unavailable</span>';
