@@ -18,6 +18,40 @@ public class RAGRetrievalService {
     @Autowired
     private JobAggregatorService jobAggregatorService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.rag.cache-ttl-minutes:10}")
+    private long cacheTtlMinutes;
+
+    private final java.util.concurrent.ConcurrentHashMap<String, CachedRagEntry> cache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final class CachedRagEntry {
+        final Map<String, Object> context;
+        final long expiresAt;
+        CachedRagEntry(Map<String, Object> context, long expiresAt) {
+            this.context = context;
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    private String buildCacheKey(String careerDomain, List<String> skills, String experienceLevel,
+                                  String education, String location, String resumeText) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            String source = String.join("|",
+                    String.valueOf(careerDomain).trim().toLowerCase(Locale.ROOT),
+                    String.valueOf(skills).trim().toLowerCase(Locale.ROOT),
+                    String.valueOf(experienceLevel).trim().toLowerCase(Locale.ROOT),
+                    String.valueOf(education).trim().toLowerCase(Locale.ROOT),
+                    String.valueOf(location).trim().toLowerCase(Locale.ROOT),
+                    String.valueOf(resumeText).trim());
+            byte[] digest = md.digest(source.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder();
+            for (byte b : digest) out.append(String.format("%02x", b));
+            return out.toString();
+        } catch (Exception e) {
+            return Integer.toHexString((String.valueOf(careerDomain) + skills + experienceLevel + resumeText).hashCode());
+        }
+    }
+
     public Map<String, Object> retrieveMarketData(
             String careerDomain,
             List<String> skills,
@@ -52,8 +86,16 @@ public class RAGRetrievalService {
             String resumeText,
             String apiKey
     ) {
+        String cacheKey = buildCacheKey(careerDomain, skills, experienceLevel, education, location, resumeText);
+        CachedRagEntry cached = cache.get(cacheKey);
+        if (cached != null && cached.expiresAt > System.currentTimeMillis()) {
+            Map<String, Object> cachedContext = new LinkedHashMap<>(cached.context);
+            cachedContext.put("cacheStatus", "HIT");
+            return cachedContext;
+        }
+
         Map<String, Object> ragContext = new LinkedHashMap<>();
-        ragContext.put("retrievalTimestamp", new Date().toString());
+        ragContext.put("retrievalTimestamp", "stable-retrieval-window");
         ragContext.put("candidateDomain", careerDomain);
         ragContext.put("candidateSkills", skills);
         ragContext.put("retrievalStatus", "EXECUTING");
@@ -65,7 +107,8 @@ public class RAGRetrievalService {
                 liveApiJobs = jobAggregatorService.aggregateAndRankJobs(careerDomain, skills, location, resumeText, experienceLevel, apiKey);
             } catch (Exception e) {
                 System.err.println("[RAG RETRIEVAL] Job aggregator error: " + e.getMessage());
-                throw new RuntimeException(e.getMessage(), e); // Propagate error so execution halts cleanly
+                System.err.println("[RAG RETRIEVAL] Provider failure isolated: " + e.getMessage());
+                liveApiJobs = new ArrayList<>();
             }
         }
         ragContext.put("liveApiJobs", liveApiJobs);
@@ -92,6 +135,10 @@ public class RAGRetrievalService {
         int totalRetrieved = liveApiJobs.size();
         ragContext.put("totalRetrievedDocuments", totalRetrieved);
         ragContext.put("retrievalStatus", totalRetrieved > 0 ? "SUCCESS" : "NO_RETRIEVED_JOBS_FOUND");
+        ragContext.put("cacheStatus", "MISS");
+        cache.put(cacheKey, new CachedRagEntry(
+                new LinkedHashMap<>(ragContext),
+                System.currentTimeMillis() + Math.max(1L, cacheTtlMinutes) * 60_000L));
 
         System.out.println("[VREZER RAG] Retrieved " + totalRetrieved + " structured jobs passing similarity threshold for: " + careerDomain);
         return ragContext;
