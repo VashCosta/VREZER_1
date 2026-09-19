@@ -432,7 +432,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     let data = null;
 
                     // If baseUrl is present (local or remote backend), attempt extraction
-                    if (baseUrl !== undefined) {
+                    if (baseUrl) {
                         try {
                             const fd = new FormData();
                             fd.append('file', currentFile);
@@ -462,18 +462,10 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                         return data;
                     }
 
-                    // High-fidelity client-side neural pipeline
-                    console.log('Executing VREZER high-fidelity client neural pipeline...');
-                    const text = await extractPdfTextClientSide(currentFile);
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || '';
-                    if (userKey) {
-                        try {
-                            return await callGeminiDirectlyClientSide(text, userKey);
-                        } catch (aiErr) {
-                            console.warn('Direct AI Client Call notice, proceeding with neural parser:', aiErr);
-                        }
+                    if (!data || (!data.name && !data.atsScore && !data.role)) {
+                        throw new Error('VREZER backend returned no valid analysis. Client-side fallback is disabled.');
                     }
-                    return parseResumeClientSide(currentFile.name, text);
+                    return data;
                 } else {
                     throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
                 }
@@ -864,7 +856,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         setText('hm-ai-score', (d.profileStrength != null ? d.profileStrength : (d.confidenceScore != null ? d.confidenceScore : null)) != null ? ((d.profileStrength != null ? d.profileStrength : d.confidenceScore) + '%') : 'Not available');
         setText('hm-domain', d.careerDomain || 'Technology');
         setText('hm-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
-        setText('hm-status', (d.atsScore || 85) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
+        setText('hm-status', (Number.isFinite(Number(d.atsScore)) ? Number(d.atsScore) : 0) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
         setText('hm-confidence', (d.confidenceScore != null) ? (d.confidenceScore + '%') : 'Not available');
     }
 
@@ -972,7 +964,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     // ── 5. ATS INTELLIGENCE ────────────────────────────
     function renderAtsIntelligence(d) {
         const container = $('score-cards-container');
-        const ats = d.atsScore || 85;
+        const ats = Number.isFinite(Number(d.atsScore)) ? Number(d.atsScore) : 0;
         const details = d.atsScoreDetails || {};
 
         if (container) {
@@ -1198,91 +1190,52 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 7. LIVE JOBS ───────────────────────────────────
     function renderLiveJobs(d) {
-        const rawRole = (d.role || d.targetJobRole || d.careerDomain || 'Specialist').trim();
-        const cleanRoleStr = rawRole.replace(/\s*Specialist$/i, '').trim();
-
-        // 1. Tier cards (Always render candidate-grounded 3-tier trajectory cards cleanly)
-        const t1Data = Array.isArray(d.tier1) ? d.tier1[0] : d.tier1;
-        const t2Data = Array.isArray(d.tier2) ? d.tier2[0] : d.tier2;
-        const t3Data = Array.isArray(d.tier3) ? d.tier3[0] : d.tier3;
-
-        fillTier('t1', t1Data || { role: 'Lead / Staff ' + cleanRoleStr, company: getTier1DefaultComp(d.careerDomain), city: 'Bengaluru / Remote', salary: '22 - 38 LPA' });
-        fillTier('t2', t2Data || { role: 'Senior ' + cleanRoleStr, company: getTier2DefaultComp(d.careerDomain), city: 'Bengaluru / Hybrid', salary: '12 - 20 LPA' });
-        fillTier('t3', t3Data || { role: cleanRoleStr + ' Specialist', company: getTier3DefaultComp(d.careerDomain), city: 'Hyderabad / Remote', salary: '6 - 10 LPA' });
-
         const grid = $('job-cards-grid');
         if (!grid) return;
 
-        // 2. Normalize and retrieve all live job cards
-        let rawJobs = [];
-        if (Array.isArray(d.retrievedJobOpportunities) && d.retrievedJobOpportunities.length > 0) {
-            rawJobs.push(...d.retrievedJobOpportunities);
+        const jobs = Array.isArray(d.retrievedJobOpportunities) ? d.retrievedJobOpportunities : [];
+        const tiers = ['t1','t2','t3'];
+        tiers.forEach(prefix => fillTier(prefix, d[prefix] || null));
+
+        if (!jobs.length) {
+            grid.innerHTML = '<div class="empty-state" style="padding:2rem;text-align:center;color:var(--text-2);">No verified live job postings were returned by the backend for this resume.</div>';
+            return;
         }
 
-        const compList = Array.isArray(d.recommendedCompanies) && d.recommendedCompanies.length > 0
-            ? d.recommendedCompanies
-            : ['Razorpay', 'Zoho Corporation', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'];
-
-        const defaultLocations = ['Bengaluru, India', 'Chennai, India', 'Hyderabad, India', 'Pune, India', 'Remote (India / Global)', 'Mumbai, India'];
-        const defaultSalaries = ['₹18 - ₹28 LPA', '₹14 - ₹22 LPA', '₹20 - ₹32 LPA', '₹12 - ₹18 LPA', '$65,000 USD/yr', '$95,000 USD/yr'];
-
-        compList.forEach((c, idx) => {
-            const compName = typeof c === 'string' ? c : (c.company || c.name || 'Tech Leader');
-            const jobTitle = typeof c === 'object' && (c.title || c.role) ? (c.title || c.role) : (idx % 2 === 0 ? `Senior ${cleanRoleStr}` : `${cleanRoleStr} Lead`);
-            rawJobs.push({
-                company: compName,
-                title: jobTitle,
-                location: defaultLocations[idx % defaultLocations.length],
-                salary: defaultSalaries[idx % defaultSalaries.length],
-                matchPercentage: Math.max(78, (d.atsScore || 85) - idx * 2),
-                url: `https://www.google.com/search?q=${encodeURIComponent(compName + ' ' + jobTitle + ' careers')}`,
-                source: 'Live Market Intel'
-            });
+        const seen = new Set();
+        const unique = jobs.filter(j => {
+            const key = [
+                String(j.company || j.name || '').trim().toLowerCase(),
+                String(j.title || j.role || '').trim().toLowerCase(),
+                String(j.location || '').trim().toLowerCase(),
+                String(j.url || '').trim().toLowerCase()
+            ].join('|');
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
         });
 
-        const seenKeys = new Set();
-        const uniqueJobs = [];
-        for (const j of rawJobs) {
-            if (!j) continue;
-            const comp = (typeof j === 'string' ? j : (j.company || j.name || 'Company')).trim();
-            const title = (typeof j === 'string' ? cleanRoleStr : (j.title || j.role || cleanRoleStr)).trim();
-            const key = (comp + '_' + title).toLowerCase();
-
-            if (comp && title && !seenKeys.has(key)) {
-                seenKeys.add(key);
-                uniqueJobs.push({
-                    company: comp,
-                    title: title,
-                    location: j.location || j.city || 'Bengaluru / Remote',
-                    salary: j.salary || j.expectedSalary || d.expectedLpaRange || '15-25 LPA',
-                    matchPercentage: j.matchPercentage || j.matchScore || Math.min(96, Math.max(72, (d.atsScore || 85))),
-                    url: (j.url && j.url !== '#') ? j.url : `https://www.google.com/search?q=${encodeURIComponent(comp + ' ' + title + ' careers')}`,
-                    source: j.source || 'Live AI Engine',
-                    explanation: j.explanation || `Role matching ${cleanRoleStr} skill competencies and target compensation.`
-                });
-            }
-        }
-
-        grid.innerHTML = uniqueJobs.map(j => `
-            <div class="job-card" style="border:1px solid rgba(255,0,127,0.3); box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(255,0,127,0.15);">
-                <div class="job-card-header">
-                    <div class="job-company" style="color:#ffffff; font-weight:800;">${j.company}</div>
-                    <div style="display:flex; align-items:center; gap:0.4rem;">
-                        <span style="font-size:0.68rem; padding:0.25rem 0.6rem; border-radius:12px; background:rgba(255,0,127,0.15); color:#ff007f; border:1px solid rgba(255,0,127,0.4); font-weight:700;"><i class="fa-solid fa-bolt"></i> ${j.source}</span>
-                        <div class="job-match-badge" style="background:linear-gradient(135deg, #ff007f, #ff003c); color:white; font-weight:800; padding:0.25rem 0.6rem; border-radius:8px; box-shadow:0 0 10px rgba(255,0,127,0.5);">${j.matchPercentage}% MATCH</div>
-                    </div>
-                </div>
-                <div class="job-title" style="color:#f3c4db; font-weight:700;">${j.title}</div>
-                <div class="job-meta">
-                    <div class="job-meta-item"><i class="fa-solid fa-location-dot" style="color:#ff007f;"></i> ${j.location}</div>
-                </div>
-                <div class="job-desc" style="color:#d1a0bd;">${j.explanation}</div>
-                <div class="job-footer">
-                    <div class="job-salary" style="color:#4ade80; font-weight:800; font-family:var(--mono);">${j.salary}</div>
-                    <a href="${j.url}" target="_blank" rel="noopener noreferrer" class="job-apply-btn" style="background:linear-gradient(135deg, #ff007f 0%, #ff003c 100%); color:white; font-weight:800; border-radius:10px; box-shadow: 0 0 12px rgba(255,0,127,0.4);"><i class="fa-solid fa-paper-plane"></i> Apply Now</a>
-                </div>
-            </div>
-        `).join('');
+        grid.innerHTML = unique.map(j => {
+            const company = String(j.company || j.name || 'Employer');
+            const title = String(j.title || j.role || 'Role');
+            const location = String(j.location || 'Location not disclosed');
+            const salary = String(j.salary || 'Salary not disclosed');
+            const source = String(j.source || 'Verified Live API');
+            const match = Number(j.matchPercentage || j.matchScore);
+            const explanation = String(j.explanation || j.matchReason || 'Backend candidate-job match.');
+            const url = /^https?:\\/\\//i.test(String(j.url || '')) ? String(j.url) : '';
+            const apply = url
+                ? '<a href="'+url.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener noreferrer" class="job-apply-btn">Apply Now</a>'
+                : '<span class="job-apply-btn" style="opacity:.55;cursor:not-allowed;">Application link unavailable</span>';
+            return '<div class="job-card">' +
+                '<div class="job-card-header"><div class="job-company">'+company+'</div><div class="job-match-badge">'+(Number.isFinite(match)&&match>0?match+'% MATCH':'MATCH NOT SCORED')+'</div></div>' +
+                '<div class="job-title">'+title+'</div>' +
+                '<div class="job-meta"><div class="job-meta-item"><i class="fa-solid fa-location-dot"></i> '+location+'</div></div>' +
+                '<div class="job-desc">'+explanation+'</div>' +
+                '<div class="job-footer"><div class="job-salary">'+salary+'</div>'+apply+'</div>' +
+                '<div style="font-size:.7rem;color:var(--text-2);margin-top:.4rem;">Source: '+source+'</div>' +
+                '</div>';
+        }).join('');
     }
 
     function fillTier(prefix, tierData) {
@@ -1799,7 +1752,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     function renderInterviewIntelligence(d) {
         const prep = d.interviewPreparation || {};
 
-        setText('irb-score', (d.atsScore || 85) >= 80 ? '88%' : '76%');
+        setText('irb-score', (Number.isFinite(Number(d.atsScore)) ? Number(d.atsScore) : 0) >= 80 ? '88%' : '76%');
         const tipsEl = $('irb-tips');
         if (tipsEl) {
             tipsEl.innerHTML = `
@@ -2004,9 +1957,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     }
 
     // ── REPORT CONTENT GENERATORS ────────────────────
-    function getActiveData() {
-        return lastData || buildMockDossier('Candidate Dossier');
-    }
+    function getActiveData() { return lastData || {}; }
 
     function generateDossierTextReport(d = getActiveData()) {
         const name = d.name || 'Candidate Dossier';
@@ -3161,7 +3112,7 @@ ${generateMarketReportText(d)}
             // 2. Try Groq AI Client Pipeline (Static Vercel / GitHub Pages)
             if (!answered) {
                 try {
-                    const groqKey = ['disabled-provider', 'REMOVED_CREDENTIAL', 'REMOVED_CREDENTIAL'].join('');
+                    const groqKey = '';
                     const userApiKey = '';
                     const apiKey = userApiKey || groqKey;
 
@@ -3510,223 +3461,9 @@ Provide a direct, high-value, actionable, professional career recommendation in 
         return await readTextFromFile(file);
     }
 
-    async function callGroqDirectlyClientSide(resumeText, fileName) {
-        const apiKey = ['disabled-provider', 'REMOVED_CREDENTIAL', 'REMOVED_CREDENTIAL'].join('');
-        try {
-            const prompt = `Analyze this candidate resume for VREZER AI Platform. Return valid JSON only with keys matching this exact structure:
-{
-  "name": "Candidate Name",
-  "email": "Email or candidate@email.com",
-  "phone": "Phone or +91 98765 43210",
-  "role": "Extracted Target Role",
-  "primaryDomain": "Primary Engineering Domain",
-  "secondaryDomain": "Secondary Domain",
-  "careerDomain": "Career Domain",
-  "atsScore": 84,
-  "atsScoreText": "EXCELLENT",
-  "yearsOfExperience": 3,
-  "experienceLevel": "Mid-Level",
-  "education": "Degree Name",
-  "expectedLpaRange": "12 - 20 LPA",
-  "salaryUsd": "$15,000 - $25,000 USD/yr",
-  "confidenceScore": 92,
-  "AI_STATUS": "PROCESSED BY META LLAMA 3.3 70B",
-  "aiModelUsed": "Meta LLaMA 3.3 70B & VREZER Engine",
-  "topSkills": ["Skill 1", "Skill 2", "Skill 3", "Skill 4", "Skill 5"],
-  "programmingLanguages": ["Language 1", "Language 2"],
-  "toolsAndTechnologies": ["Tool 1", "Tool 2"],
-  "projects": [{ "title": "Project Title", "description": "Project Description", "techStack": ["Tech 1"] }],
-  "tier1": [{ "company": "Google", "role": "Role", "expectedSalary": "35-50 LPA", "matchScore": 95 }],
-  "tier2": [{ "company": "Razorpay", "role": "Role", "expectedSalary": "15-25 LPA", "matchScore": 88 }],
-  "tier3": [{ "company": "TCS Digital", "role": "Role", "expectedSalary": "7-12 LPA", "matchScore": 75 }],
-  "recommendedCompanies": ["Razorpay", "Zoho", "Swiggy", "Atlassian", "GitLab"],
-  "retrievedJobOpportunities": [
-     { "title": "Role Title", "company": "Razorpay", "location": "Bengaluru, India", "salary": "18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Adzuna India" }
-  ],
-  "skillGaps": ["Gap 1", "Gap 2"],
-  "improvements": ["Improvement 1", "Improvement 2"],
-  "nextBestActions": ["Action 1", "Action 2"]
-}
+    async function callGroqDirectlyClientSide(){ throw new Error("Client-side AI disabled: use backend REST service."); }
 
-Resume Text:
-${(resumeText || '').substring(0, 3500)}`;
-
-            const res = await fetch('https://api.invalid.local/disabled', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [
-                        { role: 'system', content: 'You are VREZER AI career engine. Respond with raw valid JSON only. No markdown ticks.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    temperature: 0.2
-                })
-            });
-
-            if (res.ok) {
-                const json = await res.json();
-                const rawContent = json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content : '';
-                const cleanJson = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(cleanJson);
-                if (parsed && (parsed.name || parsed.atsScore || parsed.role)) {
-                    console.log('VREZER Live Client Groq AI Pipeline successful!');
-                    return parsed;
-                }
-            }
-        } catch (groqErr) {
-            console.warn('Groq client API fallback to local parser:', groqErr);
-        }
-        return parseResumeClientSide(fileName, resumeText);
-    }
-
-    async function callGeminiDirectlyClientSide(resumeText, apiKey) {
-        if (!apiKey) throw new Error('No API key provided.');
-        let model = 'gemini-2.5-flash';
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
-        if (apiKey.startsWith('disabled-provider')) {
-            url = 'https://api.invalid.local/disabled';
-        }
-
-        const promptText = `Analyze this candidate resume and return ONLY valid JSON with no markdown headers:
-{
-  "name": "Candidate Full Name",
-  "email": "candidate@email.com",
-  "phone": "+91 98765 43210",
-  "role": "Target Specialization Title",
-  "primaryDomain": "Primary Tech Domain",
-  "secondaryDomain": "Cloud & Systems",
-  "careerDomain": "Primary Tech Domain",
-  "atsScore": 81,
-  "atsScoreText": "GOOD MATCH",
-  "profileStrength": 85,
-  "confidenceScore": 92,
-  "yearsOfExperience": 3,
-  "experienceLevel": "MID_LEVEL",
-  "careerLevel": "MID_LEVEL",
-  "education": "Highest Degree",
-  "expectedLpaRange": "₹12.0 LPA - ₹18.0 LPA",
-  "salaryMin": 12,
-  "salaryMax": 18,
-  "salaryCurrency": "INR",
-  "salaryUsd": "$18,000 USD/yr",
-  "professionalSummary": "Detailed summary",
-  "strategicForecast": "2-3 sentence strategic forecast",
-  "AI_STATUS": "ACTIVE",
-  "RAG_STATUS": "ACTIVE",
-  "aiModelUsed": "Gemini 2.5 Flash (Direct AI Pipeline)",
-  "topSkills": ["Skill1", "Skill2", "Skill3"],
-  "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
-  "missingSkills": ["Cloud Architecture", "Distributed Systems"],
-  "programmingLanguages": ["Python", "Java", "SQL"],
-  "toolsAndTechnologies": ["Docker", "Kubernetes", "AWS"],
-  "swotAnalysis": {
-    "strengths": ["Strong domain foundation", "Hands-on execution"],
-    "weaknesses": ["Needs metrics quantification"],
-    "opportunities": ["High demand in tech hubs"],
-    "threats": ["Evolving tool stack"]
-  },
-  "atsScoreDetails": {
-    "sectionCompletenessScore": 90,
-    "keywordOptimizationScore": 88,
-    "formattingScore": 85,
-    "achievementScore": 80,
-    "readabilityScore": 85,
-    "explanation": "ATS evaluation summary"
-  },
-  "projects": [
-    { "title": "System Architecture", "description": "High availability design", "techStack": ["Java", "Docker"] }
-  ],
-  "tier1": [{ "company": "Google", "role": "Senior Engineer", "expectedSalary": "₹35 LPA", "matchScore": 95 }],
-  "tier2": [{ "company": "Razorpay", "role": "Engineer", "expectedSalary": "₹18 LPA", "matchScore": 88 }],
-  "tier3": [{ "company": "Infosys", "role": "Associate", "expectedSalary": "₹8 LPA", "matchScore": 75 }],
-  "recommendedCompanies": ["Google", "Razorpay", "Zoho"],
-  "retrievedJobOpportunities": [
-    { "title": "Senior Engineer", "company": "Razorpay", "location": "Bengaluru, India", "salary": "₹18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Live API" }
-  ],
-  "careerGrowthTimeline": [
-    { "stage": "0-6 months", "title": "Core Engineer", "expectedSalaryProgression": "₹12-15 LPA", "recommendedCertifications": "AWS Certified", "roadmapNotes": "Production deployment" }
-  ],
-  "interviewPreparation": {
-    "technicalQuestions": [{ "question": "Explain recent project architecture", "modelAnswer": "Walkthrough design" }],
-    "behavioralQuestions": [{ "question": "Describe a challenge", "starAnswer": "STAR method response" }],
-    "salaryNegotiationTips": ["Anchor high using market data"]
-  },
-  "bulletPointRewrites": [
-    { "original": "Developed features", "aiRewritten": "Architected scalable features improving throughput by 35%", "impactMetricMetric": "+35% Throughput" }
-  ],
-  "skillGaps": [{ "skill": "Distributed Systems", "priority": "HIGH", "impact": "+8% Match" }],
-  "improvements": ["Quantify achievements"],
-  "nextBestActions": ["Apply to Razorpay"],
-  "debugPanel": {
-    "analysisId": "an_direct_ai",
-    "resumeHash": "sha256_direct",
-    "extractedTextLength": 1200,
-    "candidateName": "Candidate",
-    "detectedDomain": "Tech",
-    "experienceLevel": "MID_LEVEL",
-    "jobApiRequestCount": 8,
-    "mergedJobsCount": 3,
-    "AI_STATUS": "ACTIVE",
-    "RAG_STATUS": "ACTIVE"
-  }
-}
-
-RESUME TEXT:
-${resumeText.substring(0, 12000)}`;
-
-        if (apiKey.startsWith('disabled-provider')) {
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [{ role: 'user', content: promptText }],
-                    temperature: 0.0
-                })
-            });
-            const data = await resp.json();
-            const raw = data?.choices?.[0]?.message?.content || '';
-            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Groq / Meta LLaMA 3.3 70B (Direct AI)';
-            return parsed;
-        } else {
-            let resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
-                })
-            });
-            if (!resp.ok) {
-                // Fallback to gemini-1.5-flash if 2.5 is unavailable
-                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                resp = await fetch(fallbackUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptText }] }],
-                        generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
-                    })
-                });
-            }
-            const data = await resp.json();
-            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Google Gemini 2.5 Flash (Direct AI)';
-            return parsed;
-        }
-    }
+    async function callGeminiDirectlyClientSide(){ throw new Error("Client-side AI disabled: use backend REST service."); }
 
     async function extractPdfTextClientSide(file) {
         if (!file) return '';
