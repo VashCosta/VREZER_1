@@ -1,13 +1,14 @@
 services:
   - type: web
     name: vrezer-backend
-    env: docker
+    runtime: docker
     region: ohio
     plan: free
     branch: main
     dockerfilePath: Dockerfile
     dockerContext: .
     healthCheckPath: /actuator/health
+    autoDeployTrigger: checksPass
     envVars:
       - key: PORT
         value: 10000
