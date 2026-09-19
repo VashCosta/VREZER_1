@@ -365,50 +365,44 @@ public class VrezerAiAgentService {
         StringBuilder errorLog = new StringBuilder();
         Map<String, Object> result = null;
 
-        if (hasKey) {
-            if (activeKey.startsWith("sk-")) {
-                try {
-                    result = callOpenAiApiWithKey(resumeText, jobDescription, activeKey);
-                } catch (Exception e) {
-                    errorLog.append("OpenAI Error: ").append(e.getMessage()).append("; ");
-                }
-            } else if (activeKey.startsWith("gsk_")) {
-                try {
-                    result = callGroqApiWithKey(resumeText, jobDescription, activeKey);
-                } catch (Exception e) {
-                    errorLog.append("Groq Error: ").append(e.getMessage()).append("; ");
-                }
-            } else {
-                try {
-                    result = callGeminiApiWithKey(resumeText, jobDescription, activeKey);
-                } catch (Exception e) {
-                    errorLog.append("Gemini Error: ").append(e.getMessage()).append("; ");
-                    if (activeKey.startsWith("AQ.")) {
-                        try {
-                            result = callOpenAiApiWithKey(resumeText, jobDescription, activeKey);
-                        } catch (Exception ex) {
-                            errorLog.append("OpenAI Fallback Error: ").append(ex.getMessage()).append("; ");
-                        }
-                    }
-                }
-            }
+        if (!hasKey) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("status", "AI_UNAVAILABLE");
+            err.put("error", "Backend GEMINI_API_KEY is not configured.");
+            err.put("aiModelUsed", "Gemini 2.5 Flash");
+            err.put("ragStatus", "NOT_EXECUTED");
+            return err;
+        }
+
+        try {
+            result = callGeminiApiWithKey(resumeText, jobDescription, activeKey);
+        } catch (Exception e) {
+            errorLog.append("Gemini Error: ").append(e.getMessage()).append("; ");
         }
 
         if (result == null) {
-            System.out.println("[VREZER MULTI-AGENT] Engaging VREZER 6-Agent Local Neural Engine (Reason: " + (hasKey ? errorLog : "No API key configured") + ")");
-            result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("status", "AI_UNAVAILABLE");
+            err.put("error", "Gemini 2.5 Flash failed. No local/mock/provider fallback is permitted in production.");
+            err.put("aiModelUsed", "Gemini 2.5 Flash");
+            err.put("ragStatus", "NOT_EXECUTED");
+            return err;
         }
 
-        // Enrich specialized sub-sections with Meta LLaMA 3.3 (Interview Prep, Resume AI, Career Roadmap, Recruiter Dossier)
-        enrichWithLlamaSpecializedSections(result, resumeText, String.valueOf(result.getOrDefault("role", "Specialist")), candidateSkills, experienceLevel);
+        Object ragJobs = result.remove("_ragLiveJobs");
+        List<Map<String, String>> authoritativeLiveJobs = ragJobs instanceof List
+                ? (List<Map<String, String>>) ragJobs : new ArrayList<>();
+        liveJobs = authoritativeLiveJobs;
 
         result.put("analysisId", analysisId);
         result.put("resumeHash", sha256Hash);
 
-        // Enrich dynamic Tier 1 / Tier 2 / Tier 3 Target Companies and recommended companies from live jobs
-        int atsScore = (result.get("atsScore") instanceof Number) ? ((Number) result.get("atsScore")).intValue() : 70;
-        Map<String, Map<String, String>> tierTrajectory = companyClassificationService.buildTierTrajectory(liveJobs, careerDomain, candidateSkills, experienceLevel, atsScore);
-        List<Map<String, Object>> recommendedComps = companyClassificationService.generateSkillTargetedCompanies(liveJobs, careerDomain, candidateSkills, experienceLevel, atsScore);
+        // All jobs, companies and tier cards are derived only from the authoritative RAG retrieval.
+        int atsScore = (result.get("atsScore") instanceof Number) ? ((Number) result.get("atsScore")).intValue() : 0;
+        Map<String, Map<String, String>> tierTrajectory =
+                companyClassificationService.buildTierTrajectory(liveJobs, careerDomain, candidateSkills, experienceLevel, atsScore);
+        List<Map<String, Object>> recommendedComps =
+                companyClassificationService.generateSkillTargetedCompanies(liveJobs, careerDomain, candidateSkills, experienceLevel, atsScore);
 
         result.put("tier1", tierTrajectory.get("tier1"));
         result.put("tier2", tierTrajectory.get("tier2"));
@@ -416,37 +410,19 @@ public class VrezerAiAgentService {
         result.put("recommendedCompanies", recommendedComps);
 
         List<Map<String, Object>> finalJobs = new ArrayList<>();
-        if (liveJobs != null && !liveJobs.isEmpty()) {
-            for (Map<String, String> j : liveJobs) {
-                Map<String, Object> jobEntry = new LinkedHashMap<>();
-                jobEntry.put("name", j.getOrDefault("name", j.getOrDefault("company", "Employer")));
-                jobEntry.put("title", j.getOrDefault("title", "Position"));
-                jobEntry.put("location", j.getOrDefault("location", "India / Remote"));
-                jobEntry.put("salary", j.getOrDefault("salary", "Competitive Market Pay"));
-                jobEntry.put("url", j.getOrDefault("url", ""));
-                jobEntry.put("source", j.getOrDefault("source", "Live Market API"));
-                jobEntry.put("matchPercentage", j.getOrDefault("matchScore", String.valueOf(atsScore)));
-                finalJobs.add(jobEntry);
-            }
+        for (Map<String, String> j : liveJobs) {
+            Map<String, Object> jobEntry = new LinkedHashMap<>();
+            jobEntry.put("name", j.getOrDefault("name", j.getOrDefault("company", "")));
+            jobEntry.put("title", j.getOrDefault("title", ""));
+            jobEntry.put("location", j.getOrDefault("location", ""));
+            jobEntry.put("salary", j.getOrDefault("salary", "Salary not disclosed"));
+            jobEntry.put("url", j.getOrDefault("url", ""));
+            jobEntry.put("source", j.getOrDefault("source", "Verified Live API"));
+            jobEntry.put("matchPercentage", j.getOrDefault("matchScore", ""));
+            jobEntry.put("explanation", j.getOrDefault("explanation", j.getOrDefault("matchReason", "")));
+            finalJobs.add(jobEntry);
         }
-        if (finalJobs.isEmpty()) {
-            Object prevJobs = result.get("retrievedJobOpportunities");
-            if (prevJobs instanceof List && !((List<?>) prevJobs).isEmpty()) {
-                finalJobs = (List<Map<String, Object>>) prevJobs;
-            } else {
-                for (Map<String, Object> comp : recommendedComps) {
-                    Map<String, Object> jobEntry = new LinkedHashMap<>();
-                    jobEntry.put("name", comp.getOrDefault("name", "Employer"));
-                    jobEntry.put("title", comp.getOrDefault("title", "Role"));
-                    jobEntry.put("location", comp.getOrDefault("location", "Bengaluru / Remote"));
-                    jobEntry.put("salary", comp.getOrDefault("salary", "Competitive Market Pay"));
-                    jobEntry.put("url", comp.getOrDefault("url", "#"));
-                    jobEntry.put("source", "Verified Market Match");
-                    jobEntry.put("matchPercentage", comp.getOrDefault("matchScore", atsScore));
-                    finalJobs.add(jobEntry);
-                }
-            }
-        }
+
         result.put("retrievedJobOpportunities", finalJobs);
 
         // AI Career Prediction ("Who You Are")
@@ -922,6 +898,7 @@ public class VrezerAiAgentService {
                                     result.put("geminiResponseRaw", text);
                                     result.put("aiModelUsed", "Gemini / " + model);
                                     result = normalizeAiResponse(result, resumeText, parsed);
+                                    result.put("_ragLiveJobs", ragContext.getOrDefault("liveApiJobs", List.of()));
                                     System.out.println("[VREZER MULTI-AGENT] ✓ Gemini (" + model + ") succeeded! Candidate: " + result.get("name"));
                                     return result;
                                 }
@@ -1121,6 +1098,15 @@ public class VrezerAiAgentService {
             summary = name + " is a qualified specialist in " + domain + ". Verified technical competencies include " +
                     String.join(", ", (List<String>) result.getOrDefault("topSkills", List.of("core engineering skills"))) + ".";
         }
+        // Resume-authoritative fields: never let the LLM invent identity, skills or project history.
+        result.put("topSkills", parsed.getOrDefault("allDetectedSkills", List.of()));
+        result.put("programmingLanguages", parsed.getOrDefault("programmingLanguages", List.of()));
+        result.put("toolsAndTechnologies", parsed.getOrDefault("frameworks", List.of()));
+        result.put("projects", parsed.getOrDefault("projects", List.of()));
+        result.put("internships", parsed.getOrDefault("internships", List.of()));
+        result.put("achievements", parsed.getOrDefault("achievements", List.of()));
+        result.put("certifications", parsed.getOrDefault("certifications", List.of()));
+
         result.put("professionalSummary", summary);
 
         // Clean status and remove error
