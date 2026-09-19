@@ -352,14 +352,8 @@ public class VrezerAiAgentService {
         String candidateLocation = String.valueOf(profile.getOrDefault("preferredLocation", "India"));
         String experienceLevel = String.valueOf(profile.getOrDefault("experienceLevel", "FRESHER"));
 
+        // Live job retrieval is executed exactly once by RAGRetrievalService.
         List<Map<String, String>> liveJobs = new ArrayList<>();
-        try {
-            liveJobs = marketIntelligenceService.fetchLiveMarketJobs(careerDomain, candidateSkills, candidateLocation, experienceLevel);
-            System.out.println("[PRODUCTION AUDIT LOG 4/10] Live Jobs Retrieved: " + liveJobs.size() + " jobs across connected APIs");
-        } catch (Exception jobEx) {
-            System.err.println("[VREZER MULTI-AGENT] Live job retrieval warning: " + jobEx.getMessage());
-        }
-        System.out.println("================================================================================");
 
         System.out.println("[VREZER MULTI-AGENT] Pipeline starting. API key present: " + hasKey + " (prefix: " + keyPrefix(activeKey) + ")");
         StringBuilder errorLog = new StringBuilder();
@@ -404,9 +398,9 @@ public class VrezerAiAgentService {
         List<Map<String, Object>> recommendedComps =
                 companyClassificationService.generateSkillTargetedCompanies(liveJobs, careerDomain, candidateSkills, experienceLevel, atsScore);
 
-        result.put("tier1", tierTrajectory.get("tier1"));
-        result.put("tier2", tierTrajectory.get("tier2"));
-        result.put("tier3", tierTrajectory.get("tier3"));
+        if (tierTrajectory.containsKey("tier1")) result.put("tier1", tierTrajectory.get("tier1")); else result.remove("tier1");
+        if (tierTrajectory.containsKey("tier2")) result.put("tier2", tierTrajectory.get("tier2")); else result.remove("tier2");
+        if (tierTrajectory.containsKey("tier3")) result.put("tier3", tierTrajectory.get("tier3"));
         result.put("recommendedCompanies", recommendedComps);
 
         List<Map<String, Object>> finalJobs = new ArrayList<>();
