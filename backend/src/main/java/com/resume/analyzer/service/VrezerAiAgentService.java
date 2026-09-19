@@ -924,51 +924,20 @@ public class VrezerAiAgentService {
     private Map<String, Object> parseOrRepairJson(String rawJson) {
         if (rawJson == null || rawJson.trim().isEmpty()) return null;
         String clean = rawJson.trim()
-                .replaceAll("(?s)^```json\\s*", "")
-                .replaceAll("(?s)^```\\s*", "")
-                .replaceAll("(?s)```\\s*$", "").trim();
-        
-        // 1. Try direct parse
+                .replaceAll("(?s)^\\`\\`\\`json\\s*", "")
+                .replaceAll("(?s)^\\`\\`\\`\\s*", "")
+                .replaceAll("(?s)\\`\\`\\`\\s*$", "")
+                .trim();
+
+        int first = clean.indexOf('{');
+        int last = clean.lastIndexOf('}');
+        if (first < 0 || last <= first) return null;
+
+        String candidate = clean.substring(first, last + 1);
         try {
-            return mapper.readValue(clean, Map.class);
+            return mapper.readValue(candidate, Map.class);
         } catch (Exception e) {
-            System.out.println("[VREZER] Direct JSON parse failed, attempting auto-repair...");
-        }
-
-        // 2. Auto-repair unclosed strings/arrays/objects caused by truncation
-        StringBuilder sb = new StringBuilder(clean);
-        // Balance unclosed quotes
-        long quotes = sb.chars().filter(ch -> ch == '"').count();
-        if (quotes % 2 != 0) {
-            sb.append('"');
-        }
-
-        // Count open vs close braces
-        int openBraces = 0, openBrackets = 0;
-        boolean inString = false;
-        for (int i = 0; i < sb.length(); i++) {
-            char c = sb.charAt(i);
-            if (c == '"' && (i == 0 || sb.charAt(i - 1) != '\\')) {
-                inString = !inString;
-            }
-            if (!inString) {
-                if (c == '{') openBraces++;
-                else if (c == '}') openBraces = Math.max(0, openBraces - 1);
-                else if (c == '[') openBrackets++;
-                else if (c == ']') openBrackets = Math.max(0, openBrackets - 1);
-            }
-        }
-
-        // Remove trailing comma if present
-        String repaired = sb.toString().replaceAll(",\\s*$", "");
-        StringBuilder repBuilder = new StringBuilder(repaired);
-        while (openBrackets > 0) { repBuilder.append("]"); openBrackets--; }
-        while (openBraces > 0) { repBuilder.append("}"); openBraces--; }
-
-        try {
-            return mapper.readValue(repBuilder.toString(), Map.class);
-        } catch (Exception ex) {
-            System.err.println("[VREZER] JSON repair failed: " + ex.getMessage());
+            System.err.println("[VREZER] Strict JSON parse failed; refusing partial repair: " + e.getMessage());
             return null;
         }
     }
@@ -1028,16 +997,13 @@ public class VrezerAiAgentService {
         } else if (atsObj != null && !String.valueOf(atsObj).isEmpty()) {
             try { atsScore = Integer.parseInt(String.valueOf(atsObj).replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
         }
-        // If AI didn't return a valid ATS score, compute it from the actual resume using the 11-dimension engine
-        if (atsScore <= 0 || atsScore > 100) {
-            Map<String, Object> engineAts = atsAnalysisEngine.calculateAtsAnalysis(resumeText, null, parsed);
-            atsScore = ((Number) engineAts.getOrDefault("atsScore", 50)).intValue();
-            // Attach engine breakdown if Gemini didn't provide one
-            if (!result.containsKey("atsScoreDetails") || result.get("atsScoreDetails") == null) {
-                result.put("atsScoreDetails", engineAts);
-            }
-        }
-        result.put("atsScore", Math.max(10, Math.min(99, atsScore)));
+        // ATS is always computed by the deterministic resume evaluator.
+        Map<String, Object> engineAts = atsAnalysisEngine.calculateAtsAnalysis(resumeText, null, parsed);
+        Object engineScoreObj = engineAts.get("atsScore");
+        int atsScore = engineScoreObj instanceof Number ? ((Number) engineScoreObj).intValue() : 0;
+        atsScore = Math.max(0, Math.min(100, atsScore));
+        result.put("atsScoreDetails", engineAts);
+        result.put("atsScore", atsScore);
 
         String atsText = String.valueOf(result.getOrDefault("atsScoreText", ""));
         if (atsText.isEmpty() || atsText.equalsIgnoreCase("null")) {
