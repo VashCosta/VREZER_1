@@ -182,12 +182,7 @@ public class VrezerAiAgentService {
     private String llamaUrl;
 
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-2.5-flash",         "v1beta" },
-        { "gemini-2.0-flash",         "v1beta" },
-        { "gemini-1.5-flash-latest",  "v1beta" },
-        { "gemini-2.5-pro",           "v1beta" },
-        { "gemini-3.5-pro",           "v1beta" },
-        { "gemini-3.5-flash",         "v1beta" }
+        { "gemini-2.5-flash", "v1beta" }
     };
 
     private static final String[] LLAMA_MODELS = {
@@ -314,7 +309,7 @@ public class VrezerAiAgentService {
 
     public Map<String, Object> analyzeResumeWithAiAgent(String resumeText, String jobDescription, String customKey) {
         long startTimeMs = System.currentTimeMillis();
-        String activeKey = (customKey != null && !customKey.trim().isEmpty()) ? customKey.trim() : geminiApiKey;
+        String activeKey = geminiApiKey;
         boolean hasKey = isValidKey(activeKey);
 
         if (resumeText == null || resumeText.trim().length() < 20) {
@@ -490,7 +485,7 @@ public class VrezerAiAgentService {
         debugPanel.put("parsedResumeJson", baseParsed);
         debugPanel.put("candidateProfile", profile);
         debugPanel.put("generatedSearchQuery", booleanQuery);
-        debugPanel.put("jobApiRequestCount", 8);
+        debugPanel.put("jobApiRequestCount", 7);
         debugPanel.put("jobApiResponseCount", Map.of(
             "Adzuna", liveJobs.stream().filter(j -> String.valueOf(j.get("source")).contains("Adzuna")).count(),
             "Remotive", liveJobs.stream().filter(j -> String.valueOf(j.get("source")).contains("Remotive")).count(),
@@ -586,7 +581,7 @@ public class VrezerAiAgentService {
     }
 
     public String askGeneralQuestion(String userPrompt, Map<String, Object> candidateContext, String customKey) {
-        String activeKey = (customKey != null && !customKey.trim().isEmpty()) ? customKey.trim() : geminiApiKey;
+        String activeKey = geminiApiKey;
 
         // Build candidate context string if available
         StringBuilder ctxBuilder = new StringBuilder();
@@ -891,7 +886,7 @@ public class VrezerAiAgentService {
                 Map<String, Object> content  = Map.of("parts", List.of(textPart));
 
                 Map<String, Object> genConfig = new LinkedHashMap<>();
-                genConfig.put("temperature", 0.2);
+                genConfig.put("temperature", 0.0);
                 genConfig.put("maxOutputTokens", 8192);
                 if ("v1beta".equals(version)) {
                     genConfig.put("responseMimeType", "application/json");
