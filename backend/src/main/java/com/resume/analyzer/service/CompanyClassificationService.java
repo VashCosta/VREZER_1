@@ -611,7 +611,8 @@ public class CompanyClassificationService {
             }
         }
 
-        // No live jobs means no company recommendations. Never fabricate companies or salaries.\n        return new ArrayList<>(compMap.values());
+        // No live jobs means no company recommendations. Never fabricate companies or salaries.
+        return new ArrayList<>(compMap.values());
     }
 
     /**
