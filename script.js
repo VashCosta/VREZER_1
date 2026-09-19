@@ -383,8 +383,8 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const steps = [
             { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
             { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
+            { text: 'Phase 3/5: Running Gemini 2.5 Flash reasoning on verified resume data…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving backend RAG job intelligence…', id: 'ps-jobs' },
             { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
         ];
 
@@ -854,8 +854,8 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     function renderHeroMetrics(d) {
         setText('hm-ats', (d.atsScore != null) ? (d.atsScore + '%') : 'Not available');
         setText('hm-ai-score', (d.profileStrength != null ? d.profileStrength : (d.confidenceScore != null ? d.confidenceScore : null)) != null ? ((d.profileStrength != null ? d.profileStrength : d.confidenceScore) + '%') : 'Not available');
-        setText('hm-domain', d.careerDomain || 'Technology');
-        setText('hm-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
+        setText('hm-domain', d.careerDomain || 'Not detected');
+        setText('hm-level', d.experienceLevel || d.careerLevel || 'Not detected');
         setText('hm-status', (Number.isFinite(Number(d.atsScore)) ? Number(d.atsScore) : 0) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
         setText('hm-confidence', (d.confidenceScore != null) ? (d.confidenceScore + '%') : 'Not available');
     }
@@ -869,15 +869,15 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
 
         const t1 = d.tier1 || {};
-        const salRange = d.expectedLpaRange || (t1.expectedLpaRange || t1.salary || '12 - 20 LPA');
+        const salRange = d.expectedLpaRange || t1.expectedLpaRange || t1.salary || 'Salary not disclosed';
         const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
         setText('sal-val', cleanSalVal);
         setText('sal-unit', 'LPA');
-        const usdVal = d.salaryUsd || t1.salaryUsd || ('₹ ' + salRange + ' · Market Estimate');
+        const usdVal = d.salaryUsd || t1.salaryUsd || 'Salary data unavailable';
         setText('sal-usd', usdVal);
-        makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
+        makeDonut('sal-chart', 0, 100, '#4ade80', 'rgba(74,222,128,0.1)');
 
-        makeRadar(d.topSkills || ['Technical', 'Domain', 'Architecture', 'Problem Solving', 'Tools']);
+        makeRadar(d.topSkills || []);
         makeBar(ats);
     }
 
@@ -907,10 +907,10 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const formatGaps = (d.skillGaps || []).map(g => toTextString(g));
         const formatImprov = (d.improvements || []).map(i => toTextString(i));
 
-        populate('swot-strengths', swot.strengths || d.topSkills, ['High technical competence', 'Verified domain experience', 'Strong project impact']);
-        populate('swot-weaknesses', swot.weaknesses || formatGaps, ['Cloud credentials missing', 'Quantified metrics needed']);
-        populate('swot-opps', swot.opportunities, ['Relevant Opportunities', 'High Salary Product Roles', 'Global Remote Work']);
-        populate('swot-risks', swot.improvements || formatImprov, ['Add system metrics to bullet points', 'Standardize section headers']);
+        populate('swot-strengths', swot.strengths || d.topSkills, []);
+        populate('swot-weaknesses', swot.weaknesses || formatGaps, []);
+        populate('swot-opps', swot.opportunities, []);
+        populate('swot-risks', swot.improvements || formatImprov, []);
     }
 
     // ── 4. PROFILE INTELLIGENCE ────────────────────────
@@ -1018,7 +1018,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Missing Keywords
         const mk = $('missing-keywords');
         if (mk) {
-            const keywords = (d.swot && d.swot.missingSkills) || d.skillGaps || ['Distributed Systems', 'CI/CD Pipelines', 'Cloud Architecture'];
+            const keywords = (d.swot && d.swot.missingSkills) || d.skillGaps || [];
             mk.innerHTML = keywords.map(k => `<span class="t-chip">${toTextString(k)}</span>`).join('');
         }
 
@@ -1050,7 +1050,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Gaps & Strengths
         const gapEl = $('gap-list');
         if (gapEl) {
-            gapEl.innerHTML = (d.skillGaps || ['Distributed Systems', 'Cloud Native']).map(g => `<span class="gap-tag">${toTextString(g)}</span>`).join('');
+            gapEl.innerHTML = (d.skillGaps || []).map(g => `<span class="gap-tag">${toTextString(g)}</span>`).join('');
         }
         const strEl = $('strengths-full-list');
         if (strEl) {
@@ -1060,7 +1060,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Tech skill bars
         const techBars = $('tech-skills-bars');
         if (techBars) {
-            const skills = d.topSkills || ['Java', 'Spring Boot', 'SQL', 'Docker', 'AWS'];
+            const skills = d.topSkills || [];
             techBars.innerHTML = skills.slice(0, 6).map((s, i) => {
                 const score = Math.max(95 - i * 5, 65);
                 return `
@@ -1078,7 +1078,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Soft skill bars
         const softBars = $('soft-skills-bars');
         if (softBars) {
-            const softs = d.softSkills || ['Problem Solving', 'System Thinking', 'Agile Collaboration', 'Technical Writing'];
+            const softs = d.softSkills || [];
             softBars.innerHTML = softs.map((s, i) => {
                 const score = 90 - i * 4;
                 return `
@@ -1101,62 +1101,12 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         }
 
         // Domains
-        renderDomains(d.domains || buildDynamicDomains(d.careerDomain, d.topSkills));
+        renderDomains(Array.isArray(d.domains) ? d.domains : []);
     }
 
-    function buildDynamicEmergingSkills(domain, topSkills) {
-        const dom = (domain || '').toLowerCase();
-        if (dom.includes('marketing')) return ['GA4 Analytics', 'AI Content Automation', 'HubSpot Marketing', 'Programmatic Bidding'];
-        if (dom.includes('finance')) return ['Financial Modeling', 'DCF Valuation', 'PowerBI Analytics', 'IFRS Standards'];
-        if (dom.includes('hr')) return ['Workday HRIS', 'People Analytics', 'ATS Optimization', 'Employer Branding'];
-        if (dom.includes('mechanical')) return ['ANSYS FEA', 'SolidWorks CAD', 'Additive Manufacturing', 'GD&T Standards'];
-        if (dom.includes('ai') || dom.includes('data')) return ['LangChain / LlamaIndex', 'Vector DBs (Qdrant)', 'MLOps / MLflow', 'PyTorch / Transformers'];
-        return ['Spring Boot 3.x', 'Docker & Kubernetes', 'PostgreSQL & pgvector', 'GraphQL & Microservices'];
-    }
+    function buildDynamicEmergingSkills(domain, topSkills) { return []; }
 
-    function buildDynamicDomains(domain, topSkills) {
-        const dom = (domain || 'Software Engineering').toLowerCase();
-        if (dom.includes('marketing') || dom.includes('digital')) {
-            return [
-                { name: 'Digital Marketing & Growth Strategy', match: 96, roles: ['SEO Specialist', 'Growth Marketer', 'Campaign Lead'] },
-                { name: 'Content Strategy & Performance SEM', match: 88, roles: ['Content Lead', 'Performance Marketer'] },
-                { name: 'MarTech & Social Media Analytics', match: 80, roles: ['Digital Analyst', 'Social Media Lead'] }
-            ];
-        }
-        if (dom.includes('finance') || dom.includes('audit') || dom.includes('accounting')) {
-            return [
-                { name: 'Corporate Finance & Valuation', match: 95, roles: ['Financial Analyst', 'Valuation Lead', 'Senior Controller'] },
-                { name: 'Investment & Portfolio Strategy', match: 86, roles: ['Investment Analyst', 'Equity Researcher'] },
-                { name: 'Audit & Financial Compliance', match: 78, roles: ['Auditor', 'Tax Consultant'] }
-            ];
-        }
-        if (dom.includes('human') || dom.includes('hr') || dom.includes('recruiting')) {
-            return [
-                { name: 'Talent Acquisition & Technical Recruiting', match: 95, roles: ['Senior Technical Recruiter', 'Talent Lead'] },
-                { name: 'People Operations & HR Analytics', match: 87, roles: ['HR Business Partner', 'People Analytics Manager'] },
-                { name: 'Employee Engagement & Onboarding', match: 79, roles: ['HR Specialist', 'Culture Manager'] }
-            ];
-        }
-        if (dom.includes('mechanical') || dom.includes('cad') || dom.includes('fea')) {
-            return [
-                { name: 'Product Design & CAD/FEA Modeling', match: 96, roles: ['Mechanical Design Engineer', 'FEA Analyst'] },
-                { name: 'Thermal Systems & Manufacturing', match: 86, roles: ['Thermal Specialist', 'Manufacturing Engineer'] },
-                { name: 'Mechatronics & Robotics', match: 78, roles: ['Automation Engineer', 'Robotics Specialist'] }
-            ];
-        }
-        if (dom.includes('ai') || dom.includes('machine learning') || dom.includes('data science')) {
-            return [
-                { name: 'Artificial Intelligence & Deep Learning', match: 97, roles: ['AI Architect', 'ML Research Engineer'] },
-                { name: 'LLMOps & Generative AI Systems', match: 90, roles: ['GenAI Specialist', 'LLM Engineer'] },
-                { name: 'Data Engineering & MLOps Pipelines', match: 82, roles: ['Data Pipeline Engineer', 'MLOps Lead'] }
-            ];
-        }
-        return [
-            { name: domain || 'Core Full Stack Engineering', match: 95, roles: ['Senior SDE', 'Full-Stack Architect', 'Tech Lead'] },
-            { name: 'Cloud Infrastructure & DevOps', match: 86, roles: ['Cloud Architect', 'DevOps Lead'] },
-            { name: 'Systems & API Microservices', match: 78, roles: ['API Architect', 'Backend Specialist'] }
-        ];
-    }
+    function buildDynamicDomains(domain, topSkills) { return []; }
 
     function getTier1DefaultComp(domain) {
         const dom = (domain || '').toLowerCase();
@@ -1809,9 +1759,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Bullet rewrites
         const bw = $('bullet-rewrites');
         if (bw) {
-            const rewrites = imp.weakBulletPoints || [
-                { original: 'Worked on backend APIs using Java and Spring Boot.', aiRewritten: 'Architected 12+ RESTful microservices in Java 17 & Spring Boot 3, reducing API response latency by 42% for 500K+ daily active users.', reasoning: 'Adds quantified metrics & technology versions.' }
-            ];
+            const rewrites = Array.isArray(imp.weakBulletPoints) ? imp.weakBulletPoints : [];
 
             bw.innerHTML = rewrites.map(b => `
                 <div class="bullet-rewrite-item">
@@ -1825,11 +1773,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Improvements list
         const impList = $('improvements-list');
         if (impList) {
-            const list = d.improvements || [
-                'Quantify project outcomes (e.g. "Reduced API latency by 42% via Redis caching")',
-                'Specify exact cloud infrastructure services (AWS ECS, RDS, S3)',
-                'Format technical skills into clear categories'
-            ];
+            const list = Array.isArray(d.improvements) ? d.improvements : [];
             impList.innerHTML = list.map((item, i) => `
                 <li>
                     <div class="hint-num">${i + 1}</div>
