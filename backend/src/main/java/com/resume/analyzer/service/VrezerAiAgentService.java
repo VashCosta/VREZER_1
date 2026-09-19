@@ -990,13 +990,6 @@ public class VrezerAiAgentService {
         result.put("careerDomain", domain);
 
         // ATS Score — Use AtsAnalysisEngine for real computation; never default to 75
-        int atsScore = 0;
-        Object atsObj = result.get("atsScore");
-        if (atsObj instanceof Number) {
-            atsScore = ((Number) atsObj).intValue();
-        } else if (atsObj != null && !String.valueOf(atsObj).isEmpty()) {
-            try { atsScore = Integer.parseInt(String.valueOf(atsObj).replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
-        }
         // ATS is always computed by the deterministic resume evaluator.
         Map<String, Object> engineAts = atsAnalysisEngine.calculateAtsAnalysis(resumeText, null, parsed);
         Object engineScoreObj = engineAts.get("atsScore");
