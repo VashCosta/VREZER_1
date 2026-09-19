@@ -30,12 +30,24 @@ public class VrezerAnalyzerController {
     @GetMapping("/version")
     public ResponseEntity<Map<String, Object>> getVersion() {
         Map<String, Object> version = new LinkedHashMap<>();
-        version.put("commit", "ebc12e0");
+        version.put("commit", "2026-09-19-production-stability-2");
         version.put("status", "ONLINE");
         version.put("environment", System.getenv("SPRING_PROFILES_ACTIVE") != null ? System.getenv("SPRING_PROFILES_ACTIVE") : "production");
         version.put("backendVersion", "VREZER 3.0 Production Build");
         version.put("timestamp", System.currentTimeMillis());
         return ResponseEntity.ok(version);
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> getHealth() {
+        Map<String, Object> health = new LinkedHashMap<>();
+        health.put("status", "UP");
+        health.put("service", "VREZER Analyzer Backend");
+        health.put("version", "2026-09-19-production-stability-2");
+        health.put("llm", "Gemini 2.5 Flash");
+        health.put("rag", "Backend-only live retrieval + deterministic ranking");
+        health.put("timestamp", System.currentTimeMillis());
+        return ResponseEntity.ok(health);
     }
 
     @PostMapping("/extract")
@@ -94,7 +106,7 @@ public class VrezerAnalyzerController {
             @RequestHeader(value = "X-GEMINI-API-KEY", required = false) String headerApiKey) {
         String rawText = "";
         String jobDescription = "";
-        String customApiKey = headerApiKey;
+        String customApiKey = null;
 
         try {
 
@@ -105,9 +117,7 @@ public class VrezerAnalyzerController {
                         Map<?, ?> payload = mapper.readValue(trimmed, Map.class);
                         rawText = payload.containsKey("resumeText") ? String.valueOf(payload.get("resumeText")) : "";
                         jobDescription = payload.containsKey("jobDescription") ? String.valueOf(payload.get("jobDescription")) : "";
-                        if (payload.get("apiKey") != null && !String.valueOf(payload.get("apiKey")).trim().isEmpty()) {
-                            customApiKey = String.valueOf(payload.get("apiKey")).trim();
-                        }
+                        // Production never accepts API keys from the browser; GEMINI_API_KEY stays server-side.
                     } catch (Exception ex) {
                         rawText = trimmed;
                     }
@@ -156,7 +166,7 @@ public class VrezerAnalyzerController {
             @RequestHeader(value = "X-GEMINI-API-KEY", required = false) String headerApiKey) {
         String rawText = payload.getOrDefault("resumeText", "");
         String jobDescription = payload.getOrDefault("jobDescription", "");
-        String apiKey = payload.getOrDefault("apiKey", headerApiKey);
+        String apiKey = null;
 
         if (rawText.trim().length() < 20 || jobDescription.trim().length() < 10) {
             return ResponseEntity.badRequest().body(Map.of(
