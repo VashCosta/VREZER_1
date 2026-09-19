@@ -629,20 +629,110 @@ body {
 .dossier-right { flex: 1; max-width: 480px; }
 
 .ai-box {
-    background: rgba(0,0,0,0.2);
+    background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--border-red);
     border-radius: 14px;
     padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+.ai-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 .ai-box-lbl {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.1em;
     color: var(--red);
-    margin-bottom: 0.5rem;
-    display: flex; align-items: center; gap: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    text-transform: uppercase;
 }
-#ai-prediction { font-size: 0.85rem; color: var(--text-2); line-height: 1.6; }
+.ai-box-badge {
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 0.2rem 0.65rem;
+    border-radius: 100px;
+    background: rgba(255, 0, 60, 0.15);
+    color: #ff4a7d;
+    border: 1px solid rgba(255, 0, 60, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ai-prediction-content {
+    font-size: 0.84rem;
+    color: var(--text-2);
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.ai-prediction-content .pred-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+.ai-prediction-content .pred-item i {
+    color: var(--red);
+    margin-top: 0.22rem;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+.ai-pred-confidence-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex-wrap: wrap;
+}
+.pred-conf-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+.pred-conf-bar-wrap {
+    flex: 1;
+    min-width: 90px;
+    height: 7px;
+    background: var(--surface-2);
+    border-radius: 100px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.pred-conf-bar-fill {
+    height: 100%;
+    border-radius: 100px;
+    background: linear-gradient(90deg, #10b981, #059669);
+    transition: width 0.8s ease;
+}
+.pred-conf-val {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 900;
+    color: #10b981;
+}
+.pred-conf-tag {
+    font-size: 0.64rem;
+    font-weight: 800;
+    padding: 0.15rem 0.5rem;
+    border-radius: 100px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    text-transform: uppercase;
+}
 
 /* ── TAB NAVIGATION ───────────────────────────────────── */
 .dash-tabs {

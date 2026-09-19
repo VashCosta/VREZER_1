@@ -48,6 +48,7 @@ buildNumber.properties
 .classpath
 .project
 .settings/
+.factorypath
 
 # Misc
 .DS_Store

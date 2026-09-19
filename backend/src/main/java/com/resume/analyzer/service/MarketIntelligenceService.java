@@ -306,27 +306,26 @@ public class MarketIntelligenceService {
     }
 
     // ── Greenhouse Public Jobs Crawler ─────────────────────────────────────────
-    // Fix 2: Domain-specific boards instead of a fixed global list
-    private static final Map<String, String[]> GREENHOUSE_DOMAIN_BOARDS = new java.util.LinkedHashMap<>() {{
-        put("ai",              new String[]{"anthropic", "cohere", "mistral", "huggingface", "openai"});
-        put("machine learning",new String[]{"anthropic", "cohere", "databricks", "huggingface", "scale"});
-        put("data science",    new String[]{"databricks", "datadog", "snowflake", "airbnb", "lyft"});
-        put("devops",          new String[]{"hashicorp", "cloudflare", "datadog", "fastly", "pagerduty"});
-        put("cloud",           new String[]{"hashicorp", "cloudflare", "fastly", "datadog", "stripe"});
-        put("cybersecurity",   new String[]{"crowdstrike", "cloudflare", "pagerduty", "hashicorp", "snyk"});
-        put("fintech",         new String[]{"stripe", "plaid", "robinhood", "coinbase", "brex"});
-        put("finance",         new String[]{"stripe", "plaid", "robinhood", "coinbase", "brex"});
-        put("marketing",       new String[]{"hubspot", "sprinklr", "yotpo", "attentive", "klaviyo"});
-        put("sales",           new String[]{"hubspot", "outreach", "gong", "salesloft", "drift"});
-        put("design",          new String[]{"figma", "notion", "canva", "miro", "loom"});
-        put("ui",              new String[]{"figma", "notion", "canva", "miro", "loom"});
-        put("ux",              new String[]{"figma", "notion", "canva", "miro", "loom"});
-        put("healthtech",      new String[]{"tempus", "doordash", "hims", "ro", "nuvation"});
-        put("edtech",          new String[]{"coursera", "duolingo", "chegg", "brainly", "kahoot"});
-        put("ecommerce",       new String[]{"shopify", "affirm", "bolt", "yotpo", "klaviyo"});
-        put("full stack",      new String[]{"stripe", "notion", "linear", "vercel", "supabase"});
-        put("web",             new String[]{"vercel", "netlify", "linear", "notion", "stripe"});
-    }};
+    private static final Map<String, String[]> GREENHOUSE_DOMAIN_BOARDS = Map.ofEntries(
+        Map.entry("ai",               new String[]{"anthropic", "cohere", "mistral", "huggingface", "openai"}),
+        Map.entry("machine learning", new String[]{"anthropic", "cohere", "databricks", "huggingface", "scale"}),
+        Map.entry("data science",     new String[]{"databricks", "datadog", "snowflake", "airbnb", "lyft"}),
+        Map.entry("devops",           new String[]{"hashicorp", "cloudflare", "datadog", "fastly", "pagerduty"}),
+        Map.entry("cloud",            new String[]{"hashicorp", "cloudflare", "fastly", "datadog", "stripe"}),
+        Map.entry("cybersecurity",    new String[]{"crowdstrike", "cloudflare", "pagerduty", "hashicorp", "snyk"}),
+        Map.entry("fintech",          new String[]{"stripe", "plaid", "robinhood", "coinbase", "brex"}),
+        Map.entry("finance",          new String[]{"stripe", "plaid", "robinhood", "coinbase", "brex"}),
+        Map.entry("marketing",        new String[]{"hubspot", "sprinklr", "yotpo", "attentive", "klaviyo"}),
+        Map.entry("sales",            new String[]{"hubspot", "outreach", "gong", "salesloft", "drift"}),
+        Map.entry("design",           new String[]{"figma", "notion", "canva", "miro", "loom"}),
+        Map.entry("ui",               new String[]{"figma", "notion", "canva", "miro", "loom"}),
+        Map.entry("ux",               new String[]{"figma", "notion", "canva", "miro", "loom"}),
+        Map.entry("healthtech",       new String[]{"tempus", "doordash", "hims", "ro", "nuvation"}),
+        Map.entry("edtech",           new String[]{"coursera", "duolingo", "chegg", "brainly", "kahoot"}),
+        Map.entry("ecommerce",        new String[]{"shopify", "affirm", "bolt", "yotpo", "klaviyo"}),
+        Map.entry("full stack",       new String[]{"stripe", "notion", "linear", "vercel", "supabase"}),
+        Map.entry("web",              new String[]{"vercel", "netlify", "linear", "notion", "stripe"})
+    );
 
     private String[] getGreenhouseBoards(String domain) {
         if (domain == null) return new String[]{"stripe", "airbnb", "datadog", "notion", "linear"};
@@ -382,22 +381,22 @@ public class MarketIntelligenceService {
 
     // ── Lever Public Postings Search ───────────────────────────────────────────
     // Fix 2: Domain-specific Lever boards
-    private static final Map<String, String[]> LEVER_DOMAIN_BOARDS = new java.util.LinkedHashMap<>() {{
-        put("ai",              new String[]{"openai", "scale", "cohere", "aisera", "cognitivescale"});
-        put("machine learning",new String[]{"openai", "scale", "cohere", "aisera", "cognitivescale"});
-        put("devops",          new String[]{"cloudflare", "grafana", "scout24", "contentsquare", "couchbase"});
-        put("cloud",           new String[]{"cloudflare", "grafana", "couchbase", "scout24", "cribl"});
-        put("cybersecurity",   new String[]{"cloudflare", "orca", "snyk", "armis", "lacework"});
-        put("fintech",         new String[]{"brex", "mercury", "ramp", "divvy", "puzzle"});
-        put("finance",         new String[]{"brex", "mercury", "ramp", "divvy", "puzzle"});
-        put("marketing",       new String[]{"iterable", "braze", "sprinklr", "contentful", "seismic"});
-        put("design",          new String[]{"figma", "miro", "notionhq", "loom", "webflow"});
-        put("healthtech",      new String[]{"tempus", "cityblock", "hims", "ro", "zocdoc"});
-        put("edtech",          new String[]{"duolingo", "coursera", "chegg", "noodle", "brainly"});
-        put("ecommerce",       new String[]{"shopify", "bolt", "checkout", "recharge", "affirm"});
-        put("full stack",      new String[]{"linear", "vercel", "supabase", "retool", "airtable"});
-        put("sales",           new String[]{"gong", "salesloft", "outreach", "apollo", "chorus"});
-    }};
+    private static final Map<String, String[]> LEVER_DOMAIN_BOARDS = Map.ofEntries(
+        Map.entry("ai",               new String[]{"openai", "scale", "cohere", "aisera", "cognitivescale"}),
+        Map.entry("machine learning", new String[]{"openai", "scale", "cohere", "aisera", "cognitivescale"}),
+        Map.entry("devops",           new String[]{"cloudflare", "grafana", "scout24", "contentsquare", "couchbase"}),
+        Map.entry("cloud",            new String[]{"cloudflare", "grafana", "couchbase", "scout24", "cribl"}),
+        Map.entry("cybersecurity",    new String[]{"cloudflare", "orca", "snyk", "armis", "lacework"}),
+        Map.entry("fintech",          new String[]{"brex", "mercury", "ramp", "divvy", "puzzle"}),
+        Map.entry("finance",          new String[]{"brex", "mercury", "ramp", "divvy", "puzzle"}),
+        Map.entry("marketing",        new String[]{"iterable", "braze", "sprinklr", "contentful", "seismic"}),
+        Map.entry("design",           new String[]{"figma", "miro", "notionhq", "loom", "webflow"}),
+        Map.entry("healthtech",       new String[]{"tempus", "cityblock", "hims", "ro", "zocdoc"}),
+        Map.entry("edtech",           new String[]{"duolingo", "coursera", "chegg", "noodle", "brainly"}),
+        Map.entry("ecommerce",        new String[]{"shopify", "bolt", "checkout", "recharge", "affirm"}),
+        Map.entry("full stack",       new String[]{"linear", "vercel", "supabase", "retool", "airtable"}),
+        Map.entry("sales",            new String[]{"gong", "salesloft", "outreach", "apollo", "chorus"})
+    );
 
     private String[] getLeverBoards(String domain) {
         if (domain == null) return new String[]{"netflix", "spotify", "palantir", "cloudflare"};

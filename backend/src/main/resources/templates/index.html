@@ -206,8 +206,21 @@
                     </div>
                     <div class="dossier-right">
                         <div class="ai-box">
-                            <div class="ai-box-lbl"><i class="fa-solid fa-robot"></i> AI CAREER PREDICTION</div>
-                            <p id="ai-prediction">Processing candidate dossier...</p>
+                            <div class="ai-box-header">
+                                <div class="ai-box-lbl"><i class="fa-solid fa-robot"></i> AI CAREER PREDICTION &amp; TRAJECTORY</div>
+                                <div class="ai-box-badge" id="ai-pred-badge">High Growth Potential</div>
+                            </div>
+                            <div class="ai-prediction-content" id="ai-prediction">
+                                Processing candidate dossier...
+                            </div>
+                            <div class="ai-pred-confidence-strip">
+                                <span class="pred-conf-label"><i class="fa-solid fa-gauge-high"></i> AI Confidence:</span>
+                                <div class="pred-conf-bar-wrap">
+                                    <div class="pred-conf-bar-fill" id="pred-conf-bar-fill" style="width: 0%;"></div>
+                                </div>
+                                <span class="pred-conf-val" id="pred-conf-val">--%</span>
+                                <span class="pred-conf-tag" id="pred-conf-tag">Evaluating</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -263,6 +276,27 @@
                         <div class="card c-bar">
                             <div class="card-label"><i class="fa-solid fa-sliders"></i> Capability Metrics</div>
                             <canvas id="bar-chart" style="max-height:190px"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- AI Grounding & Confidence Meter in Overview -->
+                    <div class="card" style="margin-top:1.25rem; margin-bottom:1.25rem;">
+                        <div class="card-label" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                            <span><i class="fa-solid fa-gauge-high"></i> AI Grounding &amp; Confidence Meter</span>
+                            <span id="ov-conf-level-badge" class="conf-badge conf-badge-high">Verified Evidence</span>
+                        </div>
+                        <div class="confidence-meter">
+                            <div class="conf-bar-track">
+                                <div class="conf-bar-fill" id="ov-confidence-bar-fill"></div>
+                            </div>
+                            <div class="conf-meta">
+                                <span id="ov-conf-score-lbl">—</span>
+                                <span id="ov-conf-level-lbl">—</span>
+                            </div>
+                            <div id="ov-conf-explanation-box" class="conf-explanation-box">
+                                <i class="fa-solid fa-circle-info conf-exp-icon"></i>
+                                <span id="ov-conf-explanation-text">Analyzing resume grounding confidence...</span>
+                            </div>
                         </div>
                     </div>
 
