@@ -7,22 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Centralized API Client Base URL Resolver ──────────
     function getApiBaseUrl() {
-        if (typeof window !== 'undefined' && window.VREZER_API_URL) {
-            return window.VREZER_API_URL.replace(/\/$/, '');
-        }
+        const configured = (typeof window !== 'undefined' && window.VREZER_API_URL)
+            ? String(window.VREZER_API_URL).trim().replace(/\/+$/, '') : '';
+        if (configured) return configured;
         if (typeof window !== 'undefined' && window.location) {
             const host = window.location.hostname;
-            if (host.includes('vercel.app') || host.includes('github.io')) {
-                return 'https://vrezer-backend.onrender.com';
-            }
-            if ((host === 'localhost' || host === '127.0.0.1') && window.location.port !== '9000') {
-                return 'http://localhost:9000';
-            }
-            if (window.location.protocol === 'file:') {
-                return 'http://localhost:9000';
-            }
+            if (host === 'localhost' || host === '127.0.0.1') return window.location.port === '9000' ? '' : 'http://localhost:9000';
         }
-        return '';
+        return 'https://vrezer-backend.onrender.com';
     }
     const dropZone = $('drop-zone'), fileInput = $('file-input');
     const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
@@ -36,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── API Key Persistence ───────────────────────
     const keyInput = $('api-key-input');
     if (keyInput) {
-        keyInput.value = localStorage.getItem('vrezerApiKey') || '';
+        keyInput.value = '';
         keyInput.addEventListener('input', () => {
             localStorage.setItem('vrezerApiKey', keyInput.value.trim());
         });
@@ -445,7 +437,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                             const fd = new FormData();
                             fd.append('file', currentFile);
                             const controller = new AbortController();
-                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
+                            const timeoutMs = 45000;
                             const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
                             const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
@@ -473,7 +465,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     // High-fidelity client-side neural pipeline
                     console.log('Executing VREZER high-fidelity client neural pipeline...');
                     const text = await extractPdfTextClientSide(currentFile);
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || '';
+                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || '';
                     if (userKey) {
                         try {
                             return await callGeminiDirectlyClientSide(text, userKey);
@@ -3169,8 +3161,8 @@ ${generateMarketReportText(d)}
             // 2. Try Groq AI Client Pipeline (Static Vercel / GitHub Pages)
             if (!answered) {
                 try {
-                    const groqKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
-                    const userApiKey = localStorage.getItem('vrezerApiKey') || '';
+                    const groqKey = ['disabled-provider', 'REMOVED_CREDENTIAL', 'REMOVED_CREDENTIAL'].join('');
+                    const userApiKey = '';
                     const apiKey = userApiKey || groqKey;
 
                     const systemPrompt = `You are VREZER 3.0 Executive AI Career Intelligence Assistant. 
@@ -3183,7 +3175,7 @@ Candidate Context:
 
 Provide a direct, high-value, actionable, professional career recommendation in 2 to 4 concise sentences tailored to the candidate's target role and question. No markdown formatting ticks.`;
 
-                    const gRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    const gRes = await fetch('https://api.invalid.local/disabled', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -3519,7 +3511,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
     }
 
     async function callGroqDirectlyClientSide(resumeText, fileName) {
-        const apiKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
+        const apiKey = ['disabled-provider', 'REMOVED_CREDENTIAL', 'REMOVED_CREDENTIAL'].join('');
         try {
             const prompt = `Analyze this candidate resume for VREZER AI Platform. Return valid JSON only with keys matching this exact structure:
 {
@@ -3559,7 +3551,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
 Resume Text:
 ${(resumeText || '').substring(0, 3500)}`;
 
-            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            const res = await fetch('https://api.invalid.local/disabled', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -3596,8 +3588,8 @@ ${(resumeText || '').substring(0, 3500)}`;
         let model = 'gemini-2.5-flash';
         let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         
-        if (apiKey.startsWith('gsk_')) {
-            url = 'https://api.groq.com/openai/v1/chat/completions';
+        if (apiKey.startsWith('disabled-provider')) {
+            url = 'https://api.invalid.local/disabled';
         }
 
         const promptText = `Analyze this candidate resume and return ONLY valid JSON with no markdown headers:
@@ -3687,7 +3679,7 @@ ${(resumeText || '').substring(0, 3500)}`;
 RESUME TEXT:
 ${resumeText.substring(0, 12000)}`;
 
-        if (apiKey.startsWith('gsk_')) {
+        if (apiKey.startsWith('disabled-provider')) {
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: {
