@@ -320,7 +320,7 @@ public class JobAggregatorService {
             job.put("similarityScore", String.format(Locale.US, "%.1f", totalSimilarity));
             job.put("matchScore", String.valueOf((int) Math.round(totalSimilarity)));
             job.put("verified", "true");
-            job.put("postedDate", job.getOrDefault("postedDate", "Active 2026 Opening"));
+            job.put("postedDate", job.getOrDefault("postedDate", ""));
 
             // Attach matched & missing skills strings
             job.put("matchedSkills", matchedSkillsList.isEmpty() ? String.join(", ", allTechSkills.subList(0, Math.min(3, allTechSkills.size()))) : String.join(", ", matchedSkillsList.subList(0, Math.min(4, matchedSkillsList.size()))));
@@ -357,8 +357,15 @@ public class JobAggregatorService {
         }
 
 
-        // Sort accepted jobs in descending order of similarity score
-        acceptedJobs.sort((j1, j2) -> similarityScores.get(j2).compareTo(similarityScores.get(j1)));
+        // Stable deterministic ordering: score, company, title, URL.
+        acceptedJobs.sort(Comparator
+            .comparingDouble((Map<String, String> j) -> {
+                try { return Double.parseDouble(j.getOrDefault("similarityScore", "0")); }
+                catch (Exception e) { return 0.0; }
+            }).reversed()
+            .thenComparing(j -> j.getOrDefault("name", "").trim().toLowerCase(Locale.ROOT))
+            .thenComparing(j -> j.getOrDefault("title", "").trim().toLowerCase(Locale.ROOT))
+            .thenComparing(j -> j.getOrDefault("url", "").trim()));
 
         System.out.println("================================================================================");
         System.out.println("[JOB AGGREGATOR] Ranking Summary (Similarity Threshold = " + similarityThreshold + "%):");
