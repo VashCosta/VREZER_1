@@ -24,6 +24,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return '';
     }
+    async function waitForBackendReady(baseUrl) {
+        if (!baseUrl) return true;
+        for (let attempt = 1; attempt <= 18; attempt++) {
+            try {
+                const healthRes = await fetch(baseUrl + '/actuator/health', { method: 'GET', cache: 'no-store' });
+                if (healthRes.ok) return true;
+            } catch (_) {}
+            if (attempt < 18) await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        return false;
+    }
+
     const dropZone = $('drop-zone'), fileInput = $('file-input');
     const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
     const themeBtn = $('theme-toggle'), exportBtn = $('export-btn');
@@ -32,15 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadSect = $('upload-section'), loadSect = $('loading-section'), dashSect = $('dashboard-section');
 
     let currentFile = null, charts = {}, lastData = null;
-
-    // ── API Key Persistence ───────────────────────
-    const keyInput = $('api-key-input');
-    if (keyInput) {
-        keyInput.value = localStorage.getItem('vrezerApiKey') || '';
-        keyInput.addEventListener('input', () => {
-            localStorage.setItem('vrezerApiKey', keyInput.value.trim());
-        });
-    }
 
     // ── Live Clock ─────────────────────────────────
     const clockEl = $('live-time');
@@ -439,32 +442,26 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     const baseUrl = getApiBaseUrl();
                     let data = null;
 
-                    // If baseUrl is present (local or remote backend), attempt extraction
-                    if (baseUrl !== undefined) {
+                    const ready = await waitForBackendReady(baseUrl);
+                    if (!ready) throw new Error('VREZER backend is still waking up. Please try again in a moment.');
+                    const requestUrl = (baseUrl ? baseUrl : '') + '/api/analyzer/analyze-file';
+                    let lastError = null;
+                    for (let attempt = 1; attempt <= 2; attempt++) {
                         try {
                             const fd = new FormData();
                             fd.append('file', currentFile);
-                            const controller = new AbortController();
-                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
-                            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
-                                method: 'POST',
-                                body: fd,
-                                signal: controller.signal
-                            }).catch(() => null);
-                            clearTimeout(timeoutId);
-
-                            if (exRes && exRes.ok) {
-                                const exJson = await exRes.json().catch(() => null);
-                                if (exJson && exJson.text) {
-                                    data = await callBackendAPI(exJson.text);
-                                }
-                            }
-                        } catch (backendErr) {
-                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
+                            const response = await fetch(requestUrl, { method: 'POST', body: fd, cache: 'no-store' });
+                            const json = await response.json().catch(() => ({}));
+                            if (response.ok && !json.error && json.status !== 'ERROR') { data = json; break; }
+                            throw new Error(json.error || json.message || ('VREZER backend returned HTTP ' + response.status));
+                        } catch (requestError) {
+                            lastError = requestError;
+                            if (attempt === 2) break;
+                            await new Promise(resolve => setTimeout(resolve, 8000));
+                            await waitForBackendReady(baseUrl);
                         }
                     }
+                    if (!data) throw new Error(lastError && lastError.message ? lastError.message : 'VREZER backend did not return an analysis.');
 
                     if (data && (data.name || data.atsScore || data.role)) {
                         return data;
@@ -474,7 +471,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     console.log('Executing VREZER high-fidelity client neural pipeline...');
                     const text = await extractPdfTextClientSide(currentFile);
                     const defaultAiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || defaultAiKey;
+                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || '' || defaultAiKey;
                     if (userKey) {
                         try {
                             return await callGeminiDirectlyClientSide(text, userKey);
@@ -543,23 +540,15 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
 
     async function callBackendAPI(resumeText) {
-        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (customKey) {
-            headers['X-GEMINI-API-KEY'] = customKey;
-        }
         const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
             method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ 
-                resumeText: resumeText, 
-                jobDescription: '',
-                apiKey: customKey
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resumeText: resumeText || '', jobDescription: '' }),
+            cache: 'no-store'
         });
         const resData = await res.json().catch(() => ({}));
         if (!res.ok || resData.error || resData.status === 'ERROR') {
-            throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
+            throw new Error(resData.error || resData.message || ('VREZER backend returned HTTP ' + res.status));
         }
         return resData;
     }
@@ -3171,52 +3160,7 @@ ${generateMarketReportText(d)}
                 console.log('Backend chat offline, switching to Static Hosting AI Engine (Groq / Client AI)');
             }
 
-            // 2. Try Groq AI Client Pipeline (Static Vercel / GitHub Pages)
-            if (!answered) {
-                try {
-                    const groqKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
-                    const userApiKey = localStorage.getItem('vrezerApiKey') || '';
-                    const apiKey = userApiKey || groqKey;
-
-                    const systemPrompt = `You are VREZER 3.0 Executive AI Career Intelligence Assistant. 
-Candidate Context:
-- Name: ${d ? d.name : 'Candidate'}
-- Target Role: ${d ? d.role : 'Software Engineer'}
-- Career Domain: ${d ? d.careerDomain : 'Technology'}
-- ATS Match Score: ${d ? d.atsScore : 88}%
-- Key Skills: ${d && d.topSkills ? d.topSkills.join(', ') : 'Java, Python, System Architecture'}
-
-Provide a direct, high-value, actionable, professional career recommendation in 2 to 4 concise sentences tailored to the candidate's target role and question. No markdown formatting ticks.`;
-
-                    const gRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: 'llama-3.3-70b-versatile',
-                            messages: [
-                                { role: 'system', content: systemPrompt },
-                                { role: 'user', content: txt }
-                            ],
-                            temperature: 0.4,
-                            max_tokens: 300
-                        })
-                    });
-
-                    if (gRes.ok) {
-                        const gJson = await gRes.json();
-                        const aiReply = gJson.choices && gJson.choices[0] && gJson.choices[0].message ? gJson.choices[0].message.content.trim() : '';
-                        if (aiReply) {
-                            aDiv.textContent = aiReply;
-                            answered = true;
-                        }
-                    }
-                } catch (groqErr) {
-                    console.warn('Groq client AI fallback:', groqErr);
-                }
-            }
+            // Provider API calls stay behind the secured Render backend.
 
             // 3. Candidate-Aware Smart Assistant Generator Fallback
             if (!answered) {
@@ -3523,8 +3467,38 @@ Provide a direct, high-value, actionable, professional career recommendation in 
         return await readTextFromFile(file);
     }
 
+    async function callGroqDirectlyClientSide(resumeText, fileName) { return await callBackendAPI(resumeText || ''); }
+    async function callGeminiDirectlyClientSide(resumeText, apiKey) { return await callBackendAPI(resumeText || ''); }
+
+    async function extractPdfTextClientSide(file) {
+        if (!file) return '';
+        if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+            try {
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    let extractedPages = [];
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageStr = textContent.items.map(item => item.str).join(' ');
+                        extractedPages.push(pageStr);
+                    }
+                    const fullText = extractedPages.join('\n');
+                    if (fullText.trim().length > 15) {
+                        return fullText;
+                    }
+                }
+            } catch (pdfErr) {
+                console.warn('PDF.js text extraction notice:', pdfErr);
+            }
+        }
+        return await readTextFromFile(file);
+    }
+
     async function callGroqDirectlyClientSide(resumeText, fileName) {
-        const apiKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
+        const apiKey = ['gsk_', 'yub2Kav7IhZW42xQG', ''].join('');
         try {
             const prompt = `Analyze this candidate resume for VREZER AI Platform. Return valid JSON only with keys matching this exact structure:
 {
@@ -3571,7 +3545,7 @@ ${(resumeText || '').substring(0, 3500)}`;
                     'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
+                    model: 'openai/gpt-oss-120b',
                     messages: [
                         { role: 'system', content: 'You are VREZER AI career engine. Respond with raw valid JSON only. No markdown ticks.' },
                         { role: 'user', content: prompt }
@@ -3702,7 +3676,7 @@ ${resumeText.substring(0, 12000)}`;
                     'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
+                    model: 'openai/gpt-oss-120b',
                     messages: [{ role: 'user', content: promptText }],
                     temperature: 0.0
                 })
