@@ -438,8 +438,12 @@ public class VrezerAiAgentService {
             result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
         }
 
-        // Enrich specialized sub-sections with Meta LLaMA 3.3 (Interview Prep, Resume AI, Career Roadmap, Recruiter Dossier)
-        enrichWithLlamaSpecializedSections(result, resumeText, String.valueOf(result.getOrDefault("role", "Specialist")), candidateSkills, experienceLevel);
+        // Specialized LLaMA enrichment is optional because it introduces a second generation pass.
+        // Production defaults to deterministic parsing + one primary AI pass for output stability.
+        if (specializedLlamaEnrichmentEnabled) {
+            enrichWithLlamaSpecializedSections(result, resumeText,
+                    String.valueOf(result.getOrDefault("role", "Specialist")), candidateSkills, experienceLevel);
+        }
 
         result.put("analysisId", analysisId);
         result.put("resumeHash", sha256Hash);
@@ -460,32 +464,29 @@ public class VrezerAiAgentService {
                 Map<String, Object> jobEntry = new LinkedHashMap<>();
                 jobEntry.put("name", j.getOrDefault("name", j.getOrDefault("company", "Employer")));
                 jobEntry.put("title", j.getOrDefault("title", "Position"));
-                jobEntry.put("location", j.getOrDefault("location", "India / Remote"));
-                jobEntry.put("salary", j.getOrDefault("salary", "Competitive Market Pay"));
-                jobEntry.put("url", j.getOrDefault("url", ""));
+                String jobLocation = j.get("location");
+                if (jobLocation != null && !jobLocation.isBlank()) {
+                    jobEntry.put("location", jobLocation);
+                } else {
+                    jobEntry.put("location", "Not available");
+                }
+
+                String jobSalary = j.get("salary");
+                jobEntry.put("salary", (jobSalary != null && !jobSalary.isBlank())
+                        ? jobSalary : "Salary data unavailable");
+
+                String jobUrl = j.get("url");
+                if (jobUrl != null && !jobUrl.isBlank()) {
+                    jobEntry.put("url", jobUrl);
+                }
                 jobEntry.put("source", j.getOrDefault("source", "Live Market API"));
                 jobEntry.put("matchPercentage", j.getOrDefault("matchScore", String.valueOf(atsScore)));
                 finalJobs.add(jobEntry);
             }
         }
-        if (finalJobs.isEmpty()) {
-            Object prevJobs = result.get("retrievedJobOpportunities");
-            if (prevJobs instanceof List && !((List<?>) prevJobs).isEmpty()) {
-                finalJobs = (List<Map<String, Object>>) prevJobs;
-            } else {
-                for (Map<String, Object> comp : recommendedComps) {
-                    Map<String, Object> jobEntry = new LinkedHashMap<>();
-                    jobEntry.put("name", comp.getOrDefault("name", "Employer"));
-                    jobEntry.put("title", comp.getOrDefault("title", "Role"));
-                    jobEntry.put("location", comp.getOrDefault("location", "Bengaluru / Remote"));
-                    jobEntry.put("salary", comp.getOrDefault("salary", "Competitive Market Pay"));
-                    jobEntry.put("url", comp.getOrDefault("url", "#"));
-                    jobEntry.put("source", "Verified Market Match");
-                    jobEntry.put("matchPercentage", comp.getOrDefault("matchScore", atsScore));
-                    finalJobs.add(jobEntry);
-                }
-            }
-        }
+        // Empty means empty: never convert a company recommendation into a fake job opening.
+        // Only actual live job records are exposed as retrievedJobOpportunities.
+
         result.put("retrievedJobOpportunities", finalJobs);
 
         // AI Career Prediction ("Who You Are")
@@ -495,9 +496,11 @@ public class VrezerAiAgentService {
         careerPrediction.put("strongestSkills", candidateSkills.subList(0, Math.min(5, candidateSkills.size())));
         careerPrediction.put("careerDomain", careerDomain);
         careerPrediction.put("suitableRoles", profile.getOrDefault("targetRoles", List.of(careerDomain + " Specialist")));
-        careerPrediction.put("careerPotential", "High growth potential in " + careerDomain + " domain");
+        Object aiPotential = result.get("careerPotential");
+        Object aiNextStep = result.get("recommendedNextStep");
+        careerPrediction.put("careerPotential", aiPotential != null ? String.valueOf(aiPotential) : "");
         careerPrediction.put("skillGaps", result.getOrDefault("skillGaps", List.of()));
-        careerPrediction.put("recommendedNextStep", "Target high-impact opportunities with well-matched employers while strengthening domain competencies.");
+        careerPrediction.put("recommendedNextStep", aiNextStep != null ? String.valueOf(aiNextStep) : "");
         result.put("careerPrediction", careerPrediction);
 
         long executionTimeMs = System.currentTimeMillis() - startTimeMs;
