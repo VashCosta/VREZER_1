@@ -1289,106 +1289,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     }
 
     // ── 7. LIVE JOBS ───────────────────────────────────
-    function renderLiveJobs(d) {
-        const rawRole = (d.role || d.targetJobRole || d.careerDomain || 'Specialist').trim();
-        const cleanRoleStr = rawRole.replace(/\s*Specialist$/i, '').trim();
-
-        // 1. Tier cards (Always render candidate-grounded 3-tier trajectory cards cleanly)
-        const t1Data = Array.isArray(d.tier1) ? d.tier1[0] : d.tier1;
-        const t2Data = Array.isArray(d.tier2) ? d.tier2[0] : d.tier2;
-        const t3Data = Array.isArray(d.tier3) ? d.tier3[0] : d.tier3;
-
-        fillTier('t1', t1Data || { role: 'Lead / Staff ' + cleanRoleStr, company: getTier1DefaultComp(d.careerDomain), city: 'Bengaluru / Remote', salary: '22 - 38 LPA' });
-        fillTier('t2', t2Data || { role: 'Senior ' + cleanRoleStr, company: getTier2DefaultComp(d.careerDomain), city: 'Bengaluru / Hybrid', salary: '12 - 20 LPA' });
-        fillTier('t3', t3Data || { role: cleanRoleStr + ' Specialist', company: getTier3DefaultComp(d.careerDomain), city: 'Hyderabad / Remote', salary: '6 - 10 LPA' });
-
-        const grid = $('job-cards-grid');
-        if (!grid) return;
-
-        // 2. Normalize and retrieve all live job cards
-        let rawJobs = [];
-        if (Array.isArray(d.retrievedJobOpportunities) && d.retrievedJobOpportunities.length > 0) {
-            rawJobs.push(...d.retrievedJobOpportunities);
-        }
-
-        const compList = Array.isArray(d.recommendedCompanies) && d.recommendedCompanies.length > 0
-            ? d.recommendedCompanies
-            : ['Razorpay', 'Zoho Corporation', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'];
-
-        const defaultLocations = ['Bengaluru, India', 'Chennai, India', 'Hyderabad, India', 'Pune, India', 'Remote (India / Global)', 'Mumbai, India'];
-        const defaultSalaries = ['₹18 - ₹28 LPA', '₹14 - ₹22 LPA', '₹20 - ₹32 LPA', '₹12 - ₹18 LPA', '$65,000 USD/yr', '$95,000 USD/yr'];
-
-        compList.forEach((c, idx) => {
-            const compName = typeof c === 'string' ? c : (c.company || c.name || 'Tech Leader');
-            const jobTitle = typeof c === 'object' && (c.title || c.role) ? (c.title || c.role) : (idx % 2 === 0 ? `Senior ${cleanRoleStr}` : `${cleanRoleStr} Lead`);
-            rawJobs.push({
-                company: compName,
-                title: jobTitle,
-                location: defaultLocations[idx % defaultLocations.length],
-                salary: defaultSalaries[idx % defaultSalaries.length],
-                matchPercentage: Math.max(78, (d.atsScore || 85) - idx * 2),
-                url: `https://www.google.com/search?q=${encodeURIComponent(compName + ' ' + jobTitle + ' careers')}`,
-                source: 'Live Market Intel'
-            });
-        });
-
-        const seenKeys = new Set();
-        const uniqueJobs = [];
-        for (const j of rawJobs) {
-            if (!j) continue;
-            const comp = (typeof j === 'string' ? j : (j.company || j.name || 'Company')).trim();
-            const title = (typeof j === 'string' ? cleanRoleStr : (j.title || j.role || cleanRoleStr)).trim();
-            const key = (comp + '_' + title).toLowerCase();
-
-            if (comp && title && !seenKeys.has(key)) {
-                seenKeys.add(key);
-                uniqueJobs.push({
-                    company: comp,
-                    title: title,
-                    location: j.location || j.city || 'Bengaluru / Remote',
-                    salary: j.salary || j.expectedSalary || d.expectedLpaRange || '15-25 LPA',
-                    matchPercentage: j.matchPercentage || j.matchScore || Math.min(96, Math.max(72, (d.atsScore || 85))),
-                    url: (j.url && j.url !== '#') ? j.url : `https://www.google.com/search?q=${encodeURIComponent(comp + ' ' + title + ' careers')}`,
-                    source: j.source || 'Live AI Engine',
-                    explanation: j.explanation || `Role matching ${cleanRoleStr} skill competencies and target compensation.`
-                });
-            }
-        }
-
-        grid.innerHTML = uniqueJobs.map(j => `
-            <div class="job-card" style="border:1px solid rgba(255,0,127,0.3); box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 15px rgba(255,0,127,0.15);">
-                <div class="job-card-header">
-                    <div class="job-company" style="color:#ffffff; font-weight:800;">${j.company}</div>
-                    <div style="display:flex; align-items:center; gap:0.4rem;">
-                        <span style="font-size:0.68rem; padding:0.25rem 0.6rem; border-radius:12px; background:rgba(255,0,127,0.15); color:#ff007f; border:1px solid rgba(255,0,127,0.4); font-weight:700;"><i class="fa-solid fa-bolt"></i> ${j.source}</span>
-                        <div class="job-match-badge" style="background:linear-gradient(135deg, #ff007f, #ff003c); color:white; font-weight:800; padding:0.25rem 0.6rem; border-radius:8px; box-shadow:0 0 10px rgba(255,0,127,0.5);">${j.matchPercentage}% MATCH</div>
-                    </div>
-                </div>
-                <div class="job-title" style="color:#f3c4db; font-weight:700;">${j.title}</div>
-                <div class="job-meta">
-                    <div class="job-meta-item"><i class="fa-solid fa-location-dot" style="color:#ff007f;"></i> ${j.location}</div>
-                </div>
-                <div class="job-desc" style="color:#d1a0bd;">${j.explanation}</div>
-                <div class="job-footer">
-                    <div class="job-salary" style="color:#4ade80; font-weight:800; font-family:var(--mono);">${j.salary}</div>
-                    <a href="${j.url}" target="_blank" rel="noopener noreferrer" class="job-apply-btn" style="background:linear-gradient(135deg, #ff007f 0%, #ff003c 100%); color:white; font-weight:800; border-radius:10px; box-shadow: 0 0 12px rgba(255,0,127,0.4);"><i class="fa-solid fa-paper-plane"></i> Apply Now</a>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    function fillTier(prefix, tierData) {
-        if (!tierData) return;
-        const role = tierData.role || tierData.title || tierData.targetRole || 'Target Role';
-        const comp = tierData.company || tierData.name || tierData.companyName || 'Target Company';
-        const loc = tierData.city || tierData.location || tierData.hiringHub || tierData.headquarters || 'Bengaluru / Remote';
-        const sal = tierData.salary || tierData.expectedLpaRange || tierData.salaryRange || 'Salary not disclosed';
-
-        setText(prefix + '-role', role);
-        setText(prefix + '-company', comp);
-        setText(prefix + '-loc', loc);
-        setText(prefix + '-sal', sal);
-    }
 
     // ── 8. MARKET INTELLIGENCE ENGINE — COMPANY EXPLORER ────────────
     function renderCompanyExplorer(d) {
@@ -1771,232 +1671,169 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     // ── 9. MARKET INTELLIGENCE ─────────────────────────
     function renderMarketIntelligence(d) {
         const ht = d.hiringTrends || {};
-        setText('market-demand', ht.domainDemand || 'VERY HIGH');
-        setText('market-growth', '+' + (ht.industryGrowthPercentage || 24) + '%');
-        setText('market-remote', (ht.remoteWorkAvailabilityPercentage || 42) + '%');
+        setText('market-demand', ht.domainDemand || 'Not available');
+        setText('market-growth', ht.industryGrowthPercentage != null ? '+' + ht.industryGrowthPercentage + '%' : 'Not available');
+        setText('market-remote', ht.remoteWorkAvailabilityPercentage != null ? ht.remoteWorkAvailabilityPercentage + '%' : 'Not available');
 
         const tt = $('trending-tech');
         if (tt) {
-            tt.innerHTML = (ht.emergingTechnologies || ['Cloud Microservices', 'Kubernetes', 'GenAI Integration', 'Distributed DBs']).map(t => `<span class="t-chip">${t}</span>`).join('');
+            const items = Array.isArray(ht.emergingTechnologies) ? ht.emergingTechnologies : [];
+            tt.innerHTML = items.length ? items.map(x => '<span class="t-chip">' + x + '</span>').join('') : '<span class="t-chip">No verified market trend data</span>';
         }
 
         const hds = $('high-demand-skills');
         if (hds) {
-            hds.innerHTML = (d.topSkills || ['Java', 'Python', 'AWS']).map(s => `<span class="t-chip">${s}</span>`).join('');
+            const items = Array.isArray(d.topSkills) ? d.topSkills : [];
+            hds.innerHTML = items.length ? items.map(x => '<span class="t-chip">' + x + '</span>').join('') : '<span class="t-chip">No verified skills</span>';
         }
 
-        setText('market-outlook', ht.futureOutlook || `${d.careerDomain || 'Tech'} professionals with strong engineering fundamentals are experiencing a 2.8x hiring surge across Tier-1 & Tier-2 engineering centers.`);
+        setText('market-outlook', ht.futureOutlook || 'No verified market outlook returned.');
     }
+
 
     // ── 10. CAREER RECOMMENDATIONS ─────────────────────
     function renderCareerRecommendations(d) {
-        // Best roles
         const rolesList = $('best-roles-list');
         if (rolesList) {
-            const roles = d.bestMatchingJobRoles || [
-                { title: d.role || 'Senior Software Engineer', matchPercentage: 94, explanation: 'Direct alignment with resume experience & technical stack.' }
-            ];
-            rolesList.innerHTML = roles.map(r => `
-                <div class="role-card">
-                    <div class="role-card-header">
-                        <div class="role-title">${r.title}</div>
-                        <div class="role-match">${r.matchPercentage || 90}%</div>
-                    </div>
-                    <div class="role-explanation">${r.explanation || 'High candidate fit.'}</div>
-                </div>
-            `).join('');
+            const roles = Array.isArray(d.bestMatchingJobRoles) ? d.bestMatchingJobRoles : [];
+            rolesList.innerHTML = roles.length ? roles.map(r =>
+                '<div class="role-card"><div class="role-card-header"><div class="role-title">' +
+                (r.title || 'Not available') + '</div><div class="role-match">' +
+                (r.matchPercentage != null ? r.matchPercentage + '%' : 'N/A') +
+                '</div></div><div class="role-explanation">' + (r.explanation || 'No explanation returned.') +
+                '</div></div>'
+            ).join('') : '<div class="mi-empty-state">No evidence-based role recommendations returned.</div>';
         }
 
-        // Alternative paths
         const altList = $('alt-paths-list');
         if (altList) {
-            altList.innerHTML = `
-                <div class="role-card">
-                    <div class="role-card-header">
-                        <div class="role-title">DevOps &amp; Cloud Platform Engineer</div>
-                        <div class="role-match" style="color:#38bdf8;">86%</div>
-                    </div>
-                    <div class="role-explanation">Leverage infrastructure &amp; deployment skills for cloud transformation roles.</div>
-                </div>
-            `;
+            const paths = Array.isArray(d.alternativeCareerPaths) ? d.alternativeCareerPaths : [];
+            altList.innerHTML = paths.length ? paths.map(p =>
+                '<div class="role-card"><div class="role-card-header"><div class="role-title">' +
+                (p.title || p.role || 'Not available') + '</div><div class="role-match">' +
+                (p.matchPercentage != null ? p.matchPercentage + '%' : 'N/A') +
+                '</div></div><div class="role-explanation">' + (p.explanation || '') +
+                '</div></div>'
+            ).join('') : '<div class="mi-empty-state">No alternative career paths returned.</div>';
         }
 
-        // Career Growth Timeline
         const tl = $('career-timeline');
         if (tl) {
-            const stages = d.careerGrowthTimeline || [
-                { stage: 'CURRENT', title: d.role || 'Senior SDE', expectedSalaryProgression: '₹22 - ₹30 LPA', roadmapNotes: 'Solidify core architecture & system design leadership.' },
-                { stage: '12-18 MONTHS', title: 'Staff Engineer / Tech Lead', expectedSalaryProgression: '₹35 - ₹48 LPA', roadmapNotes: 'Drive cross-service architecture & lead engineering teams.' },
-                { stage: '3-5 YEARS', title: 'Principal Architect', expectedSalaryProgression: '₹55 - ₹80 LPA', roadmapNotes: 'Set company-wide technology strategy and platform standards.' }
-            ];
-
-            tl.innerHTML = stages.map(s => `
-                <div class="timeline-item">
-                    <div class="tl-dot"><i class="fa-solid fa-rocket"></i></div>
-                    <div class="tl-content">
-                        <div class="tl-stage">${s.stage}</div>
-                        <div class="tl-title">${s.title}</div>
-                        <div class="tl-sal">${s.expectedSalaryProgression || ''}</div>
-                        <div class="tl-notes">${s.roadmapNotes || ''}</div>
-                    </div>
-                </div>
-            `).join('');
+            const stages = Array.isArray(d.careerGrowthTimeline) ? d.careerGrowthTimeline : [];
+            tl.innerHTML = stages.length ? stages.map(x =>
+                '<div class="timeline-item"><div class="tl-dot"><i class="fa-solid fa-rocket"></i></div><div class="tl-content">' +
+                '<div class="tl-stage">' + (x.stage || '') + '</div><div class="tl-title">' + (x.title || 'Not available') +
+                '</div><div class="tl-sal">' + (x.expectedSalaryProgression || 'Salary data unavailable') +
+                '</div><div class="tl-notes">' + (x.roadmapNotes || '') + '</div></div></div>'
+            ).join('') : '<div class="mi-empty-state">No career-growth timeline returned.</div>';
         }
 
-        // Learning Roadmap
         const rm = $('learning-roadmap');
         if (rm) {
-            const phases = (d.skillIntelligence && d.skillIntelligence.aiLearningRoadmap) || [
-                { stage: 'Phase 1', topic: 'Advanced Distributed System Design & Caching Patterns', learningTime: '4 Weeks', expectedCareerImpact: '+18% Interview Success Rate' },
-                { stage: 'Phase 2', topic: 'Kubernetes Cluster Management & Observability (Prometheus/Grafana)', learningTime: '3 Weeks', expectedCareerImpact: 'Unlocks DevOps/Lead Senior Roles' }
-            ];
-
-            rm.innerHTML = phases.map(p => `
-                <div class="roadmap-item">
-                    <span class="roadmap-phase-badge">${p.stage || 'Phase 1'}</span>
-                    <div>
-                        <div class="roadmap-topic">${p.topic}</div>
-                        <div class="roadmap-impact">${p.expectedCareerImpact || ''}</div>
-                    </div>
-                    <span class="roadmap-time">${p.learningTime || ''}</span>
-                </div>
-            `).join('');
+            const phases = d.skillIntelligence && Array.isArray(d.skillIntelligence.aiLearningRoadmap) ? d.skillIntelligence.aiLearningRoadmap : [];
+            rm.innerHTML = phases.length ? phases.map(p =>
+                '<div class="roadmap-item"><span class="roadmap-phase-badge">' + (p.stage || 'Phase') +
+                '</span><div><div class="roadmap-topic">' + (p.topic || 'Not available') +
+                '</div><div class="roadmap-impact">' + (p.expectedCareerImpact || '') +
+                '</div></div><span class="roadmap-time">' + (p.learningTime || '') +
+                '</span></div>'
+            ).join('') : '<div class="mi-empty-state">No learning roadmap returned.</div>';
         }
 
-        // Certifications
         const certs = $('cert-recommendations');
         if (certs) {
-            certs.innerHTML = ['AWS Certified Solutions Architect', 'CKA (Certified Kubernetes Administrator)', 'Spring Certified Professional'].map(c => `<span class="t-chip">${c}</span>`).join('');
+            const list = d.skillIntelligence && Array.isArray(d.skillIntelligence.aiLearningRoadmap)
+                ? d.skillIntelligence.aiLearningRoadmap.flatMap(p => Array.isArray(p.recommendedCertifications) ? p.recommendedCertifications : [])
+                : [];
+            certs.innerHTML = list.length ? list.map(x => '<span class="t-chip">' + x + '</span>').join('') : '<span class="t-chip">No certification recommendations returned</span>';
         }
 
-        // Weekly Plan
         const wp = $('weekly-plan');
-        if (wp) {
-            const days = [
-                { day: 'MON-TUE', task: 'System Design: Distributed Caching & Rate Limiting' },
-                { day: 'WED-THU', task: 'Hands-on: Kafka Event Streaming & Microservices' },
-                { day: 'FRI', task: 'LeetCode / Algorithmic Problem Solving' },
-                { day: 'SAT-SUN', task: 'Mock Technical Interview & STAR Story Prep' }
-            ];
-            wp.innerHTML = days.map(d => `
-                <div class="weekly-plan-day">
-                    <div class="wpd-day">${d.day}</div>
-                    <div class="wpd-task">${d.task}</div>
-                </div>
-            `).join('');
-        }
+        if (wp) wp.innerHTML = '<div class="mi-empty-state">No personalized weekly plan returned by the analysis engine.</div>';
     }
+
 
     // ── 11. INTERVIEW INTELLIGENCE ─────────────────────
     function renderInterviewIntelligence(d) {
         const prep = d.interviewPreparation || {};
+        const score = Number(d.recruiterInsights && d.recruiterInsights.communicationQuality);
+        setText('irb-score', Number.isFinite(score) ? score + '%' : 'N/A');
 
-        setText('irb-score', (d.atsScore || 85) >= 80 ? '88%' : '76%');
         const tipsEl = $('irb-tips');
         if (tipsEl) {
-            tipsEl.innerHTML = `
-                <span class="irb-tip-tag">✓ Strong System Architecture Basics</span>
-                <span class="irb-tip-tag">💡 Review STAR Behavioral Framework</span>
-            `;
+            const tips = Array.isArray(d.nextBestActions) ? d.nextBestActions.slice(0, 2) : [];
+            tipsEl.innerHTML = tips.length
+                ? tips.map(x => '<span class="irb-tip-tag">• ' + x + '</span>').join('')
+                : '<span class="irb-tip-tag">No personalized interview tips returned.</span>';
         }
 
-        const renderQGrid = (id, list, defaultList) => {
-            const el = $(id); if (!el) return;
-            const qList = (list && list.length) ? list : defaultList;
-            el.innerHTML = qList.map(q => `
-                <div class="interview-card">
-                    <div class="interview-type-badge">${q.contextFromResume || 'TECHNICAL QUESTION'}</div>
-                    <div class="interview-question"><i class="fa-solid fa-circle-question" style="color:var(--red); margin-right:0.4rem;"></i> ${q.question}</div>
-                    <div class="interview-answer">
-                        <strong>AI Model Answer:</strong> ${q.modelAnswer || q.starAnswer || 'Focus on describing Situation, Task, Action taken, and Quantified Results.'}
-                    </div>
-                </div>
-            `).join('');
+        const renderQGrid = (id, list) => {
+            const el = $(id);
+            if (!el) return;
+            const qs = Array.isArray(list) ? list : [];
+            el.innerHTML = qs.length ? qs.map(q =>
+                '<div class="interview-card"><div class="interview-type-badge">' +
+                (q.contextFromResume || 'INTERVIEW QUESTION') + '</div><div class="interview-question">' +
+                (q.question || 'Not available') + '</div><div class="interview-answer"><strong>AI Model Answer:</strong> ' +
+                (q.modelAnswer || q.starAnswer || 'No model answer returned.') + '</div></div>'
+            ).join('') : '<div class="mi-empty-state">No personalized interview questions returned.</div>';
         };
 
-        renderQGrid('technical-questions', prep.technicalQuestions, [
-            { question: 'How do you design a high-throughput microservices architecture with low latency caching?', modelAnswer: 'Implement Redis distributed caching with Cache-Aside strategy, split read/write workloads via PostgreSQL read-replicas, and use Kafka for asynchronous event delivery.' },
-            { question: 'How do you optimize slow database queries handling millions of records?', modelAnswer: 'Analyze EXPLAIN ANALYZE query plan, create composite B-Tree indexes on filtered columns, eliminate N+1 query patterns using JOIN FETCH, and partition table schemas.' }
-        ]);
-
-        renderQGrid('hr-questions', prep.behavioralQuestions || prep.hrQuestions, [
-            { question: 'Describe a situation where a production service failed and how you resolved it under pressure.', starAnswer: 'Situation: High latency spike on checkout API. Task: Identify bottleneck. Action: Traced memory leak in DB connection pool, scaled pod instances, applied pooling fix. Result: Recovered 99.99% uptime.' }
-        ]);
-
-        renderQGrid('project-questions', prep.projectDiscussionQuestions, [
-            { question: 'What was the most challenging technical decision in your primary project?', modelAnswer: 'Choosing between event-driven architecture with Kafka vs REST synchronous calls. We chose Kafka to decouple service dependencies and guarantee zero message loss.' }
-        ]);
+        renderQGrid('technical-questions', prep.technicalQuestions);
+        renderQGrid('hr-questions', prep.behavioralQuestions || prep.hrQuestions);
+        renderQGrid('project-questions', prep.projectDiscussionQuestions);
 
         const tipsContent = $('interview-tips-content');
         if (tipsContent) {
-            tipsContent.innerHTML = `
-                <ul class="hint-list">
-                    <li><div class="hint-num">1</div><span>Quantify your achievements when answering (e.g. "reduced latency by 40%").</span></li>
-                    <li><div class="hint-num">2</div><span>Structure answers using the STAR method (Situation, Task, Action, Result).</span></li>
-                    <li><div class="hint-num">3</div><span>Be ready to explain technical trade-offs made in your listed projects.</span></li>
-                </ul>
-            `;
+            const actions = Array.isArray(d.nextBestActions) ? d.nextBestActions.slice(0, 3) : [];
+            tipsContent.innerHTML = actions.length
+                ? '<ul class="hint-list">' + actions.map((x, i) => '<li><div class="hint-num">' + (i + 1) + '</div><span>' + x + '</span></li>').join('') + '</ul>'
+                : '<div class="mi-empty-state">No personalized interview actions returned.</div>';
         }
     }
+
 
     // ── 12. RESUME IMPROVEMENT ─────────────────────────
     function renderResumeImprovement(d) {
         const imp = d.resumeImprovement || {};
+        setText('recruiter-feedback', imp.recruiterStyleFeedback || 'No recruiter feedback returned.');
 
-        setText('recruiter-feedback', imp.recruiterStyleFeedback || `${d.name || 'Candidate'} demonstrates strong technical domain depth. To maximize interview call rates, quantify project outcomes and highlight system scalability numbers.`);
-
-        // Bullet rewrites
         const bw = $('bullet-rewrites');
         if (bw) {
-            const rewrites = imp.weakBulletPoints || [
-                { original: 'Worked on backend APIs using Java and Spring Boot.', aiRewritten: 'Architected 12+ RESTful microservices in Java 17 & Spring Boot 3, reducing API response latency by 42% for 500K+ daily active users.', reasoning: 'Adds quantified metrics & technology versions.' }
-            ];
-
-            bw.innerHTML = rewrites.map(b => `
-                <div class="bullet-rewrite-item">
-                    <div class="bullet-original">${b.original}</div>
-                    <div class="bullet-improved">${b.aiRewritten}</div>
-                    <div class="bullet-reason">Reasoning: ${b.reasoning || 'Quantifies impact and uses action verbs.'}</div>
-                </div>
-            `).join('');
+            const rewrites = Array.isArray(imp.weakBulletPoints) ? imp.weakBulletPoints : [];
+            bw.innerHTML = rewrites.length ? rewrites.map(x =>
+                '<div class="bullet-rewrite-item"><div class="bullet-original">' + (x.original || '') +
+                '</div><div class="bullet-improved">' + (x.aiRewritten || '') +
+                '</div><div class="bullet-reason">Reasoning: ' + (x.reasoning || '') + '</div></div>'
+            ).join('') : '<div class="mi-empty-state">No bullet rewrites returned.</div>';
         }
 
-        // Improvements list
         const impList = $('improvements-list');
         if (impList) {
-            const list = d.improvements || [
-                'Quantify project outcomes (e.g. "Reduced API latency by 42% via Redis caching")',
-                'Specify exact cloud infrastructure services (AWS ECS, RDS, S3)',
-                'Format technical skills into clear categories'
-            ];
-            impList.innerHTML = list.map((item, i) => `
-                <li>
-                    <div class="hint-num">${i + 1}</div>
-                    <span>${item}</span>
-                </li>
-            `).join('');
+            const list = Array.isArray(d.improvements) ? d.improvements : [];
+            impList.innerHTML = list.length
+                ? list.map((x, i) => '<li><div class="hint-num">' + (i + 1) + '</div><span>' + x + '</span></li>').join('')
+                : '<li><div class="hint-num">•</div><span>No personalized improvements returned.</span></li>';
         }
 
-        // Missing sections & achievements
         const ms = $('missing-sections');
         if (ms) {
-            ms.innerHTML = ['Certifications Section', 'Quantified Impact Metrics'].map(s => `<span class="t-chip">${s}</span>`).join('');
+            const missing = Array.isArray(imp.missingSections) ? imp.missingSections : [];
+            ms.innerHTML = missing.length ? missing.map(x => '<span class="t-chip">' + x + '</span>').join('') : '<span class="t-chip">No missing sections returned</span>';
         }
 
         const ma = $('missing-achievements');
         if (ma) {
-            ma.innerHTML = `
-                <div class="check-item check-warn"><i class="fa-solid fa-triangle-exclamation"></i> Add performance improvement percentages to project descriptions</div>
-                <div class="check-item check-warn"><i class="fa-solid fa-triangle-exclamation"></i> Include team size or leadership responsibilities if applicable</div>
-            `;
+            const suggestions = Array.isArray(imp.quantifiedAchievementSuggestions) ? imp.quantifiedAchievementSuggestions : [];
+            ma.innerHTML = suggestions.length
+                ? suggestions.map(x => '<div class="check-item check-warn"><i class="fa-solid fa-triangle-exclamation"></i>' + x + '</div>').join('')
+                : '<div class="mi-empty-state">No achievement suggestions returned.</div>';
         }
 
-        // Cover Letter
         const clBox = $('cover-letter-box');
-        if (clBox) {
-            clBox.textContent = d.coverLetter || `Dear Hiring Manager,\n\nI am writing to express my strong interest in the ${d.role || 'Software Engineering'} position at your organization. With my experience in ${(d.topSkills || ['software development']).slice(0, 3).join(', ')}, I have successfully delivered high-impact engineering solutions.\n\nIn my previous projects, I specialized in building scalable, resilient systems. My technical background aligns directly with your team's requirements.\n\nThank you for your time and consideration.\n\nSincerely,\n${d.name || 'Candidate'}`;
-        }
+        if (clBox) clBox.textContent = d.coverLetter || 'No AI cover letter returned.';
     }
+
 
     // ── 13. ANALYTICS DASHBOARD ────────────────────────
     function renderAnalytics(d) {
