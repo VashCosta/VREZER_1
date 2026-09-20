@@ -1812,289 +1812,65 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         URL.revokeObjectURL(url);
     }
 
-    // ── REPORT CONTENT GENERATORS ────────────────────
-    function getActiveData() {
-        return lastData || buildMockDossier('Candidate Dossier');
+    // ── REPORT CONTENT GENERATORS
+    function getActiveData() { return lastData || {}; }
+    function reportList(v) { return Array.isArray(v) ? v.filter(x => x != null && String(x).trim() !== '').map(String) : (v ? [String(v)] : []); }
+    function reportScore(d,k) { const n=Number(d&&d[k]); return Number.isFinite(n) ? n+'%' : 'N/A'; }
+    function reportTier(tier) { const t=Array.isArray(tier)?tier[0]:tier; return t && typeof t==='object' ? 'Role: '+(t.role||t.title||'Not available')+' | Company: '+(t.company||t.name||'Not available')+' | Location: '+(t.city||t.location||'Not available')+' | Salary: '+(t.salary||t.expectedLpaRange||'Salary data unavailable') : 'Role: Not available | Company: Not available | Location: Not available | Salary: Salary data unavailable'; }
+
+    function generateDossierTextReport(d=getActiveData()) {
+        const details=d.atsScoreDetails||{};
+        const gaps=reportList(d.skillGaps), improvements=reportList(d.improvements), skills=reportList(d.topSkills), soft=reportList(d.softSkills||d.transferableSkills);
+        return [
+            'VREZER — AI CAREER INTELLIGENCE DOSSIER','=========================================',
+            'Candidate Name: '+(d.name||'Not detected'),'Target Role: '+(d.role||'Not detected'),'ATS Compatibility: '+(d.atsScore!=null?d.atsScore+'/100':'N/A'),
+            'Career Domain: '+(d.careerDomain||'Not detected'),'Experience Level: '+(d.experience||d.careerLevel||'Not detected'),'Education: '+(d.education||'Not detected'),'',
+            'PROFESSIONAL SUMMARY','--------------------',d.professionalSummary||'No AI-generated summary returned.','',
+            'VERIFIED SKILLS','---------------','Technical: '+(skills.length?skills.join(', '):'No verified skills returned.'),'Soft/Transferable: '+(soft.length?soft.join(', '):'No verified soft skills returned.'),'',
+            'ATS BREAKDOWN','------------','Formatting: '+reportScore(details,'formattingScore'),'Section Completeness: '+reportScore(details,'sectionCompletenessScore'),'Keyword Optimization: '+reportScore(details,'keywordOptimizationScore'),'Achievement Metrics: '+reportScore(details,'achievementScore'),'',
+            'SKILL GAPS','----------',gaps.length?gaps.map(x=>'- '+x).join('\n'):'No evidence-derived skill gaps returned.','',
+            'IMPROVEMENTS','------------',improvements.length?improvements.map((x,i)=>(i+1)+'. '+x).join('\n'):'No personalized improvements returned.','',
+            'TARGET TIERS','------------','Tier 1: '+reportTier(d.tier1),'Tier 2: '+reportTier(d.tier2),'Tier 3: '+reportTier(d.tier3),'',
+            'Generated from the current VREZER analysis result. No fallback candidate data is inserted.'
+        ].join('\n');
     }
 
-    function generateDossierTextReport(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const role = d.role || 'Software Engineering Specialist';
-        const ats = (d.atsScore != null) ? d.atsScore : 88;
-        const domain = d.careerDomain || 'Technology';
-        const exp = d.experience || '4 Years';
-        const edu = d.education || 'Degree Qualified';
-        const dateStr = new Date().toISOString().split('T')[0];
-
-        return `================================================================================
- V R E Z E R   —   A I   C A R E E R   I N T E L L I G E N C E   D O S S I E R
-================================================================================
-Candidate Name      : ${name}
-Target Role         : ${role}
-ATS Compatibility   : ${ats}/100
-Career Domain       : ${domain}
-Experience Level    : ${exp}
-Education           : ${edu}
-Report Date         : ${dateStr}
-
---------------------------------------------------------------------------------
- 1. EXECUTIVE PROFESSIONAL SUMMARY
---------------------------------------------------------------------------------
-${d.professionalSummary || `${name} is a high-impact ${role} evaluated across ${domain} with demonstrated technical expertise.`}
-
---------------------------------------------------------------------------------
- 2. TOP VERIFIED TECHNICAL & SOFT SKILLS
---------------------------------------------------------------------------------
-Technical Stack     : ${(d.topSkills || ['Java', 'Spring Boot', 'SQL', 'AWS', 'Docker']).join(', ')}
-Soft Skills         : ${(d.softSkills || ['System Design', 'Team Leadership', 'Problem Solving']).join(', ')}
-
---------------------------------------------------------------------------------
- 3. ATS COMPLIANCE & MATCH BREAKDOWN
---------------------------------------------------------------------------------
-Overall ATS Score   : ${ats}%
-Formatting Score    : ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.formattingScore) || 95}%
-Section Completeness: ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.sectionCompletenessScore) || 90}%
-Keyword Optimization: ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.keywordOptimizationScore) || 92}%
-Achievement Metrics : ${(d.debugPanel && d.debugPanel.atsBreakdown && d.debugPanel.atsBreakdown.achievementScore) || 90}%
-
---------------------------------------------------------------------------------
- 4. IDENTIFIED SKILL GAPS & HIGH-VALUE RECOMMENDATIONS
---------------------------------------------------------------------------------
-Key Skill Gaps:
-${(d.skillGaps || ['Distributed Microservices', 'Kubernetes Orchestration']).map(s => ' - ' + s).join('\n')}
-
-Actionable Resume Enhancements:
-${(d.improvements || ['Add quantified metrics to project bullets', 'Standardize section typography']).map((imp, idx) => ` ${idx + 1}. ${imp}`).join('\n')}
-
---------------------------------------------------------------------------------
- 5. CAREER TRAJECTORY & TARGET ROLES
---------------------------------------------------------------------------------
-Tier 1 Target Role  : ${(d.tier1 && d.tier1.role) || 'Staff Software Architect'} @ ${(d.tier1 && d.tier1.company) || 'Google / Tier-1 Tech'} (${(d.tier1 && d.tier1.city) || 'Bengaluru'})
-Tier 2 Target Role  : ${(d.tier2 && d.tier2.role) || 'Senior SDE'} @ ${(d.tier2 && d.tier2.company) || 'Flipkart / Scaleup'} (${(d.tier2 && d.tier2.city) || 'Bengaluru'})
-Tier 3 Target Role  : ${(d.tier3 && d.tier3.role) || 'Lead Systems Engineer'} @ ${(d.tier3 && d.tier3.company) || 'Enterprise Hub'} (${(d.tier3 && d.tier3.city) || 'Hyderabad'})
-
-================================================================================
- Verified & Generated by VREZER Neural AI Engine
-================================================================================`;
+    function generateAtsReportText(d=getActiveData()) {
+        const details=d.atsScoreDetails||{}, gaps=reportList(d.skillGaps);
+        return ['VREZER ATS COMPLIANCE REPORT','==============================','Candidate: '+(d.name||'Not detected'),'Overall ATS Score: '+(d.atsScore!=null?d.atsScore+'/100':'N/A'),'',
+        'Formatting Readiness: '+reportScore(details,'formattingScore'),'Section Completeness: '+reportScore(details,'sectionCompletenessScore'),'Keyword Optimization: '+reportScore(details,'keywordOptimizationScore'),'Achievement Metrics: '+reportScore(details,'achievementScore'),'Technical Depth: '+reportScore(details,'technicalDepthScore'),'Recruiter Readiness: '+reportScore(details,'recruiterReadinessScore'),'',
+        'Evidence-Derived Keyword Gaps:',gaps.length?gaps.map(x=>'- '+x).join('\n'):'No verified keyword gaps returned.','','Engine Explanation:',details.explanation||'No ATS explanation returned.'].join('\n');
     }
 
-    function generateAtsReportText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const ats = d.atsScore || 88;
-        return `================================================================================
- V R E Z E R   A T S   C O M P L I A N C E   &   P A R S E R   R E P O R T
-================================================================================
-Candidate           : ${name}
-Overall ATS Score   : ${ats}/100
-Parser Status       : EXCELLENT (Taleo, Workday, Greenhouse & Lever Ready)
-
---------------------------------------------------------------------------------
- ATS COMPLIANCE BENCHMARKS
---------------------------------------------------------------------------------
-[✓] Document Formatting Readiness : 95%
-[✓] Section Structure Completeness: 90%
-[✓] Keyword Density Optimization  : 92%
-[✓] Quantified Action Verbs        : 90%
-
---------------------------------------------------------------------------------
- PARSER READINESS AUDIT
---------------------------------------------------------------------------------
-- Layout Complexity : Single / Clean Column (Optimal for Optical Character Recognition)
-- Font Standards    : Standard Sans-Serif Typography Detected
-- Section Headers   : Standardized (Summary, Experience, Education, Skills)
-- Date Formatting   : Month Year Standardized
-
---------------------------------------------------------------------------------
- CRITICAL KEYWORD GAP ANALYSIS
---------------------------------------------------------------------------------
-Missing Domain Keywords:
-${(d.skillGaps || ['Distributed Caching', 'Kubernetes Helm']).map(k => ' - ' + k).join('\n')}
-
-Recommended Action Items:
- 1. Integrate missing keywords naturally into experience bullet points.
- 2. Ensure all project experience entries include metrics and tools used.
- 3. Avoid tables, images, or floating text frames inside PDF layout.
-
-================================================================================
- Generated by VREZER ATS Audit Subsystem
-================================================================================`;
+    function generateSkillGapReportText(d=getActiveData()) {
+        const road=d.skillIntelligence&&Array.isArray(d.skillIntelligence.aiLearningRoadmap)?d.skillIntelligence.aiLearningRoadmap:[], certs=road.flatMap(p=>reportList(p.recommendedCertifications)), gaps=reportList(d.skillGaps);
+        return ['VREZER SKILL GAP & UPSKILLING REPORT','====================================','Candidate: '+(d.name||'Not detected'),'Domain: '+(d.careerDomain||'Not detected'),'Role: '+(d.role||'Not detected'),'',
+        'IDENTIFIED SKILL GAPS','---------------------',gaps.length?gaps.map((x,i)=>(i+1)+'. '+x).join('\n'):'No evidence-derived skill gaps returned.','','PERSONALIZED LEARNING ROADMAP','-----------------------------',
+        road.length?road.map((p,i)=>(i+1)+'. '+(p.stage||'Phase')+' | '+(p.topic||'Not available')+' | '+(p.learningTime||'')+' | '+(p.expectedCareerImpact||'')).join('\n'):'No personalized learning roadmap returned.','',
+        'RECOMMENDED CERTIFICATIONS','--------------------------',certs.length?certs.join('\n'):'No certification recommendations returned.','','SALARY DATA','-----------',d.expectedLpaRange||'Salary data unavailable'].join('\n');
     }
 
-    function generateSkillGapReportText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const domain = d.careerDomain || 'Technology';
-        const role = d.role || 'Software Specialist';
-        return `================================================================================
- V R E Z E R   S K I L L   G A P   &   U P S K I L L I N G   R O A D M A P
-================================================================================
-Candidate           : ${name}
-Target Domain       : ${domain}
-Target Role         : ${role}
-
---------------------------------------------------------------------------------
- 1. IDENTIFIED SKILL GAPS
---------------------------------------------------------------------------------
-High Priority Gaps:
-${(d.skillGaps || ['Cloud Native Microservices', 'Container Orchestration']).map((gap, i) => ` ${i + 1}. ${gap} — Industry demand up 30%+ in 2026.`).join('\n')}
-
---------------------------------------------------------------------------------
- 2. 30-60-90 DAY UPSKILLING MILESTONES
---------------------------------------------------------------------------------
-Days 1-30  : Master core principles of missing skill #1 & build standalone proof-of-concept project.
-Days 31-60 : Implement containerized deployment pipelines & integrate cloud monitoring.
-Days 61-90 : Add verified production metrics & certification credentials to candidate resume.
-
---------------------------------------------------------------------------------
- 3. RECOMMENDED CERTIFICATIONS & COURSES
---------------------------------------------------------------------------------
- [1] AWS Certified Solutions Architect / Cloud Developer
- [2] Certified Kubernetes Application Developer (CKAD)
- [3] Advanced Distributed Systems & Microservices Architecture
-
---------------------------------------------------------------------------------
- ESTIMATED SALARY UPLIFT
---------------------------------------------------------------------------------
-Acquiring high-priority missing skills can increase market compensation by 15% - 25%.
-
-================================================================================
- Generated by VREZER Skill Intelligence Engine
-================================================================================`;
+    function generateInterviewPrepReportText(d=getActiveData()) {
+        const p=d.interviewPreparation||{}, all=[].concat(Array.isArray(p.technicalQuestions)?p.technicalQuestions:[],Array.isArray(p.behavioralQuestions||p.hrQuestions)?(p.behavioralQuestions||p.hrQuestions):[],Array.isArray(p.projectDiscussionQuestions)?p.projectDiscussionQuestions:[]);
+        return ['VREZER INTERVIEW PREPARATION KIT','=================================','Candidate: '+(d.name||'Not detected'),'Role: '+(d.role||'Not detected'),'',
+        'PERSONALIZED QUESTIONS & ANSWERS','--------------------------------',all.length?all.map((q,i)=>'Q'+(i+1)+': '+(q.question||'Not available')+'\nA'+(i+1)+': '+(q.modelAnswer||q.starAnswer||'No model answer returned.')).join('\n\n'):'No personalized interview questions returned.','','PERSONALIZED ACTIONS','--------------------',
+        reportList(d.nextBestActions).length?reportList(d.nextBestActions).map((x,i)=>(i+1)+'. '+x).join('\n'):'No personalized interview actions returned.'].join('\n');
     }
 
-    function generateInterviewPrepReportText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const role = d.role || 'Senior SDE';
-        const skills = (d.topSkills || ['Java', 'Spring Boot', 'PostgreSQL', 'AWS']).join(', ');
-        return `================================================================================
- V R E Z E R   I N T E R V I E W   P R E P A R A T I O N   K I T
-================================================================================
-Candidate           : ${name}
-Target Role         : ${role}
-Key Technical Stack : ${skills}
+    function generateCoverLetterText(d=getActiveData()) { return d.coverLetter&&String(d.coverLetter).trim()?String(d.coverLetter):'No AI cover letter was returned for this analysis.'; }
 
---------------------------------------------------------------------------------
- 1. PREDICTED TECHNICAL INTERVIEW QUESTIONS & MODEL ANSWERS
---------------------------------------------------------------------------------
-Q1: How do you handle cache invalidation and concurrency in high-throughput backend services?
-A1: Implement cache-aside pattern with TTLs, combined with distributed locks (Redis Redlock) or Lua scripts for atomic state updates.
-
-Q2: Describe how your primary tech stack handles event-driven architecture and message ordering.
-A2: Messages with identical partition keys are routed to the same partition, guaranteeing sequential processing within a consumer group.
-
-Q3: How do you design microservices for fault tolerance and zero-downtime deployments?
-A3: Use blue-green/canary deployments, circuit breakers (Resilience4j), and DB migration versioning (Flyway/Liquibase).
-
---------------------------------------------------------------------------------
- 2. BEHAVIORAL STAR SCENARIO PREPARATION
---------------------------------------------------------------------------------
-Situation : High API response latency during peak traffic events.
-Task      : Reduce p99 API response latency below 100ms for core services.
-Action    : Profiled JVM memory, refactored N+1 database queries, and implemented Redis caching.
-Result    : Reduced p99 latency by 42% and supported 3x higher peak transaction volume.
-
---------------------------------------------------------------------------------
- 3. ELEVATOR PITCH & RECRUITER STRATEGY
---------------------------------------------------------------------------------
-"I am a ${role} with proven experience building resilient microservices using ${skills}. In my previous work, I spearheaded system performance refactoring that reduced latency by over 40%. I'm eager to drive architectural impact in your engineering team."
-
-================================================================================
- Generated by VREZER AI Interview Studio
-================================================================================`;
+    function generateRecruiterBriefText(d=getActiveData()) {
+        const jobs=Array.isArray(d.retrievedJobOpportunities)?d.retrievedJobOpportunities:[];
+        return ['VREZER RECRUITER EXECUTIVE BRIEF','===============================','Candidate: '+(d.name||'Not detected'),'Role: '+(d.role||'Not detected'),'Experience: '+(d.experience||d.careerLevel||'Not detected'),'ATS Score: '+(d.atsScore!=null?d.atsScore+'/100':'N/A'),'Skills: '+(reportList(d.topSkills).join(', ')||'No verified skills returned.'),'',
+        'VERIFIED LIVE JOB MATCHES','------------------------',jobs.length?jobs.slice(0,5).map((j,i)=>(i+1)+'. '+(j.title||j.role||'Not available')+' @ '+(j.company||j.name||'Not available')+' | '+(j.location||'Not available')+' | '+(j.salary||'Salary data unavailable')+' | '+(j.url||'No application URL returned.')).join('\n'):'No verified live job matches returned.','',
+        'TARGET TIERS','------------','Tier 1: '+reportTier(d.tier1),'Tier 2: '+reportTier(d.tier2)].join('\n');
     }
 
-    function generateCoverLetterText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const role = d.role || 'Software Engineering Specialist';
-        const domain = d.careerDomain || 'Technology';
-        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS', 'Docker']).join(', ');
-        const dateStr = new Date().toISOString().split('T')[0];
-
-        return `Date: ${dateStr}
-
-To Hiring Manager & Recruitment Team,
-
-RE: Application for ${role} Position
-
-Dear Hiring Team,
-
-I am writing to express my strong interest in the ${role} position. With experience in ${domain}, building resilient applications with ${skills}, I am confident in my ability to deliver immediate value to your engineering team.
-
-In my recent work, I spearheaded system refactoring that improved reliability and reduced latency for high-volume services. My core expertise encompasses designing scalable architecture, optimizing database performance, and automating deployment pipelines.
-
-I am particularly drawn to your organization's innovative engineering culture and vision. I welcome the opportunity to discuss how my technical background and problem-solving expertise align with your upcoming initiatives.
-
-Thank you for your time and consideration.
-
-Sincerely,
-
-${name}
-Candidate Dossier via VREZER AI Career Intelligence`;
-    }
-
-    function generateRecruiterBriefText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const role = d.role || 'Software Specialist';
-        const exp = d.experience || '4 Years';
-        const ats = d.atsScore || 88;
-        const domain = d.careerDomain || 'Technology';
-        const skills = (d.topSkills || ['Java', 'Spring Boot', 'AWS']).join(', ');
-
-        return `================================================================================
- V R E Z E R   R E C R U I T E R   E X E C U T I V E   B R I E F
-================================================================================
-Candidate Name      : ${name}
-Current Target Role : ${role}
-Experience          : ${exp}
-ATS Score           : ${ats}% Match
-Domain              : ${domain}
-
---------------------------------------------------------------------------------
- CANDIDATE HIGHLIGHTS & FIT ASSESSMENT
---------------------------------------------------------------------------------
-• Key Technical Stack: ${skills}
-• Technical Rating   : Senior / High Match (${ats}%)
-• Communication      : Strong technical leadership & cross-functional collaboration
-• Availability       : Available immediately / Standard notice period
-
---------------------------------------------------------------------------------
- TOP TARGET ROLES & COMPANIES
---------------------------------------------------------------------------------
-1. ${(d.tier1 && d.tier1.role) || 'Senior Engineer'} @ ${(d.tier1 && d.tier1.company) || 'Tier 1 Tech'}
-2. ${(d.tier2 && d.tier2.role) || 'Lead Developer'} @ ${(d.tier2 && d.tier2.company) || 'High Growth Product Company'}
-
-================================================================================
- Confidential Recruiter Summary — Generated by VREZER Platform
-================================================================================`;
-    }
-
-    function generateMarketReportText(d = getActiveData()) {
-        const name = d.name || 'Candidate Dossier';
-        const domain = d.careerDomain || 'Technology';
-        const exp = d.experience || '4 Years';
-        return `================================================================================
- V R E Z E R   2 0 2 6   M A R K E T   &   S A L A R Y   I N T E L L I G E N C E
-================================================================================
-Candidate           : ${name}
-Career Domain       : ${domain}
-Experience Level    : ${exp}
-
---------------------------------------------------------------------------------
- 1. 2026 SALARY BENCHMARKS
---------------------------------------------------------------------------------
-Median Compensation Range: ₹24 - ₹45 LPA (Tier-1 Tech Hubs)
-Remote Global Role Range : $75,000 - $120,000 USD
-Top Percentile Potential : ₹50+ LPA for Lead Architect Roles
-
---------------------------------------------------------------------------------
- 2. TOP HIRING HUBS & DEMAND INDICATORS
---------------------------------------------------------------------------------
-Hub 1: Bengaluru, India   — High Demand (78% Hybrid/Remote postings)
-Hub 2: Hyderabad, India   — High Demand (65% Hybrid/Remote postings)
-Hub 3: Remote Global Hubs — Very High Demand for Cloud & Microservices Specialists
-
-================================================================================
- Generated by VREZER Global Market Intelligence Unit
-================================================================================`;
+    function generateMarketReportText(d=getActiveData()) {
+        const h=d.hiringTrends||{}, jobs=Array.isArray(d.retrievedJobOpportunities)?d.retrievedJobOpportunities:[];
+        return ['VREZER MARKET & SALARY INTELLIGENCE','=======================================','Candidate: '+(d.name||'Not detected'),'Career Domain: '+(d.careerDomain||'Not detected'),'Experience: '+(d.experience||d.careerLevel||'Not detected'),'',
+        'MARKET DATA RETURNED BY THE ENGINE','----------------------------------','Domain Demand: '+(h.domainDemand||'Not available'),'Industry Growth: '+(h.industryGrowthPercentage!=null?h.industryGrowthPercentage+'%':'Not available'),'Remote Share: '+(h.remoteWorkAvailabilityPercentage!=null?h.remoteWorkAvailabilityPercentage+'%':'Not available'),'Salary Range: '+(d.expectedLpaRange||'Salary data unavailable'),'USD Salary: '+(d.salaryUsd||'Salary data unavailable'),'',
+        'Emerging Technologies: '+(reportList(h.emergingTechnologies).join(', ')||'No verified market trend data returned.'),'','VERIFIED LIVE JOBS','-----------------',jobs.length?jobs.slice(0,8).map((j,i)=>(i+1)+'. '+(j.title||j.role||'Not available')+' @ '+(j.company||j.name||'Not available')+' | '+(j.location||'Not available')+' | '+(j.salary||'Salary data unavailable')).join('\n'):'No verified live jobs returned.','','MARKET OUTLOOK','--------------',h.futureOutlook||'No verified market outlook returned.'].join('\n');
     }
 
     // ── ZIP BUNDLE EXPORTER ──────────────────────────
