@@ -2034,6 +2034,13 @@ ${generateMarketReportText(d)}
         return wrapInPdfTemplate(title, icon, color, body, getActiveData());
     }
 
+    function reportPdfEscape(v) { return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }
+    function reportPdfFromText(title,icon,color,text) {
+        const body='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;">'+
+            '<h3 style="margin:0 0 14px;font-size:14px;color:#0f172a;">'+reportPdfEscape(title)+'</h3>'+
+            '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#334155;">'+reportPdfEscape(text)+'</pre></div>';
+        return wrapInPdfTemplate(title,icon,color,body,getActiveData());
+    }
     function generateDossierPdfHtml(d=getActiveData()) { return reportPdfFromText('AI Career Intelligence Dossier','fa-file-pdf','#ff003c',generateDossierTextReport(d)); }
     function generateAtsPdfHtml(d=getActiveData()) { return reportPdfFromText('ATS Compliance & Parser Audit','fa-shield-halved','#4ade80',generateAtsReportText(d)); }
     function generateSkillGapPdfHtml(d=getActiveData()) { return reportPdfFromText('Skill Gap & Learning Plan','fa-crosshairs','#38bdf8',generateSkillGapReportText(d)); }
