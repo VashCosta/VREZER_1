@@ -55,14 +55,14 @@ public class ResumeIntelligenceEngine {
 
         String text = resumeText == null ? "" : resumeText;
         String lower = text.toLowerCase();
-        String candidateName = String.valueOf(baseParsed.getOrDefault("name", "Candidate"));
+        String candidateName = String.valueOf(baseParsed.getOrDefault("name", ""));
 
         // 1. Education
         List<Map<String, String>> eduList = (List<Map<String, String>>) baseParsed.getOrDefault("education", List.of());
         String degree = "";
         String specialization = "";
         String university = "";
-        String eduSummary = "Degree Holder";
+        String eduSummary = "Not detected";
 
         if (!eduList.isEmpty()) {
             String rawEdu = eduList.get(0).getOrDefault("degree", "");
@@ -144,82 +144,9 @@ public class ResumeIntelligenceEngine {
         String preferredWorkMode = lower.contains("remote") || lower.contains("work from home") ? "Remote" :
                                    lower.contains("hybrid") ? "Hybrid" : "Onsite";
 
-        // 10. LPA Target Salary Calculation in INR & USD (Domain & Experience Calibrated)
-        String lpaRange;
-        String usdRange;
-        String pDomLower = ((primaryDomain != null ? primaryDomain : "") + " " + (secondaryDomain != null ? secondaryDomain : "") + " " + (careerDomainCombined != null ? careerDomainCombined : "") + " " + techSkills.toString()).toLowerCase();
-        boolean isHighTech = pDomLower.contains("backend") || pDomLower.contains("frontend") || pDomLower.contains("full-stack") || pDomLower.contains("cloud") || pDomLower.contains("devops") || pDomLower.contains("ai") || pDomLower.contains("machine learning") || pDomLower.contains("software") || pDomLower.contains("java") || pDomLower.contains("python");
-        boolean isMarketing = pDomLower.contains("marketing") || pDomLower.contains("seo") || pDomLower.contains("sem") || pDomLower.contains("growth") || pDomLower.contains("google ads");
-        boolean isCoreEng = pDomLower.contains("mechanical") || pDomLower.contains("civil") || pDomLower.contains("electrical") || pDomLower.contains("cad");
-
-        if (yearsOfExp < 1.0) {
-            if (isHighTech) {
-                lpaRange = "6 - 12 LPA";
-                usdRange = "$ 8K - 15K USD";
-            } else if (isMarketing) {
-                lpaRange = "4 - 8 LPA";
-                usdRange = "$ 5K - 10K USD";
-            } else if (isCoreEng) {
-                lpaRange = "4 - 7 LPA";
-                usdRange = "$ 5K - 9K USD";
-            } else {
-                lpaRange = "5 - 9 LPA";
-                usdRange = "$ 6K - 11K USD";
-            }
-        } else if (yearsOfExp < 3.0) {
-            if (isHighTech) {
-                lpaRange = "10 - 18 LPA";
-                usdRange = "$ 13K - 23K USD";
-            } else if (isMarketing) {
-                lpaRange = "6 - 12 LPA";
-                usdRange = "$ 8K - 15K USD";
-            } else if (isCoreEng) {
-                lpaRange = "6 - 11 LPA";
-                usdRange = "$ 7K - 14K USD";
-            } else {
-                lpaRange = "8 - 14 LPA";
-                usdRange = "$ 10K - 18K USD";
-            }
-        } else if (yearsOfExp < 6.0) {
-            if (isHighTech) {
-                lpaRange = "18 - 30 LPA";
-                usdRange = "$ 23K - 38K USD";
-            } else if (isMarketing) {
-                lpaRange = "10 - 18 LPA";
-                usdRange = "$ 13K - 23K USD";
-            } else if (isCoreEng) {
-                lpaRange = "9 - 16 LPA";
-                usdRange = "$ 11K - 20K USD";
-            } else {
-                lpaRange = "14 - 24 LPA";
-                usdRange = "$ 18K - 30K USD";
-            }
-        } else if (yearsOfExp < 10.0) {
-            if (isHighTech) {
-                lpaRange = "30 - 55 LPA";
-                usdRange = "$ 38K - 70K USD";
-            } else if (isMarketing) {
-                lpaRange = "18 - 32 LPA";
-                usdRange = "$ 23K - 40K USD";
-            } else if (isCoreEng) {
-                lpaRange = "15 - 28 LPA";
-                usdRange = "$ 19K - 35K USD";
-            } else {
-                lpaRange = "24 - 42 LPA";
-                usdRange = "$ 30K - 52K USD";
-            }
-        } else {
-            if (isHighTech) {
-                lpaRange = "55 - 90 LPA";
-                usdRange = "$ 70K - 115K USD";
-            } else if (isMarketing) {
-                lpaRange = "32 - 60 LPA";
-                usdRange = "$ 40K - 75K USD";
-            } else {
-                lpaRange = "28 - 50 LPA";
-                usdRange = "$ 35K - 63K USD";
-            }
-        }
+        // Salary is never invented. Only verified live-job salary data may be displayed.
+        String lpaRange = "Salary data unavailable";
+        String usdRange = "Salary data unavailable";
 
         profile.put("name", String.valueOf(baseParsed.getOrDefault("name", "")));
         profile.put("email", String.valueOf(baseParsed.getOrDefault("email", "")));
@@ -265,7 +192,7 @@ public class ResumeIntelligenceEngine {
                 + ". Demonstrated practical execution across " + careerDomainCombined + " projects and applied system development.";
         }
         profile.put("professionalSummary", professionalSummary);
-        profile.put("transferableSkills", (softSkills != null && !softSkills.isEmpty()) ? softSkills : List.of("Problem Solving", "Analytical Thinking", "Teamwork", "Quick Learner", "Creative Content"));
+        profile.put("transferableSkills", (softSkills != null) ? softSkills : List.of());
         
         profile.put("preferredWorkMode", preferredWorkMode);
         profile.put("expectedSalary", lpaRange);
@@ -633,7 +560,7 @@ public class ResumeIntelligenceEngine {
         for (String c : cities) {
             if (text.toLowerCase().contains(c.toLowerCase())) return c;
         }
-        return "Remote / India";
+        return "Not detected";
     }
 
 

@@ -1065,10 +1065,8 @@ public class VrezerAiAgentService {
         }
         result.put("name", name);
 
-        // Candidate Email
-        String email = String.valueOf(
-            result.getOrDefault("email", parsed.getOrDefault("email", ""))
-        ).trim();
+        // Candidate Email — always canonicalized from the deterministic parser.
+        String email = String.valueOf(parsed.getOrDefault("email", "")).trim();
         result.put("email", email);
 
         // Canonical resume-grounded fields.
@@ -1119,61 +1117,20 @@ public class VrezerAiAgentService {
         result.put("experience", String.valueOf(canonicalProfile.getOrDefault("experience", "Fresher / Entry Level")));
         result.put("education", String.valueOf(canonicalProfile.getOrDefault("education", "Not detected")));
 
-        // ATS Score — Use AtsAnalysisEngine for real computation; never default to 75
-        int atsScore = 0;
-        Object atsObj = result.get("atsScore");
-        if (atsObj instanceof Number) {
-            atsScore = ((Number) atsObj).intValue();
-        } else if (atsObj != null && !String.valueOf(atsObj).isEmpty()) {
-            try { atsScore = Integer.parseInt(String.valueOf(atsObj).replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
-        }
-        // If AI didn't return a valid ATS score, compute it from the actual resume using the 11-dimension engine
-        if (atsScore <= 0 || atsScore > 100) {
-            Map<String, Object> engineAts = atsAnalysisEngine.calculateAtsAnalysis(resumeText, null, parsed);
-            atsScore = ((Number) engineAts.getOrDefault("atsScore", 50)).intValue();
-            // Attach engine breakdown if Gemini didn't provide one
-            if (!result.containsKey("atsScoreDetails") || result.get("atsScoreDetails") == null) {
-                result.put("atsScoreDetails", engineAts);
-            }
-        }
+        // Numeric dashboard scores are deterministic and always derived from the same parsed resume evidence.
+        Map<String, Object> engineAts = atsAnalysisEngine.calculateAtsAnalysis(resumeText, null, parsed);
+        int atsScore = ((Number) engineAts.getOrDefault("atsScore", 50)).intValue();
         result.put("atsScore", Math.max(10, Math.min(99, atsScore)));
+        result.put("atsScoreText", atsScore >= 85 ? "EXCELLENT" : atsScore >= 70 ? "GOOD" : atsScore >= 55 ? "AVERAGE" : "NEEDS IMPROVEMENT");
+        result.put("atsScoreDetails", engineAts);
 
-        String atsText = String.valueOf(result.getOrDefault("atsScoreText", ""));
-        if (atsText.isEmpty() || atsText.equalsIgnoreCase("null")) {
-            atsText = atsScore >= 85 ? "EXCELLENT" : atsScore >= 70 ? "GOOD" : atsScore >= 55 ? "AVERAGE" : "NEEDS IMPROVEMENT";
-        }
-        result.put("atsScoreText", atsText);
-
-        // Confidence score & Explanation normalization — dynamically evaluated from AI + resume evidence
-        int confidenceScore = -1;
-        Object confObj = result.get("confidenceScore");
-        if (confObj instanceof Number) {
-            confidenceScore = ((Number) confObj).intValue();
-        } else if (confObj != null && !String.valueOf(confObj).isEmpty()) {
-            try {
-                double val = Double.parseDouble(String.valueOf(confObj).replaceAll("[^0-9.]", ""));
-                confidenceScore = val <= 1.0 && val > 0 ? (int) Math.round(val * 100) : (int) Math.round(val);
-            } catch (Exception ignored) {}
-        }
-        
-        // If AI returned static 90 or invalid/missing score, compute dynamic evidence score
-        if (confidenceScore <= 0 || confidenceScore > 100) {
-            confidenceScore = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
-        } else {
-            // Apply evidence bounds to ensure AI output is grounded in actual resume detail
-            int calcConf = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
-            // Blend LLM rating with dynamic evidence calculation (weight 60% dynamic evidence + 40% LLM rating)
-            confidenceScore = (int) Math.round((calcConf * 0.6) + (confidenceScore * 0.4));
-        }
+        int confidenceScore = calculateDynamicConfidence(parsed, Map.of(), skills, atsScore, true);
         confidenceScore = Math.max(35, Math.min(97, confidenceScore));
         result.put("confidenceScore", confidenceScore);
+        result.put("confidenceExplanation", generateConfidenceExplanation(confidenceScore, parsed, skills, true));
 
-        String confExplanation = String.valueOf(result.getOrDefault("confidenceExplanation", "")).trim();
-        if (confExplanation.isEmpty() || confExplanation.equalsIgnoreCase("null")) {
-            confExplanation = generateConfidenceExplanation(confidenceScore, parsed, skills, true);
-        }
-        result.put("confidenceExplanation", confExplanation);
-
+        int profileStrength = calculateDeterministicProfileStrength(parsed, atsScore, skills);
+        result.put("profileStrength", profileStrength);
         // Ensure topSkills, programmingLanguages, toolsAndTechnologies are present
         if (!result.containsKey("topSkills") || result.get("topSkills") == null) {
             result.put("topSkills", parsed.getOrDefault("allDetectedSkills", List.of("Software Engineering")));
@@ -1195,6 +1152,11 @@ public class VrezerAiAgentService {
 
         // Clean status and remove error
         result.put("status", "SUCCESS");
+        result.put("outputStability", Map.of(
+                "strategy", "deterministic parser + evidence-derived scoring + exact source hashing",
+                "resumeHash", computeSha256(resumeText),
+                "llmUsedFor", "narrative enrichment only"
+        ));
         result.remove("error");
 
         // Populate recommended companies strictly from live retrieved market data
