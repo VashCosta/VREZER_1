@@ -230,12 +230,12 @@ public class PdfExtractorService {
             return "";
         }
 
-        // Keep scanned-PDF transcription independent from a stale deployment environment value.
-        // Flash-Lite is tried first because a 503 on the heavier Flash model must not block resume processing.
+        // Use current stable Gemini models for scanned-PDF transcription.
+        // Flash-Lite is tried first because it is optimized for high-throughput document parsing.
         LinkedHashSet<String> models = new LinkedHashSet<>();
-        models.add("gemini-2.5-flash-lite");
+        models.add("gemini-3.5-flash-lite");
+        models.add("gemini-3.6-flash");
         models.add("gemini-2.5-flash");
-        models.add("gemini-2.5-pro");
 
         if (geminiFallbackModels != null) {
             for (String value : geminiFallbackModels.split(",")) {
