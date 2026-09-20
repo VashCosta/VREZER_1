@@ -1,6 +1,8 @@
 package com.resume.analyzer.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.resume.analyzer.model.AnalysisCache;
+import com.resume.analyzer.repository.AnalysisCacheRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -58,6 +60,9 @@ public class VrezerAiAgentService {
 
     @Autowired
     private ResumeIntelligenceEngine resumeIntelligenceEngine;
+
+    @Autowired
+    private AnalysisCacheRepository analysisCacheRepository;
 
     @Value("${APP_SPECIALIZED_LLAMA_ENRICHMENT_ENABLED:false}")
     private boolean specializedLlamaEnrichmentEnabled;
@@ -339,15 +344,29 @@ public class VrezerAiAgentService {
         }
 
         String sha256Hash = computeSha256(resumeText.trim());
-        String analysisId = "an_" + UUID.randomUUID().toString().substring(0, 8);
+        // The analysis identity is derived from the exact extracted resume evidence.
+        // This prevents a UUID/timestamp from making identical resumes appear different.
+        String analysisId = "an_" + sha256Hash.substring(0, 12);
         String cacheKey = "analysis:" + sha256Hash;
+
+        // Persistent cache: repeated analysis of the same resume returns the exact same
+        // verified JSON even after Render restarts or the in-memory cache is lost.
+        try {
+            Optional<AnalysisCache> persistent = analysisCacheRepository.findByResumeHash(sha256Hash);
+            if (persistent.isPresent()) {
+                Map<String, Object> cachedResult = new ObjectMapper().readValue(
+                        persistent.get().getResultJson(), LinkedHashMap.class);
+                System.out.println("[VREZER PERSISTENT CACHE HIT] SHA-256: " + sha256Hash);
+                resumeCache.put(cacheKey, new LinkedHashMap<>(cachedResult));
+                return cachedResult;
+            }
+        } catch (Exception cacheReadError) {
+            System.err.println("[VREZER CACHE] Persistent read warning: " + cacheReadError.getMessage());
+        }
+
         if (resumeCache.containsKey(cacheKey)) {
-            System.out.println("================================================================================");
-            System.out.println("[VREZER CACHE HIT] SHA-256 hash match: " + sha256Hash + " (Text len: " + resumeText.trim().length() + ")");
-            System.out.println("================================================================================");
-            Map<String, Object> cachedResult = new LinkedHashMap<>(resumeCache.get(cacheKey));
-            cachedResult.put("analysisId", analysisId);
-            return cachedResult;
+            System.out.println("[VREZER MEMORY CACHE HIT] SHA-256: " + sha256Hash);
+            return new LinkedHashMap<>(resumeCache.get(cacheKey));
         }
 
         // 1. Resume JSON
@@ -614,7 +633,23 @@ public class VrezerAiAgentService {
         System.out.println("[SAFE AUDIT LOG] Execution Time: " + executionTimeMs + " ms");
         System.out.println("================================================================================");
 
-        resumeCache.put(cacheKey, result);
+        resumeCache.put(cacheKey, new LinkedHashMap<>(result));
+
+        // Store the complete final dossier, including verified live-job results and
+        // deterministic metadata. Future requests for this exact resume are replayed
+        // verbatim instead of invoking an LLM or live-job APIs again.
+        try {
+            ObjectMapper cacheMapper = new ObjectMapper();
+            String resultJson = cacheMapper.writeValueAsString(result);
+            analysisCacheRepository.findByResumeHash(sha256Hash).orElseGet(() ->
+                    analysisCacheRepository.save(AnalysisCache.builder()
+                            .resumeHash(sha256Hash)
+                            .resultJson(resultJson)
+                            .build())
+            );
+        } catch (Exception cacheWriteError) {
+            System.err.println("[VREZER CACHE] Persistent write warning: " + cacheWriteError.getMessage());
+        }
 
         return result;
     }
