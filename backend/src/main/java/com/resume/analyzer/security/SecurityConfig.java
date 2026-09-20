@@ -58,7 +58,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000,http://127.0.0.1:*}")
+    @org.springframework.beans.factory.annotation.Value("${app.cors.allowed-origins:https://vashcosta.github.io,https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000,http://127.0.0.1:*}")
     private String allowedOrigins;
 
     @Bean
@@ -77,7 +77,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(originsList);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "X-GEMINI-API-KEY", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
