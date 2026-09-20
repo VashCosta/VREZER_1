@@ -1041,6 +1041,21 @@ public class VrezerAiAgentService {
         }
     }
 
+    private int calculateDeterministicProfileStrength(Map<String, Object> parsed, int atsScore, List<String> skills) {
+        int score = Math.round(atsScore * 0.45f);
+        boolean hasContact = !String.valueOf(parsed.getOrDefault("email", "")).isBlank()
+                || !String.valueOf(parsed.getOrDefault("phone", "")).isBlank()
+                || !String.valueOf(parsed.getOrDefault("linkedin", "")).isBlank()
+                || !String.valueOf(parsed.getOrDefault("github", "")).isBlank();
+        if (hasContact) score += 10;
+        if (!((List<?>) parsed.getOrDefault("education", List.of())).isEmpty()) score += 10;
+        if (!((List<?>) parsed.getOrDefault("experience", List.of())).isEmpty()
+                || !((List<?>) parsed.getOrDefault("internships", List.of())).isEmpty()) score += 10;
+        if (!((List<?>) parsed.getOrDefault("projects", List.of())).isEmpty()) score += 10;
+        if (skills != null) score += Math.min(15, skills.size() * 2);
+        return Math.max(35, Math.min(98, score));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> normalizeAiResponse(Map<String, Object> result, String resumeText, Map<String, Object> parsed) {
         if (result == null) result = new LinkedHashMap<>();
