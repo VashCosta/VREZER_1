@@ -198,11 +198,11 @@ public class VrezerAiAgentService {
         { "gemini-2.5-flash",      "v1beta" }
     };
 
-    // Current Groq production model IDs. Deprecated Llama IDs are intentionally excluded.
+    // Current Groq production model IDs.
     private static final String[] LLAMA_MODELS = {
-        "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
-        "qwen/qwen3.6-27b"
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b"
     };
 
     private String resolveGroqModel() {
@@ -1462,6 +1462,8 @@ public class VrezerAiAgentService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", resolveGroqModel());
         body.put("temperature", 0.0);
+        body.put("reasoning_effort", "low");
+        body.put("max_completion_tokens", 2048);
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(sysMsg, usrMsg));
 
@@ -1479,7 +1481,7 @@ public class VrezerAiAgentService {
                     if (result != null && !result.isEmpty()) {
                         result.put("geminiRequestPrompt", fullPrompt);
                         result.put("geminiResponseRaw", content);
-                        result.put("aiModelUsed", "Groq / llama-3.3-70b-versatile");
+                        result.put("aiModelUsed", "Groq / " + resolveGroqModel());
                         return normalizeAiResponse(result, resumeText, parsed);
                     }
                 }
@@ -1507,7 +1509,7 @@ public class VrezerAiAgentService {
         }
 
         try {
-            String prompt = "You are VREZER's Meta LLaMA 3.3 Career Optimization Engine.\n"
+            String prompt = "You are VREZER's Groq Career Optimization Engine.\n"
                     + "Candidate Role: " + candidateRole + "\n"
                     + "Experience Level: " + experienceLevel + "\n"
                     + "Top Skills: " + skills + "\n"
@@ -1535,7 +1537,9 @@ public class VrezerAiAgentService {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", resolveGroqModel());
             body.put("temperature", 0.0);
-        body.put("seed", 42);
+            body.put("reasoning_effort", "low");
+            body.put("max_completion_tokens", 2048);
+            body.put("seed", 42);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));
 
