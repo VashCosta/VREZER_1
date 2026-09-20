@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════
-//  VREZER 3.0 – AI Career Intelligence Engine
+//  VREZER – AI Career Intelligence Engine
 // ═══════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -385,32 +385,49 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         show(loadSect); 
         hide(uploadSect, dashSect);
 
-        const startTime = Date.now();
-        const TOTAL_DURATION_MS = 15000; // Minimum 15 full seconds deep neural analysis
-
         const steps = [
-            { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
-            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
+            { text: 'Phase 1/5: Extracting resume text via Neural Parsing Engine…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Calculating ATS Score & Keyword Optimization Metrics…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Running Deep Multi-Agent AI Career Intelligence Reasoning…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving Live Market Intelligence & Target Roles…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Synthesizing Dynamic 13-Section Executive Dossier…', id: 'ps-render' }
         ];
 
-        let stepIdx = 0;
         const loadPhase = $('load-phase');
+        const progPct = $('prog-pct');
 
-        const iv = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+        // Reset progress indicators to 0%
+        if (progFill) progFill.style.width = '0%';
+        if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 0% COMPLETE';
+        if (loadPhase) loadPhase.textContent = 'Phase 1 / 5';
+        if (loadMsg) loadMsg.textContent = steps[0].text;
 
-            if (progFill) progFill.style.width = progressPct + '%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-
-            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
-            if (currentPhaseIdx !== stepIdx) {
-                stepIdx = currentPhaseIdx;
+        steps.forEach((st, idx) => {
+            const stepEl = $(st.id);
+            if (stepEl) {
+                stepEl.classList.remove('done');
+                if (idx === 0) stepEl.classList.add('active');
+                else stepEl.classList.remove('active');
             }
+        });
+
+        let currentDisplayPct = 0;
+        let targetPct = 12;
+        let dataReady = false;
+        let finished = false;
+        let data = null;
+        const animStartTime = Date.now();
+
+        function updatePipelineUI(pct) {
+            if (progFill) progFill.style.width = pct + '%';
+            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + pct + '% COMPLETE';
+
+            let stepIdx = 0;
+            if (pct >= 85) stepIdx = 4;
+            else if (pct >= 65) stepIdx = 3;
+            else if (pct >= 40) stepIdx = 2;
+            else if (pct >= 20) stepIdx = 1;
+            else stepIdx = 0;
 
             if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
@@ -418,9 +435,12 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             steps.forEach((st, idx) => {
                 const stepEl = $(st.id);
                 if (stepEl) {
-                    if (idx < stepIdx) {
-                        stepEl.classList.remove('active');
+                    if (pct >= 100) {
                         stepEl.classList.add('done');
+                        stepEl.classList.remove('active');
+                    } else if (idx < stepIdx) {
+                        stepEl.classList.add('done');
+                        stepEl.classList.remove('active');
                     } else if (idx === stepIdx) {
                         stepEl.classList.add('active');
                         stepEl.classList.remove('done');
@@ -429,11 +449,54 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     }
                 }
             });
-        }, 100);
+        }
+
+        // Adaptive progress interval that guarantees smooth progression from 0 to 100%
+        const iv = setInterval(() => {
+            if (finished) return;
+
+            const elapsed = Date.now() - animStartTime;
+
+            if (!dataReady) {
+                if (elapsed > 2400) targetPct = Math.min(94, 88 + Math.floor((elapsed - 2400) / 400));
+                else if (elapsed > 1800) targetPct = 82;
+                else if (elapsed > 1200) targetPct = 62;
+                else if (elapsed > 600) targetPct = 38;
+                else targetPct = 18;
+            } else {
+                targetPct = 100;
+            }
+
+            if (currentDisplayPct < targetPct) {
+                const step = dataReady ? Math.max(1, Math.ceil((targetPct - currentDisplayPct) / 3)) : 1;
+                currentDisplayPct = Math.min(targetPct, currentDisplayPct + step);
+                updatePipelineUI(currentDisplayPct);
+            }
+
+            // When it reaches 100% and data is ready, immediately transition to dashboard!
+            if (currentDisplayPct >= 100 && dataReady && !finished) {
+                finished = true;
+                clearInterval(iv);
+                updatePipelineUI(100);
+
+                if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
+                if (loadMsg) loadMsg.textContent = 'Analysis Complete! Launching Executive Dashboard…';
+
+                setTimeout(() => {
+                    try {
+                        renderDash(data);
+                    } catch (e) {
+                        console.error('renderDash error:', e);
+                    } finally {
+                        show(dashSect);
+                        hide(loadSect, uploadSect);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                }, 280);
+            }
+        }, 30);
 
         try {
-            let data = null;
-
             const fetchPromise = (async () => {
                 if (currentFile) {
                     const baseUrl = getApiBaseUrl();
@@ -488,11 +551,12 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 }
             })();
 
+            const MIN_SCAN_DURATION_MS = 2400; // Balanced high-tech scan animation
             const [fetchedData] = await Promise.all([
                 fetchPromise,
                 new Promise(r => {
-                    const elapsed = Date.now() - startTime;
-                    const remaining = Math.max(0, TOTAL_DURATION_MS - elapsed);
+                    const elapsed = Date.now() - animStartTime;
+                    const remaining = Math.max(0, MIN_SCAN_DURATION_MS - elapsed);
                     setTimeout(r, remaining);
                 })
             ]);
@@ -503,26 +567,12 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 throw new Error("No analysis data returned by the VREZER AI engine service.");
             }
 
-            clearInterval(iv);
-            if (progFill) progFill.style.width = '100%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
-            if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
-
-            setTimeout(() => {
-                try {
-                    renderDash(data);
-                } catch (e) {
-                    console.error('renderDash error:', e);
-                } finally {
-                    show(dashSect);
-                    hide(loadSect, uploadSect);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            }, 400);
+            // Signal progress engine to rapidly glide to 100% and open dashboard
+            dataReady = true;
 
         } catch (err) {
             console.error('Analysis error:', err);
+            finished = true;
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
@@ -2027,7 +2077,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const dateStr = new Date().toISOString().split('T')[0];
 
         return `================================================================================
- V R E Z E R   3.0   —   A I   C A R E E R   I N T E L L I G E N C E   D O S S I E R
+ V R E Z E R   —   A I   C A R E E R   I N T E L L I G E N C E   D O S S I E R
 ================================================================================
 Candidate Name      : ${name}
 Target Role         : ${role}
@@ -2074,7 +2124,7 @@ Tier 2 Target Role  : ${(d.tier2 && d.tier2.role) || 'Senior SDE'} @ ${(d.tier2 
 Tier 3 Target Role  : ${(d.tier3 && d.tier3.role) || 'Lead Systems Engineer'} @ ${(d.tier3 && d.tier3.company) || 'Enterprise Hub'} (${(d.tier3 && d.tier3.city) || 'Hyderabad'})
 
 ================================================================================
- Verified & Generated by VREZER 3.0 Neural AI Engine
+ Verified & Generated by VREZER Neural AI Engine
 ================================================================================`;
     }
 
@@ -2116,7 +2166,7 @@ Recommended Action Items:
  3. Avoid tables, images, or floating text frames inside PDF layout.
 
 ================================================================================
- Generated by VREZER 3.0 ATS Audit Subsystem
+ Generated by VREZER ATS Audit Subsystem
 ================================================================================`;
     }
 
@@ -2157,7 +2207,7 @@ Days 61-90 : Add verified production metrics & certification credentials to cand
 Acquiring high-priority missing skills can increase market compensation by 15% - 25%.
 
 ================================================================================
- Generated by VREZER 3.0 Skill Intelligence Engine
+ Generated by VREZER Skill Intelligence Engine
 ================================================================================`;
     }
 
@@ -2198,7 +2248,7 @@ Result    : Reduced p99 latency by 42% and supported 3x higher peak transaction 
 "I am a ${role} with proven experience building resilient microservices using ${skills}. In my previous work, I spearheaded system performance refactoring that reduced latency by over 40%. I'm eager to drive architectural impact in your engineering team."
 
 ================================================================================
- Generated by VREZER 3.0 AI Interview Studio
+ Generated by VREZER AI Interview Studio
 ================================================================================`;
     }
 
@@ -2228,7 +2278,7 @@ Thank you for your time and consideration.
 Sincerely,
 
 ${name}
-Candidate Dossier via VREZER 3.0 AI Career Intelligence`;
+Candidate Dossier via VREZER AI Career Intelligence`;
     }
 
     function generateRecruiterBriefText(d = getActiveData()) {
@@ -2263,7 +2313,7 @@ Domain              : ${domain}
 2. ${(d.tier2 && d.tier2.role) || 'Lead Developer'} @ ${(d.tier2 && d.tier2.company) || 'High Growth Product Company'}
 
 ================================================================================
- Confidential Recruiter Summary — Generated by VREZER 3.0 Platform
+ Confidential Recruiter Summary — Generated by VREZER Platform
 ================================================================================`;
     }
 
@@ -2293,7 +2343,7 @@ Hub 2: Hyderabad, India   — High Demand (65% Hybrid/Remote postings)
 Hub 3: Remote Global Hubs — Very High Demand for Cloud & Microservices Specialists
 
 ================================================================================
- Generated by VREZER 3.0 Global Market Intelligence Unit
+ Generated by VREZER Global Market Intelligence Unit
 ================================================================================`;
     }
 
@@ -2442,7 +2492,7 @@ ${generateMarketReportText(d)}
 
             <!-- FOOTER -->
             <div style="border-top:1px solid #e2e8f0; padding-top:12px; margin-top:20px; text-align:center; font-size:10px; color:#94a3b8; font-family:monospace;">
-                Generated &amp; Calibrated by VREZER 3.0 Neural AI Engine &nbsp;•&nbsp; Confidential Executive Report
+                Generated &amp; Calibrated by VREZER Neural AI Engine &nbsp;•&nbsp; Confidential Executive Report
             </div>
         </div>`;
     }
@@ -3178,7 +3228,7 @@ ${generateMarketReportText(d)}
                     const userApiKey = localStorage.getItem('vrezerApiKey') || '';
                     const apiKey = userApiKey || groqKey;
 
-                    const systemPrompt = `You are VREZER 3.0 Executive AI Career Intelligence Assistant. 
+                    const systemPrompt = `You are VREZER Executive AI Career Intelligence Assistant. 
 Candidate Context:
 - Name: ${d ? d.name : 'Candidate'}
 - Target Role: ${d ? d.role : 'Software Engineer'}
