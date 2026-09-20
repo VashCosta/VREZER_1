@@ -26,6 +26,9 @@ jobs:
           cp backend/src/main/resources/templates/index.html _site/index.html
           cp backend/src/main/resources/static/script.js _site/script.js
           cp backend/src/main/resources/static/style.css _site/style.css
+          # Cache-bust frontend assets so GitHub Pages cannot serve a stale JS/CSS bundle.
+          sed -i "s#script.js#script.js?v=${{ github.sha }}#g" _site/index.html
+          sed -i "s#style.css#style.css?v=${{ github.sha }}#g" _site/index.html
           touch _site/.nojekyll
 
       - name: Publish to gh-pages
