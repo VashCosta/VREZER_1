@@ -2915,90 +2915,23 @@ ${(resumeText || '').substring(0, 3500)}`;
             url = 'https://api.groq.com/openai/v1/chat/completions';
         }
 
-        const promptText = `Analyze this candidate resume and return ONLY valid JSON with no markdown headers:
+        const promptText = `Analyze ONLY the supplied resume text and return a single JSON object.
+NEVER copy values from this instruction, invent companies, salaries, skills, scores, roles, metrics, or experience.
+Every factual field must be supported by the resume text. Use null or [] when the resume does not contain the information.
+Scores must be calculated from the supplied evidence, not from example values.
+Use this schema (these are placeholders, not data):
 {
-  "name": "Candidate Full Name",
-  "email": "candidate@email.com",
-  "phone": "+91 98765 43210",
-  "role": "Target Specialization Title",
-  "primaryDomain": "Primary Tech Domain",
-  "secondaryDomain": "Cloud & Systems",
-  "careerDomain": "Primary Tech Domain",
-  "atsScore": 81,
-  "atsScoreText": "GOOD MATCH",
-  "profileStrength": 85,
-  "confidenceScore": 92,
-  "yearsOfExperience": 3,
-  "experienceLevel": "MID_LEVEL",
-  "careerLevel": "MID_LEVEL",
-  "education": "Highest Degree",
-  "expectedLpaRange": "₹12.0 LPA - ₹18.0 LPA",
-  "salaryMin": 12,
-  "salaryMax": 18,
-  "salaryCurrency": "INR",
-  "salaryUsd": "$18,000 USD/yr",
-  "professionalSummary": "Detailed summary",
-  "strategicForecast": "2-3 sentence strategic forecast",
-  "AI_STATUS": "ACTIVE",
-  "RAG_STATUS": "ACTIVE",
-  "aiModelUsed": "Gemini 2.5 Flash (Direct AI Pipeline)",
-  "topSkills": ["Skill1", "Skill2", "Skill3"],
-  "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
-  "missingSkills": ["Cloud Architecture", "Distributed Systems"],
-  "programmingLanguages": ["Python", "Java", "SQL"],
-  "toolsAndTechnologies": ["Docker", "Kubernetes", "AWS"],
-  "swotAnalysis": {
-    "strengths": ["Strong domain foundation", "Hands-on execution"],
-    "weaknesses": ["Needs metrics quantification"],
-    "opportunities": ["High demand in tech hubs"],
-    "threats": ["Evolving tool stack"]
-  },
-  "atsScoreDetails": {
-    "sectionCompletenessScore": 90,
-    "keywordOptimizationScore": 88,
-    "formattingScore": 85,
-    "achievementScore": 80,
-    "readabilityScore": 85,
-    "explanation": "ATS evaluation summary"
-  },
-  "projects": [
-    { "title": "System Architecture", "description": "High availability design", "techStack": ["Java", "Docker"] }
-  ],
-  "tier1": [{ "company": "Google", "role": "Senior Engineer", "expectedSalary": "₹35 LPA", "matchScore": 95 }],
-  "tier2": [{ "company": "Razorpay", "role": "Engineer", "expectedSalary": "₹18 LPA", "matchScore": 88 }],
-  "tier3": [{ "company": "Infosys", "role": "Associate", "expectedSalary": "₹8 LPA", "matchScore": 75 }],
-  "recommendedCompanies": ["Google", "Razorpay", "Zoho"],
-  "retrievedJobOpportunities": [
-    { "title": "Senior Engineer", "company": "Razorpay", "location": "Bengaluru, India", "salary": "₹18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Live API" }
-  ],
-  "careerGrowthTimeline": [
-    { "stage": "0-6 months", "title": "Core Engineer", "expectedSalaryProgression": "₹12-15 LPA", "recommendedCertifications": "AWS Certified", "roadmapNotes": "Production deployment" }
-  ],
-  "interviewPreparation": {
-    "technicalQuestions": [{ "question": "Explain recent project architecture", "modelAnswer": "Walkthrough design" }],
-    "behavioralQuestions": [{ "question": "Describe a challenge", "starAnswer": "STAR method response" }],
-    "salaryNegotiationTips": ["Anchor high using market data"]
-  },
-  "bulletPointRewrites": [
-    { "original": "Developed features", "aiRewritten": "Architected scalable features improving throughput by 35%", "impactMetricMetric": "+35% Throughput" }
-  ],
-  "skillGaps": [{ "skill": "Distributed Systems", "priority": "HIGH", "impact": "+8% Match" }],
-  "improvements": ["Quantify achievements"],
-  "nextBestActions": ["Apply to Razorpay"],
-  "debugPanel": {
-    "analysisId": "an_direct_ai",
-    "resumeHash": "sha256_direct",
-    "extractedTextLength": 1200,
-    "candidateName": "Candidate",
-    "detectedDomain": "Tech",
-    "experienceLevel": "MID_LEVEL",
-    "jobApiRequestCount": 8,
-    "mergedJobsCount": 3,
-    "AI_STATUS": "ACTIVE",
-    "RAG_STATUS": "ACTIVE"
-  }
+  "name": null, "email": null, "phone": null, "role": null, "careerDomain": null, "secondaryDomain": null,
+  "atsScore": null, "profileStrength": null, "confidenceScore": null, "yearsOfExperience": null,
+  "experienceLevel": null, "careerLevel": null, "education": null,
+  "expectedLpaRange": null, "salaryMin": null, "salaryMax": null, "salaryCurrency": null, "salaryUsd": null,
+  "professionalSummary": null, "strategicForecast": null, "topSkills": [], "skills": [], "missingSkills": [],
+  "programmingLanguages": [], "toolsAndTechnologies": [], "projects": [], "certifications": [],
+  "recommendedCompanies": [], "retrievedJobOpportunities": [], "careerGrowthTimeline": [],
+  "interviewPreparation": {"technicalQuestions": [], "behavioralQuestions": [], "projectDiscussionQuestions": []},
+  "improvements": [], "nextBestActions": []
 }
-
+Return no markdown fences and no explanatory text.
 RESUME TEXT:
 ${resumeText.substring(0, 12000)}`;
 
