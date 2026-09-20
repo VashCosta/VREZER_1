@@ -424,23 +424,25 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const baseUrl = getApiBaseUrl();
             if (!baseUrl) throw new Error('VREZER backend URL is not configured.');
 
+            if (!sampleTextForAnalysis) await ensureBackendOnline(baseUrl);
+
             let resumeText = sampleTextForAnalysis || null;
 
             if (!resumeText) {
-                const fd = new FormData();
-                fd.append('file', currentFile);
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 300000);
-                let exRes;
-                try {
-                    exRes = await fetch(baseUrl + '/api/analyzer/extract', {
-                        method: 'POST',
-                        body: fd,
-                        signal: controller.signal
-                    });
-                } finally {
-                    clearTimeout(timeoutId);
-                }
+                const exRes = await requestWithRetry(
+                    signal => {
+                        const form = new FormData();
+                        form.append('file', currentFile);
+                        return fetch(baseUrl + '/api/analyzer/extract', {
+                            method: 'POST',
+                            mode: 'cors',
+                            cache: 'no-store',
+                            body: form,
+                            signal
+                        });
+                    },
+                    'Extracting resume'
+                );
 
                 const exJson = await exRes.json().catch(() => ({}));
                 if (!exRes.ok || !exJson.text) {
@@ -521,21 +523,69 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             e.classList.toggle('active', idx === index);
         });
     }
-    async function callBackendAPI(resumeText) {
-        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (customKey) {
-            headers['X-GEMINI-API-KEY'] = customKey;
+    const VREZER_FETCH_RETRIES = 5;
+    const VREZER_FETCH_TIMEOUT = 300000;
+
+    function wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function requestWithRetry(requestFactory, label, retries = VREZER_FETCH_RETRIES) {
+        let lastError = null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+            try {
+                if (loadMsg) loadMsg.textContent = label + ' · connection attempt ' + attempt + '/' + retries;
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), VREZER_FETCH_TIMEOUT);
+                let response;
+                try {
+                    response = await requestFactory(controller.signal);
+                } finally {
+                    clearTimeout(timeout);
+                }
+                if (response.ok || ![502, 503, 504].includes(response.status)) return response;
+                lastError = new Error('HTTP ' + response.status);
+            } catch (e) {
+                lastError = e && e.name === 'AbortError'
+                    ? new Error('Render backend timed out.')
+                    : e;
+            }
+            if (attempt < retries) await wait(Math.min(12000, 2500 * attempt));
         }
-        const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ 
-                resumeText: resumeText, 
-                jobDescription: '',
-                apiKey: customKey
-            })
-        });
+        throw lastError || new Error('Render backend is unreachable.');
+    }
+
+    async function ensureBackendOnline(baseUrl) {
+        const probe = await requestWithRetry(
+            signal => fetch(baseUrl + '/api/analyzer/version?probe=1', {
+                method: 'GET',
+                mode: 'cors',
+                cache: 'no-store',
+                signal
+            }),
+            'Connecting to live Render backend'
+        );
+        if (!probe.ok) throw new Error('Live Render backend health check failed.');
+    }
+
+    async function callBackendAPI(resumeText) {
+        const baseUrl = getApiBaseUrl();
+        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
+        const res = await requestWithRetry(
+            signal => fetch(baseUrl + '/api/analyzer/analyze', {
+                method: 'POST',
+                mode: 'cors',
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    resumeText: resumeText,
+                    jobDescription: '',
+                    apiKey: customKey
+                }),
+                signal
+            }),
+            'Running VREZER AI analysis'
+        );
         const resData = await res.json().catch(() => ({}));
         if (!res.ok || resData.error || resData.status === 'ERROR') {
             throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
