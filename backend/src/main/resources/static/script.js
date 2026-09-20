@@ -440,7 +440,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                             const fd = new FormData();
                             fd.append('file', currentFile);
                             const controller = new AbortController();
-                            const timeoutMs = 30000;
+                            const timeoutMs = 90000;
                             const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
                             const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
