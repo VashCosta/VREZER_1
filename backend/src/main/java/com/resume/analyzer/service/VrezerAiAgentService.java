@@ -59,6 +59,10 @@ public class VrezerAiAgentService {
     @Autowired
     private ResumeIntelligenceEngine resumeIntelligenceEngine;
 
+    @Value("${APP_SPECIALIZED_LLAMA_ENRICHMENT_ENABLED:false}")
+    private boolean specializedLlamaEnrichmentEnabled;
+
+
     private final Map<String, Map<String, Object>> resumeCache = new java.util.concurrent.ConcurrentHashMap<>();
     private final Map<String, String> recentQueryToResumeHash = new java.util.concurrent.ConcurrentHashMap<>();
 
