@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/analyzer")
-@CrossOrigin(origins = "*")
 public class VrezerAnalyzerController {
 
     // Same uploaded bytes must resolve to the same completed dossier during the life of the service.
