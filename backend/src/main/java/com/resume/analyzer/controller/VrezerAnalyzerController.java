@@ -33,7 +33,7 @@ public class VrezerAnalyzerController {
         version.put("commit", "ebc12e0");
         version.put("status", "ONLINE");
         version.put("environment", System.getenv("SPRING_PROFILES_ACTIVE") != null ? System.getenv("SPRING_PROFILES_ACTIVE") : "production");
-        version.put("backendVersion", "VREZER 3.0 Production Build");
+        version.put("backendVersion", "VREZER Production Build");
         version.put("timestamp", System.currentTimeMillis());
         return ResponseEntity.ok(version);
     }

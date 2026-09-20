@@ -18,8 +18,6 @@ import java.nio.charset.StandardCharsets;
 
 @SpringBootApplication
 @EnableCaching
-@EntityScan("com.resume.analyzer")
-@EnableJpaRepositories("com.resume.analyzer")
 public class Application {
 
     @Value("${app.pdf.ocr.enabled:true}")

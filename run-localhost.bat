@@ -1,7 +1,7 @@
 @echo off
-title CareerForge AI - Localhost Launcher
+title VREZER - Localhost Launcher
 echo ========================================================
-echo   CareerForge AI - AI Career Intelligence Platform
+echo   VREZER - AI Career Intelligence Platform
 echo ========================================================
 echo.
 echo Stopping any existing instances on port 9000...
@@ -9,10 +9,16 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :9000 ^| findstr LISTENING') 
 
 echo Starting Spring Boot Full Stack Application on Localhost...
 echo.
-echo Web Application: http://localhost:9000
-echo OpenAPI / Swagger UI: http://localhost:9000/swagger-ui.html
+echo Web Application:     http://localhost:9000
+echo API Version Status:  http://localhost:9000/api/analyzer/version
 echo H2 Database Console: http://localhost:9000/h2-console
 echo.
 cd /d "%~dp0backend"
-mvn clean spring-boot:run
+if exist target\analyzer-0.0.1-SNAPSHOT.jar (
+    echo Launching pre-built production JAR...
+    java -jar target\analyzer-0.0.1-SNAPSHOT.jar
+) else (
+    echo Starting via Maven Spring Boot...
+    mvn spring-boot:run
+)
 pause

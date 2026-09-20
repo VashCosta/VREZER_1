@@ -423,9 +423,9 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + pct + '% COMPLETE';
 
             let stepIdx = 0;
-            if (pct >= 85) stepIdx = 4;
-            else if (pct >= 65) stepIdx = 3;
-            else if (pct >= 40) stepIdx = 2;
+            if (pct >= 88) stepIdx = 4;
+            else if (pct >= 70) stepIdx = 3;
+            else if (pct >= 45) stepIdx = 2;
             else if (pct >= 20) stepIdx = 1;
             else stepIdx = 0;
 
@@ -458,17 +458,24 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const elapsed = Date.now() - animStartTime;
 
             if (!dataReady) {
-                if (elapsed > 2400) targetPct = Math.min(94, 88 + Math.floor((elapsed - 2400) / 400));
-                else if (elapsed > 1800) targetPct = 82;
-                else if (elapsed > 1200) targetPct = 62;
-                else if (elapsed > 600) targetPct = 38;
-                else targetPct = 18;
+                // Smoothly traverse the 5 stages while waiting for analysis data
+                if (elapsed > 2200) {
+                    targetPct = Math.min(94, 88 + Math.floor((elapsed - 2200) / 350));
+                } else if (elapsed > 1600) {
+                    targetPct = Math.min(88, 70 + Math.floor(((elapsed - 1600) / 600) * 18));
+                } else if (elapsed > 1000) {
+                    targetPct = Math.min(70, 45 + Math.floor(((elapsed - 1000) / 600) * 25));
+                } else if (elapsed > 450) {
+                    targetPct = Math.min(45, 20 + Math.floor(((elapsed - 450) / 550) * 25));
+                } else {
+                    targetPct = Math.min(20, Math.floor((elapsed / 450) * 20));
+                }
             } else {
                 targetPct = 100;
             }
 
             if (currentDisplayPct < targetPct) {
-                const step = dataReady ? Math.max(1, Math.ceil((targetPct - currentDisplayPct) / 3)) : 1;
+                const step = dataReady ? Math.max(1, Math.ceil((targetPct - currentDisplayPct) / 2.5)) : 1;
                 currentDisplayPct = Math.min(targetPct, currentDisplayPct + step);
                 updatePipelineUI(currentDisplayPct);
             }
@@ -494,7 +501,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     }
                 }, 280);
             }
-        }, 30);
+        }, 25);
 
         try {
             const fetchPromise = (async () => {
@@ -612,27 +619,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
         }
         return resData;
-    }
-
-    function startProgress() {
-        let p = 5;
-        const progPct = $('prog-pct');
-        if (progFill) progFill.style.width = '5%';
-        if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 5% COMPLETE';
-
-        const startTime = Date.now();
-        const duration = 14000; // 14 seconds smooth progress animation
-
-        const iv = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            p = Math.min(95, Math.round(5 + (elapsed / duration) * 90));
-            if (progFill) progFill.style.width = p + '%';
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + p + '% COMPLETE';
-            if (elapsed >= duration) {
-                clearInterval(iv);
-            }
-        }, 150);
-        return iv;
     }
 
     // ── Candidate Bio Sanitizer ────────────────────────
@@ -2382,7 +2368,7 @@ Hub 3: Remote Global Hubs — Very High Demand for Cloud & Microservices Special
 
         // Fallback: Generate master text file containing all reports
         const fullBundle = `================================================================================
- V R E Z E R   3 . 0   —   C O M P L E T E   I N T E L L I G E N C E   B U N D L E
+ V R E Z E R   —   C O M P L E T E   I N T E L L I G E N C E   B U N D L E
 ================================================================================
 Generated for: ${d.name || 'Candidate Dossier'}
 
@@ -2463,7 +2449,7 @@ ${generateMarketReportText(d)}
             <!-- HEADER BAR -->
             <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid ${headerColor}; padding-bottom:15px; margin-bottom:20px;">
                 <div>
-                    <h1 style="font-size:22px; font-weight:900; color:#0f172a; margin:0; letter-spacing:-0.5px;">V R E Z E R &nbsp; 3 . 0</h1>
+                    <h1 style="font-size:22px; font-weight:900; color:#0f172a; margin:0; letter-spacing:-0.5px;">V R E Z E R</h1>
                     <p style="font-size:11px; color:#64748b; font-weight:700; margin:2px 0 0 0; text-transform:uppercase; letter-spacing:1px;">AI CAREER INTELLIGENCE PLATFORM</p>
                 </div>
                 <div style="text-align:right;">

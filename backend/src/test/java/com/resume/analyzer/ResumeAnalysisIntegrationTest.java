@@ -1,9 +1,6 @@
 package com.resume.analyzer;
 
-import com.resume.analyzer.service.AtsAnalysisEngine;
 import com.resume.analyzer.service.FileParsingService;
-import com.resume.analyzer.service.ResumeIntelligenceEngine;
-import com.resume.analyzer.service.ResumeParserService;
 import com.resume.analyzer.service.VrezerAiAgentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,16 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ResumeAnalysisIntegrationTest {
 
     @Autowired
-    private ResumeParserService resumeParserService;
-
-    @Autowired
     private FileParsingService fileParsingService;
-
-    @Autowired
-    private ResumeIntelligenceEngine resumeIntelligenceEngine;
-
-    @Autowired
-    private AtsAnalysisEngine atsAnalysisEngine;
 
     @Autowired
     private VrezerAiAgentService vrezerAiAgentService;
@@ -133,6 +121,7 @@ public class ResumeAnalysisIntegrationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testFiveResumesProduceDistinctOutputs() {
         Map<String, Object> resultJava = vrezerAiAgentService.buildDynamicLocalEngineDossier(resumeJava, null);
         Map<String, Object> resultPython = vrezerAiAgentService.buildDynamicLocalEngineDossier(resumePython, null);
@@ -172,6 +161,7 @@ public class ResumeAnalysisIntegrationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void testActualHighClassAtsPdfExtraction() throws Exception {
         File pdfFile = new File("C:\\Users\\vivas\\Downloads\\Vivash_Vel_CS_Resume_Final_ATS_Professional.pdf");
         if (!pdfFile.exists()) {

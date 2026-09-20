@@ -601,7 +601,7 @@ public class VrezerAiAgentService {
         System.out.println("================================================================================");
         System.out.println("[SAFE AUDIT LOG] Resume Hash (SHA-256): " + sha256Hash);
         System.out.println("[SAFE AUDIT LOG] Model Used: " + result.getOrDefault("modelUsed", result.getOrDefault("aiModel", "VREZER AI Engine")));
-        System.out.println("[SAFE AUDIT LOG] Backend Version: VREZER 3.0 Production Build");
+        System.out.println("[SAFE AUDIT LOG] Backend Version: VREZER Production Build");
         System.out.println("[SAFE AUDIT LOG] ATS Score: " + result.get("atsScore"));
         System.out.println("[SAFE AUDIT LOG] Detected Skills: " + result.get("topSkills"));
         System.out.println("[SAFE AUDIT LOG] Execution Time: " + executionTimeMs + " ms");

@@ -636,18 +636,6 @@ public class ResumeIntelligenceEngine {
         return "Remote / India";
     }
 
-    private String estimateExpectedSalary(double expYears, String domain) {
-        // Removed heuristic salary baselines to avoid fabricating compensation ranges.
-        // Salary estimates are produced by SalaryIntelligenceService using market evidence.
-        return null;
-    }
-
-    private String estimateExpectedSalary(double expYears, String domain, String text, List<String> skills) {
-        // Removed hardcoded role/experience/college baselines.
-        // SalaryIntelligenceService will provide evidence-anchored salary outputs.
-        return null;
-    }
-
 
     @SuppressWarnings("unchecked")
     public com.resume.analyzer.model.ResumeProfile buildCanonicalResumeProfile(String resumeText, Map<String, Object> baseParsed) {

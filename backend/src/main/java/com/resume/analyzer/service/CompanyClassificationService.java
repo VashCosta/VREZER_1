@@ -714,19 +714,6 @@ public class CompanyClassificationService {
         return new ArrayList<>(compMap.values());
     }
 
-    /**
-     * Domain-targeted company catalog covering Indian MNCs, Indian Tech Companies/Unicorns,
-     * Startups, and Global MNCs across 8+ major career domains.
-     */
-    private List<Map<String, String>> getDomainCuratedCompanies(String domain, List<String> skills, String careerLevel) {
-        String dLow = domain.toLowerCase();
-        String skillContext = !skills.isEmpty() ? String.join(", ", skills.subList(0, Math.min(4, skills.size()))) : "Domain Competencies";
-        List<Map<String, String>> list = new ArrayList<>();
-
-        // Removed curated domain company lists to avoid fabricating recommendations and salaries.
-        // Company recommendations must come exclusively from verified live job postings.
-        return list;
-    }
 
     public String categorizeCompany(String name) {
         if (name == null) return "Employer";

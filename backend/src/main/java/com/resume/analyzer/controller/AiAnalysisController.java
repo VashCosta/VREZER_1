@@ -23,6 +23,9 @@ public class AiAnalysisController {
     @Autowired
     private AiAnalysisService aiAnalysisService;
 
+    @Autowired
+    private com.resume.analyzer.service.VrezerAiAgentService vrezerAiAgentService;
+
     @PostMapping("/ats-audit")
     public ResponseEntity<ApiResponse<Map<String, Object>>> atsAudit(@RequestBody Map<String, Object> request) {
         String rawText = (String) request.getOrDefault("rawText", "");
@@ -122,7 +125,7 @@ public class AiAnalysisController {
         String prompt = String.valueOf(request.getOrDefault("prompt", "")).trim();
         @SuppressWarnings("unchecked")
         Map<String, Object> candidateContext = (Map<String, Object>) request.get("candidateContext");
-        String answer = aiAnalysisService.generateAtsAudit(prompt, Collections.emptyList()).toString();
-        return ResponseEntity.ok(ApiResponse.ok("Chatbot reply generated", Map.of("reply", "Based on your career dossier: " + answer)));
+        String answer = vrezerAiAgentService.askGeneralQuestion(prompt, candidateContext, null);
+        return ResponseEntity.ok(ApiResponse.ok("Chatbot reply generated", Map.of("reply", answer)));
     }
 }
