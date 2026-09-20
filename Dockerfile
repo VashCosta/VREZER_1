@@ -10,6 +10,8 @@ FROM eclipse-temurin:17-jre
 RUN apt-get update \
     && apt-get install -y --no-install-recommends tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
+# Fail the image build immediately if OCR is not actually installed.
+RUN tesseract --version
 WORKDIR /app
 COPY --from=build /app/target/analyzer-0.0.1-SNAPSHOT.jar app.jar
 
