@@ -221,11 +221,13 @@ public class PdfExtractorService {
             return "";
         }
 
-        String primary = (geminiModel == null || geminiModel.trim().isEmpty())
-                ? "gemini-2.5-flash" : geminiModel.trim();
-
+        // Keep scanned-PDF transcription independent from a stale deployment environment value.
+        // Flash-Lite is tried first because a 503 on the heavier Flash model must not block resume processing.
         LinkedHashSet<String> models = new LinkedHashSet<>();
-        models.add(primary);
+        models.add("gemini-2.5-flash-lite");
+        models.add("gemini-2.5-flash");
+        models.add("gemini-2.5-pro");
+
         if (geminiFallbackModels != null) {
             for (String value : geminiFallbackModels.split(",")) {
                 if (value != null && !value.trim().isEmpty()) {
@@ -343,7 +345,7 @@ public class PdfExtractorService {
 
     private void sleepBeforeGeminiRetry(int attempt) {
         try {
-            Thread.sleep(attempt == 1 ? 1800L : 3500L);
+            Thread.sleep(attempt == 1 ? 1200L : 2200L);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
