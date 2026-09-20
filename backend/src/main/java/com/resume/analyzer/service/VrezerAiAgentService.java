@@ -190,11 +190,12 @@ public class VrezerAiAgentService {
     @Value("${app.llama.url:https://api.groq.com/openai/v1/chat/completions}")
     private String llamaUrl;
 
-    // Stable Gemini model IDs with active production API availability.
+    // Current stable Gemini model IDs with production API availability.
+    // Flash-Lite is first for cost/latency, followed by Flash, then a proven 2.5 fallback.
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-2.5-flash",      "v1beta" },
-        { "gemini-2.5-flash-lite", "v1beta" },
-        { "gemini-2.5-pro",        "v1beta" }
+        { "gemini-3.5-flash-lite", "v1beta" },
+        { "gemini-3.6-flash",      "v1beta" },
+        { "gemini-2.5-flash",      "v1beta" }
     };
 
     // Current Groq production model IDs. Deprecated Llama IDs are intentionally excluded.
