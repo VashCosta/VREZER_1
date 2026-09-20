@@ -61,12 +61,18 @@ public class Application {
             System.out.println("[VREZER PROD DIAGNOSTIC] Groq/Llama model configured: "
                     + safe(llamaModel) + " | API key configured: " + hasValue(llamaApiKey));
 
-            TesseractStatus tesseract = detectTesseract();
+            TesseractStatus tesseract = detectBinary("tesseract", "--version");
             System.out.println("[VREZER PROD DIAGNOSTIC] Tesseract binary: "
                     + (tesseract.available ? "AVAILABLE" : "NOT_AVAILABLE")
                     + (tesseract.version.isEmpty() ? "" : " | " + tesseract.version));
+
+            TesseractStatus pdfImages = detectBinary("pdfimages", "-v");
+            System.out.println("[VREZER PROD DIAGNOSTIC] Poppler pdfimages: "
+                    + (pdfImages.available ? "AVAILABLE" : "NOT_AVAILABLE")
+                    + (pdfImages.version.isEmpty() ? "" : " | " + pdfImages.version));
+
             System.out.println("[VREZER PROD DIAGNOSTIC] OCR execution path: "
-                    + (isWindows() ? "Windows OCR bridge" : "Tesseract CLI fallback"));
+                    + (isWindows() ? "Windows OCR bridge" : "Poppler embedded-image extraction -> bounded Tesseract"));
             System.out.println("================================================================================");
 
             try (java.sql.Connection conn = dataSource.getConnection()) {
@@ -94,13 +100,13 @@ public class Application {
         return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 
-    private TesseractStatus detectTesseract() {
-        if (isWindows()) {
-            return new TesseractStatus(true, "Windows platform - Tesseract not required");
+    private TesseractStatus detectBinary(String command, String versionArg) {
+        if (isWindows() && "pdfimages".equals(command)) {
+            return new TesseractStatus(false, "Linux/Unix production tool not required on Windows");
         }
 
         try {
-            Process process = new ProcessBuilder("tesseract", "--version")
+            Process process = new ProcessBuilder(command, versionArg)
                     .redirectErrorStream(true)
                     .start();
 
