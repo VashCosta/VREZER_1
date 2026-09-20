@@ -434,30 +434,28 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     const baseUrl = getApiBaseUrl();
                     let data = null;
 
-                    // If baseUrl is present (local or remote backend), attempt extraction
+                    // Production and localhost both use the same atomic file-analysis endpoint.
+                    // The original PDF is sent directly to the backend so OCR, parsing and AI
+                    // always operate on exactly the same bytes.
                     if (baseUrl !== undefined) {
+                        const fd = new FormData();
+                        fd.append('file', currentFile);
+                        const controller = new AbortController();
+                        const timeoutMs = 120000;
+                        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                         try {
-                            const fd = new FormData();
-                            fd.append('file', currentFile);
-                            const controller = new AbortController();
-                            const timeoutMs = 90000;
-                            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
+                            const analysisRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/analyze-file', {
                                 method: 'POST',
                                 body: fd,
                                 signal: controller.signal
-                            }).catch(() => null);
-                            clearTimeout(timeoutId);
-
-                            if (exRes && exRes.ok) {
-                                const exJson = await exRes.json().catch(() => null);
-                                if (exJson && exJson.text) {
-                                    data = await callBackendAPI(exJson.text);
-                                }
+                            });
+                            const resData = await analysisRes.json().catch(() => ({}));
+                            if (!analysisRes.ok || resData.error || resData.status === 'ERROR') {
+                                throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
                             }
-                        } catch (backendErr) {
-                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
+                            data = resData;
+                        } finally {
+                            clearTimeout(timeoutId);
                         }
                     }
 
