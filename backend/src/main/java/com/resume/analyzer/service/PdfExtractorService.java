@@ -20,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PdfExtractorService {
@@ -132,7 +133,7 @@ public class PdfExtractorService {
     public String extractWithOcr(PDDocument document) {
         StringBuilder fullOcrText = new StringBuilder();
         PDFRenderer renderer = new PDFRenderer(document);
-        int maxPages = Math.min(document.getNumberOfPages(), 3);
+        int maxPages = Math.min(document.getNumberOfPages(), 2);
 
         File scriptFile = resolveOcrScriptFile();
 
@@ -141,12 +142,15 @@ public class PdfExtractorService {
             try {
                 // Keep cloud OCR deliberately bounded. 120 DPI grayscale is sufficient
                 // for most resume scans while using substantially less heap than 200 DPI color.
-                BufferedImage img = renderer.renderImageWithDPI(p, 120, ImageType.GRAY);
+                renderer.setSubsamplingAllowed(true);
+                 BufferedImage img = renderer.renderImageWithDPI(p, 105, ImageType.GRAY);
                 tempImg = File.createTempFile("vrezer_pdf_ocr_p" + p + "_", ".png");
                 ImageIO.write(img, "png", tempImg);
                 img.flush();
 
-                String pageOcr = runWindowsOcr(scriptFile, tempImg);
+                String pageOcr = isWindowsPlatform() && scriptFile != null && scriptFile.exists()
+                        ? runWindowsOcr(scriptFile, tempImg)
+                        : runTesseractOcr(tempImg);
                 if (pageOcr != null && !pageOcr.trim().isEmpty()) {
                     fullOcrText.append(pageOcr.trim()).append("\n\n");
                 }
@@ -160,6 +164,31 @@ public class PdfExtractorService {
         }
 
         return fullOcrText.toString().trim();
+    }
+
+    private boolean isWindowsPlatform() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    /** Linux/macOS OCR fallback used by Render containers. */
+    private String runTesseractOcr(File imageFile) {
+        if (imageFile == null || !imageFile.exists()) return "";
+        try {
+            Process process = new ProcessBuilder(
+                    "tesseract", imageFile.getAbsolutePath(), "stdout", "-l", "eng", "--psm", "6"
+            ).redirectErrorStream(true).start();
+            boolean finished = process.waitFor(18, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return "";
+            }
+            try (InputStream is = process.getInputStream()) {
+                return new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
+            }
+        } catch (Exception e) {
+            System.err.println("[PDF EXTRACTOR] Tesseract OCR unavailable/failed: " + e.getMessage());
+            return "";
+        }
     }
 
     private File resolveOcrScriptFile() {
