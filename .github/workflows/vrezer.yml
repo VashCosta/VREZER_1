@@ -33,21 +33,6 @@ jobs:
           cp backend/src/main/resources/static/style.css _site/style.css
           touch _site/.nojekyll
 
-      - name: Validate configured secrets
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          LLAMA_API_KEY: ${{ secrets.LLAMA_API_KEY }}
-          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
-          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
-          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
-        run: |
-          test -n "$GEMINI_API_KEY" || (echo "Missing GEMINI_API_KEY" && exit 1)
-          test -n "$GROQ_API_KEY" || (echo "Missing GROQ_API_KEY" && exit 1)
-          test -n "$LLAMA_API_KEY" || (echo "Missing LLAMA_API_KEY" && exit 1)
-          test -n "$JOOBLE_API_KEY" || (echo "Missing JOOBLE_API_KEY" && exit 1)
-          test -n "$ADZUNA_APP_KEY" || (echo "Missing ADZUNA_APP_KEY" && exit 1)
-          echo "Required API secrets are configured in GitHub."
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
