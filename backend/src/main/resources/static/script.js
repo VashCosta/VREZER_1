@@ -24,6 +24,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return '';
     }
+    async function waitForBackendReady(baseUrl) {
+        if (!baseUrl) return true;
+        const attempts = 24;
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
+                try {
+                    const healthRes = await fetch(baseUrl + '/actuator/health', {
+                        method: 'GET',
+                        cache: 'no-store',
+                        signal: controller.signal
+                    });
+                    if (healthRes.ok) return true;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            } catch (_) {}
+            if (attempt < attempts) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+        }
+        return false;
+    }
+
     const dropZone = $('drop-zone'), fileInput = $('file-input');
     const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
     const themeBtn = $('theme-toggle'), exportBtn = $('export-btn');
@@ -438,32 +463,46 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     // The original PDF is sent directly to the backend so OCR, parsing and AI
                     // always operate on exactly the same bytes.
                     if (baseUrl !== undefined) {
+                        const ready = await waitForBackendReady(baseUrl);
+                        if (!ready) {
+                            throw new Error('VREZER backend is waking up. Please wait a moment and press Analyze again.');
+                        }
+
                         const fd = new FormData();
                         fd.append('file', currentFile);
-                        const controller = new AbortController();
-                        // Scanned-PDF OCR + multimodal transcription + live market analysis can
-                        // legitimately take several minutes on a free Render instance. Do not
-                        // abort the request after the old 120-second client timeout.
-                        const timeoutMs = 300000;
-                        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-                        try {
-                            const analysisRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/analyze-file', {
-                                method: 'POST',
-                                body: fd,
-                                signal: controller.signal
-                            });
-                            const resData = await analysisRes.json().catch(() => ({}));
-                            if (!analysisRes.ok || resData.error || resData.status === 'ERROR') {
-                                throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
+
+                        let analysisRes = null;
+                        let resData = null;
+
+                        for (let attempt = 1; attempt <= 2; attempt++) {
+                            try {
+                                analysisRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/analyze-file', {
+                                    method: 'POST',
+                                    body: fd,
+                                    cache: 'no-store'
+                                });
+                                resData = await analysisRes.json().catch(() => ({}));
+
+                                if (analysisRes.ok && !resData.error && resData.status !== 'ERROR') {
+                                    break;
+                                }
+
+                                if (attempt === 2) {
+                                    throw new Error(resData.error || resData.message || ('VREZER backend returned HTTP ' + analysisRes.status));
+                                }
+                            } catch (requestError) {
+                                if (attempt === 2) {
+                                    throw new Error(
+                                        'VREZER backend connection was interrupted while processing the resume. ' +
+                                        'No fake analysis was generated. Please press Analyze again after the backend is warm.'
+                                    );
+                                }
+                                await new Promise(resolve => setTimeout(resolve, 8000));
+                                await waitForBackendReady(baseUrl);
                             }
-                            data = resData;
-                        } catch (requestError) {
-                            if (requestError && requestError.name === 'AbortError') {
-                                throw new Error('VREZER analysis timed out after 5 minutes. The backend may still be processing OCR/AI; please try again once the Render instance is warm.');
-                            }
-                            throw requestError;
-                        } finally {
-                            clearTimeout(timeoutId);
+                        }
+
+                        data = resData;
                         }
                     }
 
