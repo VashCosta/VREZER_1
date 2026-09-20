@@ -55,6 +55,8 @@ services:
         value: "https://vashcosta.github.io,https://vashcosta.github.io/VREZER_1/,https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000"
       - key: PDF_OCR_ENABLED
         value: "true"
+      - key: PDF_GEMINI_FALLBACK_ENABLED
+        value: "true"
       - key: LLAMA_MODEL
         value: "openai/gpt-oss-120b"
       - key: JAVA_TOOL_OPTIONS
