@@ -523,47 +523,57 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             e.classList.toggle('active', idx === index);
         });
     }
-    const VREZER_FETCH_RETRIES = 5;
+    const VREZER_FETCH_RETRIES = 4;
     const VREZER_FETCH_TIMEOUT = 300000;
 
     function wait(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    async function requestWithRetry(requestFactory, label, retries = VREZER_FETCH_RETRIES) {
+    async function requestWithRetry(requestFactory, label, options = {}) {
+        const retries = Number(options.retries || VREZER_FETCH_RETRIES);
+        const timeoutMs = Number(options.timeoutMs || VREZER_FETCH_TIMEOUT);
         let lastError = null;
+
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 if (loadMsg) loadMsg.textContent = label + ' · connection attempt ' + attempt + '/' + retries;
+
                 const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), VREZER_FETCH_TIMEOUT);
+                const timeout = setTimeout(() => controller.abort(), timeoutMs);
                 let response;
                 try {
                     response = await requestFactory(controller.signal);
                 } finally {
                     clearTimeout(timeout);
                 }
+
                 if (response.ok || ![502, 503, 504].includes(response.status)) return response;
                 lastError = new Error('HTTP ' + response.status);
             } catch (e) {
                 lastError = e && e.name === 'AbortError'
-                    ? new Error('Render backend timed out.')
+                    ? new Error('The Render backend is still waking up.')
                     : e;
             }
-            if (attempt < retries) await wait(Math.min(12000, 2500 * attempt));
+
+            if (attempt < retries) {
+                await wait(Math.min(12000, 4000 + ((attempt - 1) * 2500)));
+            }
         }
-        throw lastError || new Error('Render backend is unreachable.');
+
+        throw lastError || new Error('The live Render backend could not be reached.');
     }
 
     async function ensureBackendOnline(baseUrl) {
         const probe = await requestWithRetry(
-            signal => fetch(baseUrl + '/api/analyzer/version?probe=1', {
+            signal => fetch(baseUrl + '/api/analyzer/version?probe=' + Date.now(), {
                 method: 'GET',
                 mode: 'cors',
                 cache: 'no-store',
                 signal
             }),
-            'Connecting to live Render backend'
+            'Connecting to live Render backend',
+            { retries: 24, timeoutMs: 12000 }
         );
         if (!probe.ok) throw new Error('Live Render backend health check failed.');
     }
@@ -584,7 +594,8 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 }),
                 signal
             }),
-            'Running VREZER AI analysis'
+            'Running VREZER AI analysis',
+            { retries: 4, timeoutMs: 300000 }
         );
         const resData = await res.json().catch(() => ({}));
         if (!res.ok || resData.error || resData.status === 'ERROR') {
