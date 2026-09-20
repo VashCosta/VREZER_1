@@ -389,7 +389,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         const startTime = Date.now();
         const TOTAL_DURATION_MS = 16000;
-
         const steps = [
             { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
             { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
@@ -397,7 +396,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
             { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
         ];
-
         let stepIdx = 0;
         const loadPhase = $('load-phase');
 
@@ -407,12 +405,9 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             if (progFill) progFill.style.width = progressPct + '%';
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-
-            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3200));
-            stepIdx = currentPhaseIdx;
+            stepIdx = Math.min(4, Math.floor(elapsed / 3200));
             if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
-
             steps.forEach((st, idx) => {
                 const stepEl = $(st.id);
                 if (!stepEl) return;
@@ -429,13 +424,11 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const baseUrl = getApiBaseUrl();
             if (!baseUrl) throw new Error('VREZER backend URL is not configured.');
 
-            let resumeText = null;
-            if (sampleTextForAnalysis) {
-                resumeText = sampleTextForAnalysis;
-            } else {
+            let resumeText = sampleTextForAnalysis || null;
+
+            if (!resumeText) {
                 const fd = new FormData();
                 fd.append('file', currentFile);
-
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 300000);
                 let exRes;
@@ -481,7 +474,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
             if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
             if (loadMsg) loadMsg.textContent = 'Analysis complete — rendering the exact backend dossier across every section.';
-
             steps.forEach(st => {
                 const stepEl = $(st.id);
                 if (stepEl) {
@@ -491,23 +483,24 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             });
 
             lastData = data;
+
             setTimeout(() => {
-                try { renderDash(data); }
-                catch (e) { console.error('renderDash error:', e); }
-                finally {
+                try {
+                    renderDash(data);
+                } catch (e) {
+                    console.error('renderDash error:', e);
+                } finally {
                     show(dashSect);
                     hide(loadSect, uploadSect);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     setTicker('ANALYSIS COMPLETE · ' + (data.name || 'Candidate') + ' · ' + (data.role || data.careerDomain || 'Career Intelligence'));
                 }
             }, 350);
-
         } catch (err) {
             console.error('Analysis error:', err);
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
-
             const status = $('file-status');
             if (status) {
                 status.style.display = 'block';
@@ -3509,225 +3502,6 @@ Provide a direct, high-value, actionable, professional career recommendation in 
         return await readTextFromFile(file);
     }
 
-    async function callGroqDirectlyClientSide(resumeText, fileName) {
-        const apiKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
-        try {
-            const prompt = `Analyze this candidate resume for VREZER AI Platform. Return valid JSON only with keys matching this exact structure:
-{
-  "name": "Candidate Name",
-  "email": "Email or candidate@email.com",
-  "phone": "Phone or +91 98765 43210",
-  "role": "Extracted Target Role",
-  "primaryDomain": "Primary Engineering Domain",
-  "secondaryDomain": "Secondary Domain",
-  "careerDomain": "Career Domain",
-  "atsScore": 84,
-  "atsScoreText": "EXCELLENT",
-  "yearsOfExperience": 3,
-  "experienceLevel": "Mid-Level",
-  "education": "Degree Name",
-  "expectedLpaRange": "12 - 20 LPA",
-  "salaryUsd": "$15,000 - $25,000 USD/yr",
-  "confidenceScore": 92,
-  "AI_STATUS": "PROCESSED BY META LLAMA 3.3 70B",
-  "aiModelUsed": "Meta LLaMA 3.3 70B & VREZER Engine",
-  "topSkills": ["Skill 1", "Skill 2", "Skill 3", "Skill 4", "Skill 5"],
-  "programmingLanguages": ["Language 1", "Language 2"],
-  "toolsAndTechnologies": ["Tool 1", "Tool 2"],
-  "projects": [{ "title": "Project Title", "description": "Project Description", "techStack": ["Tech 1"] }],
-  "tier1": [{ "company": "Google", "role": "Role", "expectedSalary": "35-50 LPA", "matchScore": 95 }],
-  "tier2": [{ "company": "Razorpay", "role": "Role", "expectedSalary": "15-25 LPA", "matchScore": 88 }],
-  "tier3": [{ "company": "TCS Digital", "role": "Role", "expectedSalary": "7-12 LPA", "matchScore": 75 }],
-  "recommendedCompanies": ["Razorpay", "Zoho", "Swiggy", "Atlassian", "GitLab"],
-  "retrievedJobOpportunities": [
-     { "title": "Role Title", "company": "Razorpay", "location": "Bengaluru, India", "salary": "18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Adzuna India" }
-  ],
-  "skillGaps": ["Gap 1", "Gap 2"],
-  "improvements": ["Improvement 1", "Improvement 2"],
-  "nextBestActions": ["Action 1", "Action 2"]
-}
-
-Resume Text:
-${(resumeText || '').substring(0, 3500)}`;
-
-            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [
-                        { role: 'system', content: 'You are VREZER AI career engine. Respond with raw valid JSON only. No markdown ticks.' },
-                        { role: 'user', content: prompt }
-                    ],
-                    temperature: 0.2
-                })
-            });
-
-            if (res.ok) {
-                const json = await res.json();
-                const rawContent = json.choices && json.choices[0] && json.choices[0].message ? json.choices[0].message.content : '';
-                const cleanJson = rawContent.replace(/```json/gi, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(cleanJson);
-                if (parsed && (parsed.name || parsed.atsScore || parsed.role)) {
-                    console.log('VREZER Live Client Groq AI Pipeline successful!');
-                    return parsed;
-                }
-            }
-        } catch (groqErr) {
-            console.warn('Groq client API fallback to local parser:', groqErr);
-        }
-        return parseResumeClientSide(fileName, resumeText);
-    }
-
-    async function callGeminiDirectlyClientSide(resumeText, apiKey) {
-        if (!apiKey) {
-            apiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
-        }
-        let model = 'gemini-2.5-flash';
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
-        if (apiKey.startsWith('gsk_')) {
-            url = 'https://api.groq.com/openai/v1/chat/completions';
-        }
-
-        const promptText = `Analyze this candidate resume and return ONLY valid JSON with no markdown headers:
-{
-  "name": "Candidate Full Name",
-  "email": "candidate@email.com",
-  "phone": "+91 98765 43210",
-  "role": "Target Specialization Title",
-  "primaryDomain": "Primary Tech Domain",
-  "secondaryDomain": "Cloud & Systems",
-  "careerDomain": "Primary Tech Domain",
-  "atsScore": 81,
-  "atsScoreText": "GOOD MATCH",
-  "profileStrength": 85,
-  "confidenceScore": 92,
-  "yearsOfExperience": 3,
-  "experienceLevel": "MID_LEVEL",
-  "careerLevel": "MID_LEVEL",
-  "education": "Highest Degree",
-  "expectedLpaRange": "₹12.0 LPA - ₹18.0 LPA",
-  "salaryMin": 12,
-  "salaryMax": 18,
-  "salaryCurrency": "INR",
-  "salaryUsd": "$18,000 USD/yr",
-  "professionalSummary": "Detailed summary",
-  "strategicForecast": "2-3 sentence strategic forecast",
-  "AI_STATUS": "ACTIVE",
-  "RAG_STATUS": "ACTIVE",
-  "aiModelUsed": "Gemini 2.5 Flash (Direct AI Pipeline)",
-  "topSkills": ["Skill1", "Skill2", "Skill3"],
-  "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
-  "missingSkills": ["Cloud Architecture", "Distributed Systems"],
-  "programmingLanguages": ["Python", "Java", "SQL"],
-  "toolsAndTechnologies": ["Docker", "Kubernetes", "AWS"],
-  "swotAnalysis": {
-    "strengths": ["Strong domain foundation", "Hands-on execution"],
-    "weaknesses": ["Needs metrics quantification"],
-    "opportunities": ["High demand in tech hubs"],
-    "threats": ["Evolving tool stack"]
-  },
-  "atsScoreDetails": {
-    "sectionCompletenessScore": 90,
-    "keywordOptimizationScore": 88,
-    "formattingScore": 85,
-    "achievementScore": 80,
-    "readabilityScore": 85,
-    "explanation": "ATS evaluation summary"
-  },
-  "projects": [
-    { "title": "System Architecture", "description": "High availability design", "techStack": ["Java", "Docker"] }
-  ],
-  "tier1": [{ "company": "Google", "role": "Senior Engineer", "expectedSalary": "₹35 LPA", "matchScore": 95 }],
-  "tier2": [{ "company": "Razorpay", "role": "Engineer", "expectedSalary": "₹18 LPA", "matchScore": 88 }],
-  "tier3": [{ "company": "Infosys", "role": "Associate", "expectedSalary": "₹8 LPA", "matchScore": 75 }],
-  "recommendedCompanies": ["Google", "Razorpay", "Zoho"],
-  "retrievedJobOpportunities": [
-    { "title": "Senior Engineer", "company": "Razorpay", "location": "Bengaluru, India", "salary": "₹18 LPA", "matchPercentage": 92, "url": "https://careers.razorpay.com", "source": "Live API" }
-  ],
-  "careerGrowthTimeline": [
-    { "stage": "0-6 months", "title": "Core Engineer", "expectedSalaryProgression": "₹12-15 LPA", "recommendedCertifications": "AWS Certified", "roadmapNotes": "Production deployment" }
-  ],
-  "interviewPreparation": {
-    "technicalQuestions": [{ "question": "Explain recent project architecture", "modelAnswer": "Walkthrough design" }],
-    "behavioralQuestions": [{ "question": "Describe a challenge", "starAnswer": "STAR method response" }],
-    "salaryNegotiationTips": ["Anchor high using market data"]
-  },
-  "bulletPointRewrites": [
-    { "original": "Developed features", "aiRewritten": "Architected scalable features improving throughput by 35%", "impactMetricMetric": "+35% Throughput" }
-  ],
-  "skillGaps": [{ "skill": "Distributed Systems", "priority": "HIGH", "impact": "+8% Match" }],
-  "improvements": ["Quantify achievements"],
-  "nextBestActions": ["Apply to Razorpay"],
-  "debugPanel": {
-    "analysisId": "an_direct_ai",
-    "resumeHash": "sha256_direct",
-    "extractedTextLength": 1200,
-    "candidateName": "Candidate",
-    "detectedDomain": "Tech",
-    "experienceLevel": "MID_LEVEL",
-    "jobApiRequestCount": 8,
-    "mergedJobsCount": 3,
-    "AI_STATUS": "ACTIVE",
-    "RAG_STATUS": "ACTIVE"
-  }
-}
-
-RESUME TEXT:
-${resumeText.substring(0, 12000)}`;
-
-        if (apiKey.startsWith('gsk_')) {
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [{ role: 'user', content: promptText }],
-                    temperature: 0.0
-                })
-            });
-            const data = await resp.json();
-            const raw = data?.choices?.[0]?.message?.content || '';
-            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Groq / Meta LLaMA 3.3 70B (Direct AI)';
-            return parsed;
-        } else {
-            let resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: promptText }] }],
-                    generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
-                })
-            });
-            if (!resp.ok) {
-                // Fallback to gemini-1.5-flash if 2.5 is unavailable
-                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                resp = await fetch(fallbackUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: promptText }] }],
-                        generationConfig: { temperature: 0.0, maxOutputTokens: 8192 }
-                    })
-                });
-            }
-            const data = await resp.json();
-            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-            const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Google Gemini 2.5 Flash (Direct AI)';
-            return parsed;
-        }
-    }
 
     async function extractPdfTextClientSide(file) {
         if (!file) return '';
@@ -3786,462 +3560,7 @@ ${resumeText.substring(0, 12000)}`;
         });
     }
 
-    function parseResumeClientSide(filename, text) {
-        const rawText = (text || '').trim();
-        const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-        const lowerText = rawText.toLowerCase();
 
-        // 1. Candidate Name Extraction
-        let name = '';
-        const headerLines = lines.slice(0, 10);
-        const headingExclusions = [
-            'resume', 'curriculum', 'vitae', 'profile', 'summary', 'contact', 'email', 'phone',
-            'education', 'experience', 'skills', 'projects', 'certifications', 'personal', 'work',
-            'software', 'developer', 'engineer', 'manager', 'architect', 'lead', 'analyst', 'specialist'
-        ];
-        for (const line of headerLines) {
-            const cleanLine = line.replace(/[^a-zA-Z\s]/g, '').trim();
-            const words = cleanLine.split(/\s+/).filter(Boolean);
-            if (words.length >= 2 && words.length <= 4) {
-                const isHeading = words.some(w => headingExclusions.includes(w.toLowerCase()));
-                const isCapitalized = words.every(w => /^[A-Z][a-z]{1,20}$/.test(w));
-                if (!isHeading && isCapitalized) {
-                    name = words.join(' ');
-                    break;
-                }
-            }
-        }
-        if (!name) {
-            const cleanFn = (filename || '').replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-            const fnWords = cleanFn.split(/\s+/).filter(w => !headingExclusions.includes(w.toLowerCase()));
-            if (fnWords.length >= 2) {
-                name = fnWords.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-            } else if (fnWords.length === 1 && fnWords[0].length >= 3) {
-                name = fnWords[0].charAt(0).toUpperCase() + fnWords[0].slice(1).toLowerCase() + ' Profile';
-            } else {
-                name = 'Candidate Dossier';
-            }
-        }
-
-        // 2. Contact Extraction
-        const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-        const email = emailMatch ? emailMatch[0] : 'candidate@email.com';
-        const phoneMatch = rawText.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}|\b\d{10}\b/);
-        const phone = phoneMatch ? phoneMatch[0] : '+91 98765 43210';
-        const githubMatch = rawText.match(/github\.com\/([a-zA-Z0-9_-]+)/i);
-        const github = githubMatch ? `https://${githubMatch[0]}` : null;
-        const linkedinMatch = rawText.match(/linkedin\.com\/in\/([a-zA-Z0-9_-]+)/i);
-        const linkedin = linkedinMatch ? `https://${linkedinMatch[0]}` : null;
-
-        // 3. 24+ Career Domain & Role Detection Engine
-        let role = 'Software Engineer';
-        let primaryDomain = 'Software Engineering & Systems';
-        let secondaryDomain = 'Cloud & DevOps';
-
-        if (lowerText.includes('java') && (lowerText.includes('spring') || lowerText.includes('hibernate') || lowerText.includes('backend'))) {
-            role = 'Java Backend Engineer';
-            primaryDomain = 'Java Backend & Microservices';
-            secondaryDomain = 'Cloud Architecture & Relational DBs';
-        } else if (lowerText.includes('data scientist') || lowerText.includes('machine learning') || lowerText.includes('pytorch') || lowerText.includes('tensorflow') || lowerText.includes('aiml')) {
-            role = 'AI / ML Engineer & Data Scientist';
-            primaryDomain = 'Artificial Intelligence & Data Science';
-            secondaryDomain = 'MLOps & Predictive Analytics';
-        } else if (lowerText.includes('devops') || lowerText.includes('kubernetes') || lowerText.includes('terraform') || lowerText.includes('aws')) {
-            role = 'DevOps & Cloud Architect';
-            primaryDomain = 'Cloud Infrastructure & DevOps';
-            secondaryDomain = 'SRE & Infrastructure as Code';
-        } else if (lowerText.includes('frontend') || lowerText.includes('react') || lowerText.includes('angular') || lowerText.includes('vue') || lowerText.includes('next.js')) {
-            role = 'Senior Frontend Engineer';
-            primaryDomain = 'Frontend & Web Development';
-            secondaryDomain = 'UI/UX Performance & State Management';
-        } else if (lowerText.includes('fullstack') || lowerText.includes('full stack') || lowerText.includes('mern') || lowerText.includes('node')) {
-            role = 'Full Stack Software Engineer';
-            primaryDomain = 'Full Stack Engineering';
-            secondaryDomain = 'Distributed APIs & Web Systems';
-        } else if (lowerText.includes('cyber') || lowerText.includes('security') || lowerText.includes('pentest') || lowerText.includes('vulnerability')) {
-            role = 'Cyber Security Analyst';
-            primaryDomain = 'Cyber Security & Information Assurance';
-            secondaryDomain = 'Network Defense & Threat Hunting';
-        } else if (lowerText.includes('data engineer') || lowerText.includes('spark') || lowerText.includes('hadoop') || lowerText.includes('airflow') || lowerText.includes('snowflake')) {
-            role = 'Big Data & Pipeline Engineer';
-            primaryDomain = 'Data Engineering & MLOps';
-            secondaryDomain = 'ETL Systems & Data Warehousing';
-        } else if (lowerText.includes('android') || lowerText.includes('flutter') || lowerText.includes('ios') || lowerText.includes('swift') || lowerText.includes('react native')) {
-            role = 'Mobile Application Engineer';
-            primaryDomain = 'Mobile Systems Engineering';
-            secondaryDomain = 'Cross-Platform App Development';
-        } else if (lowerText.includes('qa') || lowerText.includes('selenium') || lowerText.includes('cypress') || lowerText.includes('automation testing')) {
-            role = 'QA Automation Lead';
-            primaryDomain = 'Software Quality Assurance';
-            secondaryDomain = 'Test Automation & CI Integration';
-        } else if (lowerText.includes('mechanical') || lowerText.includes('solidworks') || lowerText.includes('ansys') || lowerText.includes('cad') || lowerText.includes('fea')) {
-            role = 'Mechanical CAE & Design Engineer';
-            primaryDomain = 'Mechanical & Aerospace Engineering';
-            secondaryDomain = 'CAD Modeling & Finite Element Analysis';
-        } else if (lowerText.includes('embedded') || lowerText.includes('microcontroller') || lowerText.includes('rtos') || lowerText.includes('firmware')) {
-            role = 'Embedded Systems Engineer';
-            primaryDomain = 'Embedded Systems & Hardware';
-            secondaryDomain = 'Real-Time OS & IoT Firmware';
-        } else if (lowerText.includes('digital marketing') || lowerText.includes('seo') || lowerText.includes('sem') || lowerText.includes('ga4') || lowerText.includes('hubspot')) {
-            role = 'Digital Marketing & Growth Lead';
-            primaryDomain = 'Digital Marketing & Growth';
-            secondaryDomain = 'Performance SEM & Analytics';
-        } else if (lowerText.includes('finance') || lowerText.includes('valuation') || lowerText.includes('financial modeling') || lowerText.includes('accounting') || lowerText.includes('audit')) {
-            role = 'Corporate Finance & Financial Analyst';
-            primaryDomain = 'Corporate Finance & Investment';
-            secondaryDomain = 'Financial Valuation & Accounting Compliance';
-        } else if (lowerText.includes('human resources') || lowerText.includes('recruiting') || lowerText.includes('talent acquisition') || lowerText.includes('workday')) {
-            role = 'Senior Talent Acquisition Specialist';
-            primaryDomain = 'Human Resources & People Ops';
-            secondaryDomain = 'Technical Sourcing & HRIS';
-        } else if (lowerText.includes('product manager') || lowerText.includes('prd') || lowerText.includes('roadmap') || lowerText.includes('scrum master')) {
-            role = 'Senior Technical Product Manager';
-            primaryDomain = 'Product Management & Strategy';
-            secondaryDomain = 'Agile Delivery & Product Analytics';
-        } else if (lowerText.includes('ui/ux') || lowerText.includes('figma') || lowerText.includes('wireframe') || lowerText.includes('user research')) {
-            role = 'Lead UI/UX Product Designer';
-            primaryDomain = 'UI/UX Product Design';
-            secondaryDomain = 'Design Systems & User Research';
-        }
-
-        // 4. Tech & Skill Library Extraction
-        const knownSkills = [
-            'Java', 'Spring Boot', 'Spring MVC', 'Hibernate', 'JPA', 'Microservices', 'REST API', 'GraphQL',
-            'Python', 'Django', 'Flask', 'FastAPI', 'PyTorch', 'TensorFlow', 'Scikit-learn', 'Pandas', 'NumPy',
-            'JavaScript', 'TypeScript', 'React', 'Angular', 'Vue.js', 'Next.js', 'Node.js', 'Express', 'TailwindCSS',
-            'C++', 'C#', '.NET', 'SQL', 'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Kafka', 'Elasticsearch',
-            'Docker', 'Kubernetes', 'AWS', 'Azure', 'GCP', 'Terraform', 'Ansible', 'Jenkins', 'Git', 'GitHub', 'CI/CD',
-            'Linux', 'System Design', 'Agile', 'Scrum', 'Jira', 'SolidWorks', 'ANSYS', 'AutoCAD', 'MATLAB', 'Figma',
-            'GA4', 'SEO', 'SEM', 'HubSpot', 'Workday', 'Financial Modeling', 'Selenium', 'Cypress', 'Flutter', 'Swift', 'Kotlin'
-        ];
-
-        const detectedSkills = knownSkills.filter(skill => {
-            try {
-                const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, 'i');
-                return regex.test(rawText);
-            } catch (e) {
-                return lowerText.includes(skill.toLowerCase());
-            }
-        });
-
-        const finalSkills = detectedSkills.length >= 3 ? detectedSkills : ['Java', 'Spring Boot', 'MySQL', 'REST APIs', 'HTML', 'CSS', 'JavaScript'];
-
-        // Soft Skills / Transferable Skills Extraction
-        const knownSoftSkills = ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner', 'Communication', 'Adaptability', 'Time Management', 'Critical Thinking'];
-        const detectedSoftSkills = knownSoftSkills.filter(s => lowerText.includes(s.toLowerCase()));
-        const transferableSkills = detectedSoftSkills.length >= 2 ? detectedSoftSkills : ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner'];
-
-        // Professional Summary Extraction from raw text
-        let extractedSummary = '';
-        const linesArr = rawText.split(/\r?\n/);
-        for (let i = 0; i < Math.min(linesArr.length, 18); i++) {
-            const line = linesArr[i].trim();
-            const low = line.toLowerCase();
-            if (low.includes('aspiring') || low.includes('passionate') || low.includes('student with') || low.includes('skilled in') || low.includes('hands-on experience') || low.includes('developer with') || low.includes('motivated') || low.includes('professional summary') || low.includes('summary:')) {
-                let collected = [line];
-                for (let j = i + 1; j < Math.min(linesArr.length, i + 6); j++) {
-                    const nextLine = linesArr[j].trim();
-                    if (!nextLine || /^(?:education|skills|technical skills|experience|projects|certifications|awards)\b/i.test(nextLine)) break;
-                    collected.push(nextLine);
-                }
-                extractedSummary = sanitizeBioText(collected.join(' '));
-                break;
-            }
-        }
-
-        // 5. Experience & Level
-        const isStudentOrPursuing = lowerText.includes('pursuing') || lowerText.includes('b.tech') || lowerText.includes('b.e') || lowerText.includes('student') || (lowerText.includes('intern') && !lowerText.includes('senior'));
-        let yearsOfExperience = 0;
-        if (!isStudentOrPursuing) {
-            const expMatch = rawText.match(/(\d+)\+?\s*(?:years?|yrs?)\s*(?:of)?\s*(?:industrial|work|professional)?\s*exp/i);
-            if (expMatch) {
-                yearsOfExperience = Math.min(25, parseInt(expMatch[1], 10));
-            }
-        }
-        const experienceLevel = (isStudentOrPursuing || yearsOfExperience === 0) ? 'FRESHER' : (yearsOfExperience >= 7 ? 'Senior' : yearsOfExperience >= 3 ? 'Mid-Level' : 'Junior / Associate');
-        const levelCode = (isStudentOrPursuing || yearsOfExperience === 0) ? 'FRESHER' : (yearsOfExperience >= 7 ? 'SENIOR_LEVEL' : yearsOfExperience >= 3 ? 'MID_LEVEL' : 'ENTRY_LEVEL');
-
-        // 6. Deterministic 11-Dimension ATS Engine
-        let score = 62;
-        if (emailMatch) score += 5;
-        if (phoneMatch) score += 5;
-        if (github || linkedin) score += 4;
-        if (finalSkills.length >= 5) score += 8;
-        if (finalSkills.length >= 10) score += 6;
-        if (rawText.length > 800) score += 4;
-        if (/increased|improved|reduced|built|launched|deployed|architected/i.test(rawText)) score += 5;
-        const atsScore = Math.min(96, Math.max(68, score));
-
-        // 7. Salary LPA & USD
-        let baseLpaMin = 7 + yearsOfExperience * 2.8;
-        let baseLpaMax = 14 + yearsOfExperience * 4.8;
-        const baseMinStr = baseLpaMin.toFixed(1);
-        const baseMaxStr = baseLpaMax.toFixed(1);
-        const expectedLpaRange = `${baseMinStr} - ${baseMaxStr} LPA`;
-        const salaryUsd = `$ ${Math.round(baseLpaMin * 1.2)}K - ${Math.round(baseLpaMax * 1.3)}K USD`;
-
-        // 8. Line-by-Line Evidence Citations
-        const citations = [
-            `Extracted candidate identity "${name}" from document header`,
-            `Verified contact email "${email}" and phone "${phone}"`,
-            `Extracted ${finalSkills.length} technical competencies: ${finalSkills.slice(0, 4).join(', ')}`,
-            `Identified ${yearsOfExperience}+ years experience from document text`,
-            `Mapped candidate to ${primaryDomain} domain profile`
-        ];
-
-        // 9. Candidate Bullet Point Rewrites
-        const candidateSentences = lines.filter(l => l.length > 30 && /built|developed|managed|created|designed|implemented|worked|responsible/i.test(l));
-        const b1 = candidateSentences[0] || `Worked on ${primaryDomain} modules and feature development.`;
-        const b2 = candidateSentences[1] || `Responsible for database queries and system performance debugging.`;
-
-        const bulletPointRewrites = [
-            {
-                original: b1,
-                aiRewritten: `Architected and deployed scalable ${primaryDomain} services using ${finalSkills.slice(0, 2).join(' & ')}, improving system throughput by 38% and reducing deployment latency.`,
-                impactMetricMetric: '+38% System Throughput'
-            },
-            {
-                original: b2,
-                aiRewritten: `Engineered production-grade REST APIs and optimized query execution using ${finalSkills.slice(2, 4).join(' & ')}, cutting P99 latency by 45%.`,
-                impactMetricMetric: '-45% Response Latency'
-            }
-        ];
-
-        // 10. Candidate Projects
-        const projects = [
-            {
-                title: `${primaryDomain} Production Platform`,
-                description: `Designed and built end-to-end ${primaryDomain} service architecture using ${finalSkills.slice(0, 3).join(', ')} with high availability and automated testing.`,
-                techStack: finalSkills.slice(0, 4)
-            },
-            {
-                title: `Automated ${secondaryDomain} Pipeline`,
-                description: `Engineered high-performance data and API service layer using ${finalSkills.slice(2, 5).join(', ')} for production workflows.`,
-                techStack: finalSkills.slice(2, 5)
-            }
-        ];
-
-        // 11. Tier 1, Tier 2, Tier 3 Company Recommendations
-        const tier1 = [
-            { company: getTier1DefaultComp(primaryDomain), role: `Senior ${role}`, expectedSalary: `₹${(baseLpaMax + 10).toFixed(1)} - ₹${(baseLpaMax + 22).toFixed(1)} LPA`, matchScore: Math.min(98, atsScore + 3) },
-            { company: 'Microsoft IDC / Google IN', role: `Software Engineer II`, expectedSalary: `₹${(baseLpaMax + 8).toFixed(1)} - ₹${(baseLpaMax + 18).toFixed(1)} LPA`, matchScore: Math.min(96, atsScore + 1) }
-        ];
-
-        const tier2 = [
-            { company: getTier2DefaultComp(primaryDomain), role: role, expectedSalary: expectedLpaRange, matchScore: atsScore },
-            { company: 'Razorpay / Swiggy', role: role, expectedSalary: expectedLpaRange, matchScore: Math.max(75, atsScore - 2) }
-        ];
-
-        const tier3 = [
-            { company: getTier3DefaultComp(primaryDomain), role: `Associate ${role}`, expectedSalary: `₹${(baseLpaMin - 2).toFixed(1)} - ₹${(baseLpaMin + 4).toFixed(1)} LPA`, matchScore: Math.max(70, atsScore - 8) }
-        ];
-
-        // 12. Live Jobs
-        const retrievedJobOpportunities = [
-            {
-                title: `Senior ${role}`,
-                company: 'Razorpay',
-                location: 'Bengaluru, India',
-                salary: `₹${(baseLpaMax + 4).toFixed(1)} LPA`,
-                matchPercentage: Math.min(97, atsScore + 3),
-                url: 'https://careers.razorpay.com',
-                source: 'Adzuna India',
-                explanation: `High skill alignment with ${finalSkills.slice(0, 3).join(', ')}.`
-            },
-            {
-                title: role,
-                company: 'Zoho Corporation',
-                location: 'Chennai, India',
-                salary: expectedLpaRange,
-                matchPercentage: atsScore,
-                url: 'https://www.zoho.com/careers',
-                source: 'Live Careers',
-                explanation: `Matches target domain ${primaryDomain}.`
-            },
-            {
-                title: `Lead ${role}`,
-                company: 'Swiggy',
-                location: 'Bengaluru, India',
-                salary: `₹${(baseLpaMax + 6).toFixed(1)} LPA`,
-                matchPercentage: Math.max(78, atsScore - 3),
-                url: 'https://careers.swiggy.com',
-                source: 'Adzuna India',
-                explanation: `Target growth role requiring ${finalSkills[0] || 'core stack'}.`
-            },
-            {
-                title: `Remote ${role}`,
-                company: 'GitLab',
-                location: 'Remote (Global)',
-                salary: salaryUsd,
-                matchPercentage: Math.max(82, atsScore - 2),
-                url: 'https://about.gitlab.com/jobs',
-                source: 'Lever',
-                explanation: `Global remote role matching domain competencies.`
-            }
-        ];
-
-        const swotObj = {
-            strengths: [
-                `Strong core technical mastery in ${finalSkills.slice(0, 3).join(', ')}`,
-                `Proven domain background in ${primaryDomain}`,
-                `Demonstrated ${yearsOfExperience}+ years hands-on technical execution`
-            ],
-            weaknesses: [
-                `Could add more explicit quantitative metrics (%, $ throughput) to bullet points`,
-                `Expand certifications in Cloud Infrastructure / System Design`
-            ],
-            opportunities: [
-                `High market demand for ${role} professionals in top tech hubs`,
-                `AWS / Kubernetes / System Design certification unlocks Tier-1 salaries`
-            ],
-            threats: [
-                `Rapid evolution of modern dev tools requires continuous learning`,
-                `Heavy competition for unoptimized ATS resume submissions`
-            ],
-            improvements: [
-                'Quantify key achievements with metrics (e.g., Improved throughput by 38%, reduced latency by 45%).',
-                'Include active GitHub project repository links to boost recruiter verification.'
-            ],
-            missingSkills: ['Distributed System Architecture', 'CI/CD Automation', 'Cloud Security', 'Kubernetes']
-        };
-
-        return {
-            name: name,
-            email: email,
-            phone: phone,
-            github: github,
-            linkedin: linkedin,
-            role: role,
-            primaryDomain: primaryDomain,
-            secondaryDomain: (secondaryDomain && secondaryDomain !== primaryDomain) ? secondaryDomain : 'Full Stack Development',
-            careerDomain: primaryDomain,
-            atsScore: atsScore,
-            atsScoreText: atsScore >= 85 ? 'EXCELLENT' : atsScore >= 70 ? 'GOOD' : atsScore >= 55 ? 'AVERAGE' : 'NEEDS IMPROVEMENT',
-            profileStrength: Math.min(98, atsScore + 4),
-            confidenceScore: 94,
-            confidenceExplanation: `Analysis verified with strong evidence including ${finalSkills.length} technical competencies and ${yearsOfExperience}+ years domain experience.`,
-            yearsOfExperience: yearsOfExperience,
-            experienceLevel: levelCode,
-            careerLevel: levelCode,
-            education: lowerText.includes('m.tech') || lowerText.includes('master') ? 'Master of Technology / Science' : 'Bachelor of Engineering / Technology',
-            expectedLpaRange: expectedLpaRange,
-            salaryMin: Math.round(baseLpaMin),
-            salaryMax: Math.round(baseLpaMax),
-            salaryCurrency: 'INR',
-            salaryUsd: salaryUsd,
-            professionalSummary: (extractedSummary && extractedSummary.length >= 25) ? extractedSummary : `${name} is an aspiring ${role} specializing in ${primaryDomain}. Proven track record using ${finalSkills.slice(0, 4).join(', ')}, focused on building high-performance, resilient engineering systems.`,
-            transferableSkills: transferableSkills,
-            softSkills: transferableSkills,
-            careerPrediction: {
-                professionalIdentity: `${name} is a ${experienceLevel.toLowerCase()} ${primaryDomain} specialist with verified proficiency in ${finalSkills.slice(0, 4).join(', ')}.`,
-                strongestSkills: finalSkills.slice(0, 5),
-                careerDomain: primaryDomain,
-                suitableRoles: [role, isStudentOrPursuing ? (primaryDomain.toLowerCase().includes('marketing') ? 'Performance Marketing Lead & Growth Engineer' : `Lead ${role}`) : `Senior ${role}`],
-                careerPotential: `High growth potential in ${primaryDomain} domain with accelerated trajectory toward leadership & growth engineering roles.`,
-                skillGaps: ['Distributed System Architecture', 'Automated Cloud Pipelines', 'System Design'],
-                recommendedNextStep: `Spearhead high-impact ${primaryDomain} initiatives while integrating automated end-to-end workflows.`
-            },
-            strategicForecast: `With strong practical execution in ${primaryDomain}, candidate is well-positioned for high-impact software engineering roles across Tier-1 tech platforms.`,
-            dataDisclaimer: 'Insights derived from resume analysis; salary benchmarks are market reference projections.',
-            agentPipelineStatus: { resumeParserAgent: 'Completed', atsAnalysisAgent: 'Completed', skillGapAgent: 'Completed', jobMatchAgent: 'Completed', careerAdvisorAgent: 'Completed', reportGeneratorAgent: 'Completed' },
-            AI_STATUS: 'ACTIVE',
-            RAG_STATUS: 'ACTIVE',
-            aiModelUsed: 'VREZER Neural AI Intelligence Engine',
-            topSkills: finalSkills.slice(0, 8),
-            skills: finalSkills,
-            missingSkills: ['Distributed Systems', 'CI/CD Automation', 'Cloud Security', 'Kubernetes'],
-            programmingLanguages: finalSkills.filter(s => ['Java', 'Python', 'JavaScript', 'TypeScript', 'C++', 'C#', 'SQL', 'HTML', 'CSS'].includes(s)),
-            toolsAndTechnologies: finalSkills.filter(s => !['Java', 'Python', 'JavaScript', 'TypeScript', 'C++', 'C#', 'SQL', 'HTML', 'CSS'].includes(s)),
-            swot: swotObj,
-            swotAnalysis: swotObj,
-            atsScoreDetails: {
-                score: atsScore,
-                sectionCompletenessScore: emailMatch && phoneMatch ? 95 : 75,
-                keywordOptimizationScore: Math.min(96, finalSkills.length * 9),
-                formattingScore: 92,
-                achievementScore: /increased|improved|reduced|built|launched|managed/i.test(rawText) ? 88 : 65,
-                readabilityScore: 86,
-                explanation: `Candidate resume scored ${atsScore}/100 in ATS evaluation. Extracted ${finalSkills.length} core technical competencies for ${role}. Contact info and core sections are verified.`,
-                citations: citations
-            },
-            projects: projects,
-            tier1: tier1,
-            tier2: tier2,
-            tier3: tier3,
-            recommendedCompanies: ['Razorpay', 'Zoho', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'],
-            retrievedJobOpportunities: retrievedJobOpportunities,
-            careerGrowthTimeline: [
-                { stage: '0-6 months', title: `Core / Senior ${role}`, expectedSalaryProgression: `${baseMinStr} - ${(baseLpaMin + 4).toFixed(1)} LPA`, recommendedCertifications: 'AWS Certified Solutions Architect / System Design', roadmapNotes: 'Master production architecture and system optimization.' },
-                { stage: '6-18 months', title: `Lead ${role}`, expectedSalaryProgression: `${(baseLpaMin + 5).toFixed(1)} - ${(baseLpaMax + 4).toFixed(1)} LPA`, recommendedCertifications: 'Certified Kubernetes Administrator (CKA)', roadmapNotes: 'Drive core module design and cross-functional team delivery.' },
-                { stage: '2-3 years', title: `Staff / Principal ${role}`, expectedSalaryProgression: `${(baseLpaMax + 5).toFixed(1)} - ${(baseLpaMax + 15).toFixed(1)} LPA`, recommendedCertifications: 'Executive Tech Leadership & Enterprise System Design', roadmapNotes: 'Drive engineering strategy, platform design, and organization hiring.' }
-            ],
-            interviewPreparation: {
-                technicalQuestions: [
-                    { question: `Explain how you utilized ${finalSkills[0] || 'your core stack'} to solve system constraints in your recent project.`, modelAnswer: `Discuss technical trade-offs, architecture decisions, database indexing/caching, and how ${finalSkills[0] || 'your stack'} ensured high performance.` },
-                    { question: `How do you troubleshoot production latency bottlenecks in ${primaryDomain}?`, modelAnswer: `Describe APM profiling, log analysis, thread dumps, database query explain plans, and step-by-step root cause isolation.` }
-                ],
-                behavioralQuestions: [
-                    { question: `Describe a challenging engineering task with tight deadlines or shifting requirements.`, starAnswer: `Situation: Critical launch deadline. Task: Deliver core system functionality. Action: Prioritized high-impact modules, automated regression tests. Result: Delivered on schedule with zero P0 bugs.` }
-                ],
-                salaryNegotiationTips: [
-                    `Anchor expectations on target market data (${baseMinStr} - ${baseMaxStr} LPA).`,
-                    `Highlight your strong combination of core competencies: ${finalSkills.slice(0, 3).join(', ')}.`
-                ]
-            },
-            bulletPointRewrites: bulletPointRewrites,
-            skillGaps: [
-                { skill: 'Distributed System Architecture & Microservices', priority: 'HIGH', impact: '+8% ATS Match' },
-                { skill: 'Cloud Infrastructure & CI/CD Pipelines', priority: 'MEDIUM', impact: '+5% ATS Match' }
-            ],
-            improvements: [
-                'Quantify key achievements with metrics (e.g., Improved throughput by 38%, reduced latency by 45%).',
-                'Include active GitHub project repository links to boost recruiter verification.'
-            ],
-            nextBestActions: [
-                `Apply directly to matching ${role} openings at Razorpay, Zoho, and Swiggy.`,
-                `Optimize LinkedIn headline to match target role: ${role}`
-            ],
-            careerPrediction: {
-                professionalIdentity: `${name} is a ${experienceLevel.toLowerCase()} ${primaryDomain} specialist with verified proficiency in ${finalSkills.slice(0, 4).join(', ')}.`,
-                strongestSkills: finalSkills.slice(0, 5),
-                careerDomain: primaryDomain,
-                suitableRoles: [role, `Senior ${role}`, `Lead ${primaryDomain} Architect`],
-                careerPotential: `High trajectory potential in ${primaryDomain}`,
-                recommendedNextStep: 'Target high-impact engineering opportunities while strengthening cloud architecture competencies.'
-            },
-            dataSourceMap: {
-                atsScore: "AI Reasoning Engine + 11-Dimension Algorithmic Evaluator",
-                careerDomain: "Domain Intelligence Classifier",
-                salaryRange: "Market Intelligence Engine"
-            },
-            debugPanel: {
-                analysisId: 'an_' + Math.random().toString(36).substring(2, 10),
-                resumeHash: 'sha256_' + Math.random().toString(36).substring(2, 12),
-                extractedTextLength: rawText.length,
-                candidateName: name,
-                detectedDomain: primaryDomain,
-                experienceLevel: experienceLevel,
-                parsedResumeJson: { name, email, phone, skills: finalSkills },
-                candidateProfile: { name, email, phone, targetRoles: [role], experience: `${yearsOfExperience} Years`, programmingLanguages: finalSkills },
-                generatedSearchQuery: `("${primaryDomain}" OR "${role}") AND ("${finalSkills[0] || 'Software'}" OR "${finalSkills[1] || 'Engineering'}")`,
-                jobApiRequestCount: 8,
-                jobApiResponseCount: { Adzuna: 3, Greenhouse: 2, Lever: 2, Remotive: 1 },
-                mergedJobsCount: retrievedJobOpportunities.length,
-                removedDuplicateCount: 1,
-                retrievedJobs: retrievedJobOpportunities,
-                rankingScores: { semanticSimilarity: atsScore, domainMatch: 92, overallFit: Math.min(98, atsScore + 2) },
-                atsBreakdown: { sectionCompletenessScore: emailMatch && phoneMatch ? 92 : 70, keywordOptimizationScore: Math.min(95, finalSkills.length * 9), formattingScore: 88, achievementScore: 82 },
-                dashboardJson: JSON.stringify({ name, role, atsScore, primaryDomain }, null, 2),
-                AI_STATUS: 'ACTIVE',
-                RAG_STATUS: 'ACTIVE'
-            }
-        };
-    }
-
-    // ── Mock Data Builders for Instant Testing ───────
-    // ── Dynamic Dossier Builder ───────────────────────
-    // ── Dynamic Synchronized Candidate Dossier Builder ──────────
     function extractCandidateNameClient(text, fileName) {
         if (text && typeof text === 'string' && text.trim().length > 0) {
             const stopWords = ['resume', 'cv', 'curriculum', 'vitae', 'profile', 'contact', 'email', 'phone', 'linkedin', 'github', 'summary', 'experience', 'education', 'skills', 'projects', 'certifications', 'achievements', 'declaration', 'present', 'developer', 'engineer', 'analyst', 'specialist', 'manager', 'lead', 'senior', 'junior', 'executive'];
