@@ -925,7 +925,7 @@ public class VrezerAiAgentService {
                 Map<String, Object> content  = Map.of("parts", List.of(textPart));
 
                 Map<String, Object> genConfig = new LinkedHashMap<>();
-                genConfig.put("temperature", 0.2);
+                genConfig.put("temperature", 0.0);
                 genConfig.put("maxOutputTokens", 8192);
                 if ("v1beta".equals(version)) {
                     genConfig.put("responseMimeType", "application/json");
@@ -1319,7 +1319,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", "gpt-4o-mini");
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         ResponseEntity<String> resp = restTemplate.postForEntity(
@@ -1368,7 +1368,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", targetModel);
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         try {
@@ -1443,7 +1443,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", resolveGroqModel());
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(sysMsg, usrMsg));
 
@@ -1516,7 +1516,7 @@ public class VrezerAiAgentService {
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", resolveGroqModel());
-            body.put("temperature", 0.3);
+            body.put("temperature", 0.0);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));
 

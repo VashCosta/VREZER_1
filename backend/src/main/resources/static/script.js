@@ -379,6 +379,30 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         setTicker('Resume loaded: ' + file.name + ' — Click Launch AI Career Analysis to proceed');
     }
 
+    async function waitForBackendReady(baseUrl) {
+        const healthUrl = baseUrl.replace(/\/$/, '') + '/actuator/health';
+        let lastError = null;
+
+        // Render can cold-start. Wait here so the upload never races the sleeping service.
+        for (let attempt = 1; attempt <= 40; attempt++) {
+            try {
+                const res = await fetch(healthUrl, { method: 'GET', cache: 'no-store' });
+                if (res.ok) return true;
+                lastError = new Error('Backend health check returned HTTP ' + res.status);
+            } catch (err) {
+                lastError = err;
+            }
+            if (attempt < 40) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+        }
+
+        throw new Error(
+            'VREZER backend did not become ready within the startup window.' +
+            (lastError ? ' ' + lastError.message : '')
+        );
+    }
+
     if (analyseBtn) analyseBtn.addEventListener('click', runAnalysis);
 
     async function runAnalysis() {
@@ -505,57 +529,45 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         try {
             const fetchPromise = (async () => {
-                if (currentFile) {
-                    const baseUrl = getApiBaseUrl();
-                    let data = null;
+                if (!currentFile) throw new Error("Please select or drop a resume file first.");
+                const baseUrl = getApiBaseUrl();
+                if (!baseUrl) throw new Error("VREZER production backend URL is not configured.");
 
-                    // If baseUrl is present (local or remote backend), attempt extraction
-                    if (baseUrl !== undefined) {
-                        try {
-                            const fd = new FormData();
-                            fd.append('file', currentFile);
-                            const controller = new AbortController();
-                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
-                            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                // Single source of truth: backend extraction + parser + RAG + AI.
+                // Never fall back to browser-side generative AI for resume analysis.
+                await waitForBackendReady(baseUrl);
 
-                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
-                                method: 'POST',
-                                body: fd,
-                                signal: controller.signal
-                            }).catch(() => null);
-                            clearTimeout(timeoutId);
+                const fd = new FormData();
+                fd.append('file', currentFile);
+                const timeoutMs = baseUrl.includes('onrender.com') ? 330000 : 180000;
+                let lastError = null;
 
-                            if (exRes && exRes.ok) {
-                                const exJson = await exRes.json().catch(() => null);
-                                if (exJson && exJson.text) {
-                                    data = await callBackendAPI(exJson.text);
-                                }
-                            }
-                        } catch (backendErr) {
-                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const res = await fetch(baseUrl + '/api/analyzer/analyze-file', {
+                            method: 'POST',
+                            body: fd,
+                            signal: controller.signal,
+                            cache: 'no-store'
+                        });
+                        const json = await res.json().catch(() => ({}));
+                        if (!res.ok || json.error || json.status === 'ERROR') {
+                            throw new Error(json.error || json.message || 'VREZER backend analysis failed.');
                         }
-                    }
-
-                    if (data && (data.name || data.atsScore || data.role)) {
-                        return data;
-                    }
-
-                    // High-fidelity client-side neural pipeline
-                    console.log('Executing VREZER high-fidelity client neural pipeline...');
-                    const text = await extractPdfTextClientSide(currentFile);
-                    const defaultAiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || defaultAiKey;
-                    if (userKey) {
-                        try {
-                            return await callGeminiDirectlyClientSide(text, userKey);
-                        } catch (aiErr) {
-                            console.warn('Direct AI Client Call notice, proceeding with neural parser:', aiErr);
+                        return json;
+                    } catch (err) {
+                        lastError = err;
+                        if (attempt < 2) {
+                            await new Promise(resolve => setTimeout(resolve, 8000));
                         }
+                    } finally {
+                        clearTimeout(timeoutId);
                     }
-                    return parseResumeClientSide(currentFile.name, text);
-                } else {
-                    throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
                 }
+
+                throw lastError || new Error("VREZER analysis failed.");
             })();
 
             const MIN_SCAN_DURATION_MS = 2400; // Balanced high-tech scan animation
@@ -3210,7 +3222,7 @@ ${generateMarketReportText(d)}
             // 2. Try Groq AI Client Pipeline (Static Vercel / GitHub Pages)
             if (!answered) {
                 try {
-                    const groqKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
+                    const groqKey = '';
                     const userApiKey = localStorage.getItem('vrezerApiKey') || '';
                     const apiKey = userApiKey || groqKey;
 
@@ -3236,7 +3248,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
                                 { role: 'system', content: systemPrompt },
                                 { role: 'user', content: txt }
                             ],
-                            temperature: 0.4,
+                            temperature: 0.0,
                             max_tokens: 300
                         })
                     });
@@ -3560,7 +3572,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
     }
 
     async function callGroqDirectlyClientSide(resumeText, fileName) {
-        const apiKey = ['gsk_', 'yub2Kav7IhZW42xQG', 'KVgWGdyb3FYfzVHfhbbFDCQyOjjdbGcZjR7'].join('');
+        const apiKey = $('api-key-input') ? $('api-key-input').value.trim() : (localStorage.getItem('vrezerApiKey') || '');
         try {
             const prompt = `Analyze this candidate resume for VREZER AI Platform. Return valid JSON only with keys matching this exact structure:
 {
@@ -3612,7 +3624,7 @@ ${(resumeText || '').substring(0, 3500)}`;
                         { role: 'system', content: 'You are VREZER AI career engine. Respond with raw valid JSON only. No markdown ticks.' },
                         { role: 'user', content: prompt }
                     ],
-                    temperature: 0.2
+                    temperature: 0.0
                 })
             });
 
@@ -3634,7 +3646,7 @@ ${(resumeText || '').substring(0, 3500)}`;
 
     async function callGeminiDirectlyClientSide(resumeText, apiKey) {
         if (!apiKey) {
-            apiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
+            throw new Error('No user-supplied AI key configured.');
         }
         let model = 'gemini-2.5-flash';
         let url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
