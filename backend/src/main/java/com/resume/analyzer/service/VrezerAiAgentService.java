@@ -348,6 +348,9 @@ public class VrezerAiAgentService {
 
         // 1. Resume JSON
         Map<String, Object> baseParsed = resumeParserService.parseResumeText(resumeText);
+        // Preserve the exact extracted text in the canonical parsed object so every downstream
+        // confidence/ATS/RAG calculation uses the same evidence on local and production.
+        baseParsed.put("rawText", resumeText);
         System.out.println("================================================================================");
         System.out.println("[PRODUCTION AUDIT LOG 1/10] Resume JSON: " + baseParsed);
 
@@ -1068,22 +1071,53 @@ public class VrezerAiAgentService {
         ).trim();
         result.put("email", email);
 
+        // Canonical resume-grounded fields.
+        // The LLM may write narratives, but factual profile fields must always come from
+        // the same deterministic parser used by localhost and production.
+        result.put("phone", String.valueOf(parsed.getOrDefault("phone", "")).trim());
+        result.put("linkedin", String.valueOf(parsed.getOrDefault("linkedin", "")).trim());
+        result.put("github", String.valueOf(parsed.getOrDefault("github", "")).trim());
+        result.put("cgpa", String.valueOf(parsed.getOrDefault("cgpa", "")).trim());
+        result.put("programmingLanguages", parsed.getOrDefault("programmingLanguages", List.of()));
+        result.put("toolsAndTechnologies", parsed.getOrDefault("frameworks", List.of()));
+        result.put("topSkills", parsed.getOrDefault("allDetectedSkills", List.of()));
+        result.put("softSkills", parsed.getOrDefault("softSkills", List.of()));
+        result.put("certifications", parsed.getOrDefault("certifications", List.of()));
+        result.put("achievements", parsed.getOrDefault("achievements", List.of()));
+
+        List<String> canonicalProjects = new ArrayList<>();
+        Object projectObj = parsed.getOrDefault("projects", List.of());
+        if (projectObj instanceof List) {
+            for (Object item : (List<?>) projectObj) {
+                if (item instanceof Map) {
+                    Object title = ((Map<?, ?>) item).get("title");
+                    if (title != null && !String.valueOf(title).isBlank()) canonicalProjects.add(String.valueOf(title));
+                } else if (item != null && !String.valueOf(item).isBlank()) {
+                    canonicalProjects.add(String.valueOf(item));
+                }
+            }
+        }
+        result.put("projects", canonicalProjects);
+
         // Candidate Role
         List<String> skills = (List<String>) parsed.getOrDefault("allDetectedSkills", List.of());
-        String role = String.valueOf(
-            result.getOrDefault("role", result.getOrDefault("targetRole", result.getOrDefault("jobRole", "")))
-        ).trim();
-        if (role.isEmpty() || role.equalsIgnoreCase("null")) {
-            role = classifyCareerDomain(resumeText, skills);
+        Map<String, Object> canonicalProfile = resumeIntelligenceEngine.extractCandidateProfile(resumeText, parsed);
+        String canonicalRole = String.valueOf(canonicalProfile.getOrDefault("targetJobRole", "")).trim();
+        if (canonicalRole.isEmpty() || canonicalRole.equalsIgnoreCase("Software Development Engineer")) {
+            canonicalRole = classifyCareerDomain(resumeText, skills);
         }
-        result.put("role", role);
+        result.put("role", canonicalRole);
 
-        // Career Domain
-        String domain = String.valueOf(result.getOrDefault("careerDomain", "")).trim();
+        // Career Domain — deterministic and evidence-grounded to eliminate provider-to-provider drift.
+        String domain = String.valueOf(canonicalProfile.getOrDefault("careerDomain", "")).trim();
         if (domain.isEmpty() || domain.equalsIgnoreCase("null")) {
             domain = classifyCareerDomain(resumeText, skills);
         }
         result.put("careerDomain", domain);
+
+        result.put("careerLevel", String.valueOf(canonicalProfile.getOrDefault("experienceLevel", "FRESHER")));
+        result.put("experience", String.valueOf(canonicalProfile.getOrDefault("experience", "Fresher / Entry Level")));
+        result.put("education", String.valueOf(canonicalProfile.getOrDefault("education", "Not detected")));
 
         // ATS Score — Use AtsAnalysisEngine for real computation; never default to 75
         int atsScore = 0;
