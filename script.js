@@ -861,38 +861,35 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         if (exportBtn) exportBtn.style.display = 'flex';
         if (resetBtn) resetBtn.style.display = 'flex';
 
-        const name = d.name || 'Candidate Dossier';
-        const role = d.role || 'Software Engineering Specialist';
-        const ats = (d.atsScore != null) ? Number(d.atsScore) : null;
+        const name = d.name || 'Not detected';
+        const role = d.role || 'Not detected';
+        const ats = d.atsScore != null ? Number(d.atsScore) : null;
 
-        // Top Dossier Header
         setText('drc-name', name);
         setText('drc-role', role);
         renderCareerPrediction(d);
         renderConfidenceMeter(d);
-        
-        let expText = d.experience || 'Fresher / Entry Level';
-        if (expText.toLowerCase().includes('0.0 years') || expText.toLowerCase().includes('0 years') || expText.trim() === '' || expText.trim() === 'null') {
-            expText = (d.internships && d.internships.length > 0) ? 'Internship Experience' : 'Fresher / Entry Level';
-        }
+
+        let expText = d.experience || 'Not detected';
+        if (!expText || expText.toLowerCase() === 'null') expText = 'Not detected';
         if (expText.toLowerCase().endsWith('exp')) expText = expText.substring(0, expText.length - 3).trim();
         setText('drc-exp', expText);
 
-        let eduText = d.education || 'Degree Qualified';
-        if (eduText.trim().toUpperCase() === 'CATION' || eduText.trim().toUpperCase().startsWith('CATION')) {
-            eduText = 'Degree Qualified';
-        }
+        let eduText = d.education || 'Not detected';
+        if (!eduText || eduText.toUpperCase() === 'NULL') eduText = 'Not detected';
         if (eduText.length > 25) eduText = eduText.substring(0, 25) + '…';
         setText('drc-edu', eduText);
 
-        setText('drc-domain', d.careerDomain || 'Technology');
+        setText('drc-domain', d.careerDomain || 'Not detected');
 
         const av = $('drc-avatar');
-        if (av) av.textContent = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+        if (av) {
+            const initials = name.replace(/[^A-Za-z\s]/g,' ').trim().split(/\s+/).filter(Boolean).map(w => w[0]).join('').substring(0,2);
+            av.textContent = initials ? initials.toUpperCase() : 'AI';
+        }
 
-        setTicker(`Analysis Complete · ${name} · ATS: ${ats}% · Domain: ${d.careerDomain || 'Tech'} · Status: Active`);
+        setTicker('Analysis Complete · ' + name + ' · ATS: ' + (Number.isFinite(ats) ? ats + '%' : 'N/A') + ' · Domain: ' + (d.careerDomain || 'Not detected') + ' · Status: Active');
 
-        // Render all 13 sections dynamically
         renderHeroMetrics(d);
         renderOverviewGauges(d);
         renderSwot(d);
@@ -952,33 +949,33 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 1. HERO METRICS STRIP ──────────────────────────
     function renderHeroMetrics(d) {
-        setText('hm-ats', (d.atsScore != null) ? (d.atsScore + '%') : 'Not available');
-        setText('hm-ai-score', (d.profileStrength != null ? d.profileStrength : (d.confidenceScore != null ? d.confidenceScore : null)) != null ? ((d.profileStrength != null ? d.profileStrength : d.confidenceScore) + '%') : 'Not available');
-        setText('hm-domain', d.careerDomain || 'Technology');
-        setText('hm-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
-        setText('hm-status', (d.atsScore || 85) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
-        setText('hm-confidence', (d.confidenceScore != null) ? (d.confidenceScore + '%') : 'Not available');
+        const ats = Number(d.atsScore);
+        setText('hm-ats', Number.isFinite(ats) ? ats + '%' : 'Not available');
+        const profileScore = Number(d.profileStrength);
+        setText('hm-ai-score', Number.isFinite(profileScore) ? profileScore + '%' : 'Not available');
+        setText('hm-domain', d.careerDomain || 'Not available');
+        setText('hm-level', d.experienceLevel || d.careerLevel || 'Not available');
+        setText('hm-status', Number.isFinite(ats) ? (ats >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix') : 'Not available');
+        setText('hm-confidence', d.confidenceScore != null ? d.confidenceScore + '%' : 'Not available');
     }
 
     // ── 2. OVERVIEW GAUGES & CHARTS ────────────────────
     function renderOverviewGauges(d) {
-        const ats = (d.atsScore != null) ? Number(d.atsScore) : null;
-        const atsLabel = ats >= 85 ? 'EXCELLENT' : ats >= 70 ? 'GOOD' : ats >= 55 ? 'AVERAGE' : 'NEEDS WORK';
+        const ats = d.atsScore != null ? Number(d.atsScore) : null;
+        const atsLabel = Number.isFinite(ats) ? (ats >= 85 ? 'EXCELLENT' : ats >= 70 ? 'GOOD' : ats >= 55 ? 'AVERAGE' : 'NEEDS WORK') : 'NOT AVAILABLE';
         countUp('ats-val', ats);
         setText('ats-label', atsLabel);
-        makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
+        if (Number.isFinite(ats)) makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
 
-        const t1 = d.tier1 || {};
-        const salRange = d.expectedLpaRange || (t1.expectedLpaRange || t1.salary || '12 - 20 LPA');
-        const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
-        setText('sal-val', cleanSalVal);
-        setText('sal-unit', 'LPA');
-        const usdVal = d.salaryUsd || t1.salaryUsd || ('₹ ' + salRange + ' · Market Estimate');
-        setText('sal-usd', usdVal);
-        makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
+        const salText = String(d.expectedLpaRange || '').trim();
+        const salaryAvailable = salText && !/unavailable|not disclosed|not detected/i.test(salText);
+        setText('sal-val', salaryAvailable ? salText.replace(/\s*LPA/i, '').trim() : 'N/A');
+        setText('sal-unit', salaryAvailable ? 'LPA' : '');
+        setText('sal-usd', salaryAvailable ? (d.salaryUsd || 'Market salary data') : 'Salary data unavailable');
+        if (salaryAvailable) makeDonut('sal-chart', 50, 50, '#4ade80', 'rgba(74,222,128,0.1)');
 
-        makeRadar(d.topSkills || ['Technical', 'Domain', 'Architecture', 'Problem Solving', 'Tools']);
-        makeBar(ats);
+        makeRadar(Array.isArray(d.topSkills) ? d.topSkills : []);
+        if (Number.isFinite(ats)) makeBar(ats);
     }
 
     function toTextString(val) {
@@ -994,70 +991,57 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     // ── 3. SWOT MATRIX ─────────────────────────────────
     function renderSwot(d) {
         const swot = d.swot || {};
-        const populate = (id, items, defaultItems) => {
-            const el = $(id); if (!el) return; el.innerHTML = '';
-            const list = (items && items.length > 0) ? items : defaultItems;
-            list.slice(0, 4).forEach(it => {
-                const s = document.createElement('div');
-                s.className = 'sw-tag';
-                s.textContent = toTextString(it);
-                el.appendChild(s);
+        const populate = (id, items) => {
+            const el = $(id); if (!el) return;
+            el.innerHTML = '';
+            const list = Array.isArray(items) ? items.filter(Boolean).slice(0, 4) : [];
+            if (!list.length) {
+                el.innerHTML = '<div class="sw-tag">No evidence-derived data</div>';
+                return;
+            }
+            list.forEach(it => {
+                const node = document.createElement('div');
+                node.className = 'sw-tag';
+                node.textContent = toTextString(it);
+                el.appendChild(node);
             });
         };
-        const formatGaps = (d.skillGaps || []).map(g => toTextString(g));
-        const formatImprov = (d.improvements || []).map(i => toTextString(i));
-
-        populate('swot-strengths', swot.strengths || d.topSkills, ['High technical competence', 'Verified domain experience', 'Strong project impact']);
-        populate('swot-weaknesses', swot.weaknesses || formatGaps, ['Cloud credentials missing', 'Quantified metrics needed']);
-        populate('swot-opps', swot.opportunities, ['Relevant Opportunities', 'High Salary Product Roles', 'Global Remote Work']);
-        populate('swot-risks', swot.improvements || formatImprov, ['Add system metrics to bullet points', 'Standardize section headers']);
+        populate('swot-strengths', swot.strengths || d.topSkills);
+        populate('swot-weaknesses', swot.weaknesses || d.skillGaps);
+        populate('swot-opps', swot.opportunities);
+        populate('swot-risks', swot.improvements || d.improvements);
     }
 
     // ── 4. PROFILE INTELLIGENCE ────────────────────────
     function renderProfileIntelligence(d) {
-        const defaultSummary = `${d.name || 'Candidate'} is an aspiring ${d.role || 'Specialist'} specializing in ${d.careerDomain || 'Technology'}. Demonstrates verified technical competencies in ${(d.topSkills || d.skills || []).slice(0, 5).join(', ')} with applied practical execution across production systems and domain development.`;
-        const profSummary = (d.professionalSummary && d.professionalSummary.length > 15 && !d.professionalSummary.toLowerCase().includes('not available')) ? sanitizeBioText(d.professionalSummary) : defaultSummary;
+        const profSummary = (d.professionalSummary && d.professionalSummary.length > 15 && !d.professionalSummary.toLowerCase().includes('not available'))
+            ? sanitizeBioText(d.professionalSummary)
+            : 'No AI-generated summary available from the current analysis.';
         setText('profile-summary', profSummary);
-        setText('profile-domain', d.careerDomain || 'Software Engineering');
-        
-        let secDom = d.secondaryDomain || 'Full Stack Development';
-        if (secDom.toLowerCase() === (d.careerDomain || '').toLowerCase()) {
-            secDom = 'Full Stack Development';
-        }
+        setText('profile-domain', d.careerDomain || 'Not detected');
+
+        let secDom = d.secondaryDomain || 'Not detected';
+        if (secDom.toLowerCase() === (d.careerDomain || '').toLowerCase()) secDom = 'Not detected';
         setText('profile-secondary-domain', secDom);
-        setText('profile-level', d.experienceLevel || d.careerLevel || 'FRESHER');
-        setText('profile-industry', d.industry || 'Information Technology');
+        setText('profile-level', d.experienceLevel || d.careerLevel || 'Not detected');
+        setText('profile-industry', d.industry || 'Not detected');
 
         const renderTags = (id, tags) => {
             const el = $(id); if (!el) return;
-            el.innerHTML = (tags || ['Engineering', 'System Design']).map(t => `<span class="t-chip">${t}</span>`).join('');
+            const items = Array.isArray(tags) ? tags.filter(Boolean) : [];
+            el.innerHTML = items.length ? items.map(t => '<span class="t-chip">' + t + '</span>').join('') : '<span class="t-chip">No verified data</span>';
         };
-        renderTags('profile-strongest-skills', d.topSkills || d.skills || ['Java', 'Spring Boot', 'MySQL', 'REST APIs', 'HTML', 'CSS', 'JavaScript']);
-        
-        const softSkillsList = (d.transferableSkills && d.transferableSkills.length > 0) ? d.transferableSkills :
-                               ((d.softSkills && d.softSkills.length > 0) ? d.softSkills : ['Problem Solving', 'Analytical Thinking', 'Creative Content', 'Teamwork', 'Quick Learner']);
-        renderTags('profile-transferable-skills', softSkillsList);
+        renderTags('profile-strongest-skills', d.topSkills || d.skills || []);
+        renderTags('profile-transferable-skills', d.transferableSkills || d.softSkills || []);
 
-        // Confidence meter — Dynamic AI & Evidence Grounding
         renderConfidenceMeter(d);
 
-        // Evidence Panel
         const evPanel = $('evidence-panel');
         if (evPanel) {
-            const citations = (d.atsScoreDetails && d.atsScoreDetails.citations) || [
-                `Extracted candidate identity "${d.name || 'Candidate'}" from header text`,
-                `Verified core competencies: ${(d.topSkills || []).slice(0, 3).join(', ')}`,
-                `Classified career level as ${d.experienceLevel || 'Mid-Level'} based on experience indicators`
-            ];
-            evPanel.innerHTML = citations.map(c => `
-                <div class="evidence-item">
-                    <i class="fa-solid fa-circle-check ev-icon"></i>
-                    <div class="ev-content">
-                        <div class="ev-label">EVIDENCE CITATION</div>
-                        <div class="ev-text">${c}</div>
-                    </div>
-                </div>
-            `).join('');
+            const citations = d.atsScoreDetails && Array.isArray(d.atsScoreDetails.citations) ? d.atsScoreDetails.citations : [];
+            evPanel.innerHTML = citations.length
+                ? citations.map(c => '<div class="evidence-item"><i class="fa-solid fa-circle-check ev-icon"></i><div class="ev-content"><div class="ev-label">EVIDENCE CITATION</div><div class="ev-text">' + c + '</div></div></div>').join('')
+                : '<div class="mi-empty-state">No explicit evidence citations returned.</div>';
         }
     }
 
@@ -1147,62 +1131,50 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 6. SKILL INTELLIGENCE ──────────────────────────
     function renderSkillIntelligence(d) {
-        // Gaps & Strengths
-        const gapEl = $('gap-list');
-        if (gapEl) {
-            gapEl.innerHTML = (d.skillGaps || ['Distributed Systems', 'Cloud Native']).map(g => `<span class="gap-tag">${toTextString(g)}</span>`).join('');
-        }
-        const strEl = $('strengths-full-list');
-        if (strEl) {
-            strEl.innerHTML = (d.topSkills || ['Engineering']).map(s => `<span class="gap-tag" style="background:rgba(74,222,128,0.1); border-color:rgba(74,222,128,0.3); color:#4ade80;">${s}</span>`).join('');
-        }
+        const gaps = Array.isArray(d.skillGaps) ? d.skillGaps : [];
+        const skills = Array.isArray(d.topSkills) ? d.topSkills : [];
 
-        // Tech skill bars
+        const gapEl = $('gap-list');
+        if (gapEl) gapEl.innerHTML = gaps.length ? gaps.map(g => '<span class="gap-tag">' + toTextString(g) + '</span>').join('') : '<span class="gap-tag">No evidence-derived gaps</span>';
+
+        const strEl = $('strengths-full-list');
+        if (strEl) strEl.innerHTML = skills.length
+            ? skills.map(x => '<span class="gap-tag" style="background:rgba(74,222,128,0.1);border-color:rgba(74,222,128,0.3);color:#4ade80;">' + x + '</span>').join('')
+            : '<span class="gap-tag">No verified strengths</span>';
+
         const techBars = $('tech-skills-bars');
         if (techBars) {
-            const skills = d.topSkills || ['Java', 'Spring Boot', 'SQL', 'Docker', 'AWS'];
-            techBars.innerHTML = skills.slice(0, 6).map((s, i) => {
-                const score = Math.max(95 - i * 5, 65);
-                return `
-                    <div class="skill-bar-item">
-                        <div class="skill-bar-header">
-                            <span class="skill-bar-name">${s}</span>
-                            <span class="skill-bar-score">${score}%</span>
-                        </div>
-                        <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${score}%;"></div></div>
-                    </div>
-                `;
-            }).join('');
+            const chart = d.skillIntelligence && Array.isArray(d.skillIntelligence.technicalCompetencyChart) ? d.skillIntelligence.technicalCompetencyChart : [];
+            if (chart.length) {
+                techBars.innerHTML = chart.slice(0,6).map(x => {
+                    const n = Number(x.score);
+                    const width = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+                    return '<div class="skill-bar-item"><div class="skill-bar-header"><span class="skill-bar-name">' + (x.skill || x.name || 'Skill') + '</span><span class="skill-bar-score">' + (Number.isFinite(n) ? n + '%' : 'N/A') + '</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:' + width + '%;"></div></div></div>';
+                }).join('');
+            } else {
+                techBars.innerHTML = skills.length
+                    ? skills.slice(0,6).map(x => '<div class="skill-bar-item"><div class="skill-bar-header"><span class="skill-bar-name">' + x + '</span><span class="skill-bar-score">Verified</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:50%;"></div></div></div>').join('')
+                    : '<div class="profile-text">No verified technical skills.</div>';
+            }
         }
 
-        // Soft skill bars
         const softBars = $('soft-skills-bars');
         if (softBars) {
-            const softs = d.softSkills || ['Problem Solving', 'System Thinking', 'Agile Collaboration', 'Technical Writing'];
-            softBars.innerHTML = softs.map((s, i) => {
-                const score = 90 - i * 4;
-                return `
-                    <div class="skill-bar-item">
-                        <div class="skill-bar-header">
-                            <span class="skill-bar-name">${s}</span>
-                            <span class="skill-bar-score">${score}%</span>
-                        </div>
-                        <div class="skill-bar-track"><div class="skill-bar-fill" style="width:${score}%; background:linear-gradient(90deg, #38bdf8, #818cf8);"></div></div>
-                    </div>
-                `;
-            }).join('');
+            const softs = Array.isArray(d.softSkills) ? d.softSkills : [];
+            softBars.innerHTML = softs.length
+                ? softs.map(x => '<div class="skill-bar-item"><div class="skill-bar-header"><span class="skill-bar-name">' + x + '</span><span class="skill-bar-score">Verified</span></div><div class="skill-bar-track"><div class="skill-bar-fill" style="width:50%;"></div></div></div>').join('')
+                : '<div class="profile-text">No verified soft skills.</div>';
         }
 
-        // Emerging Skills
         const em = $('emerging-skills');
         if (em) {
-            const emSkills = buildDynamicEmergingSkills(d.careerDomain, d.topSkills);
-            em.innerHTML = emSkills.map(e => `<span class="t-chip">${e}</span>`).join('');
+            const emSkills = buildDynamicEmergingSkills(d.careerDomain, skills);
+            em.innerHTML = emSkills.map(x => '<span class="t-chip">' + x + '</span>').join('');
         }
 
-        // Domains
-        renderDomains(d.domains || buildDynamicDomains(d.careerDomain, d.topSkills));
+        renderDomains(Array.isArray(d.domains) ? d.domains : buildDynamicDomains(d.careerDomain, skills));
     }
+
 
     function buildDynamicEmergingSkills(domain, topSkills) {
         const dom = (domain || '').toLowerCase();
