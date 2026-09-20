@@ -51,6 +51,9 @@ public class PdfExtractorService {
     @org.springframework.beans.factory.annotation.Value("${app.gemini.fallback-models:gemini-2.5-flash-lite,gemini-2.5-pro}")
     private String geminiFallbackModels;
 
+    @org.springframework.beans.factory.annotation.Value("${app.pdf.gemini-fallback.enabled:false}")
+    private boolean geminiPdfFallbackEnabled;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final RestTemplate geminiRestTemplate = buildGeminiRestTemplate();
@@ -199,6 +202,12 @@ public class PdfExtractorService {
             System.out.println("[PDF EXTRACTOR] Poppler page OCR succeeded: "
                     + rendered.trim().length() + " chars");
             return rendered.trim();
+        }
+
+        // Optional server-side multimodal fallback. Disabled by default on the free-tier deployment so provider quota cannot make scanned-PDF extraction nondeterministic.
+        if (!geminiPdfFallbackEnabled) {
+            System.out.println("[PDF EXTRACTOR] Server Gemini PDF fallback disabled; returning to client-side OCR fallback.");
+            return rendered == null ? (embedded == null ? "" : embedded.trim()) : rendered.trim();
         }
 
         // Final server-side multimodal fallback: send the original PDF directly to Gemini.
