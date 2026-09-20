@@ -10,6 +10,7 @@ import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.rendering.PDFRenderer;
+import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +23,9 @@ import java.util.*;
 
 @Service
 public class PdfExtractorService {
+
+    @org.springframework.beans.factory.annotation.Value("${app.pdf.ocr.enabled:false}")
+    private boolean ocrEnabled;
 
     public String extractTextFromPdf(MultipartFile file) throws IOException {
         return extractTextFromPdfBytes(file.getBytes());
@@ -47,13 +51,16 @@ public class PdfExtractorService {
 
             System.out.println("[PDF EXTRACTOR] Standard text extracted: " + trimmedText.length() + " chars (images detected: " + hasImages + ")");
 
-            // 3. If text is sparse / empty and document has pages/images, execute Autonomous OCR
-            if (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages)) {
-                System.out.println("[PDF EXTRACTOR] Triggering high-precision OCR extraction pipeline...");
+            // 3. OCR is opt-in. It is disabled on memory-constrained cloud deployments
+            // because PDF rasterization can consume hundreds of MB per page.
+            if (ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages))) {
+                System.out.println("[PDF EXTRACTOR] OCR enabled: starting bounded OCR fallback...");
                 String ocrText = extractWithOcr(document);
                 if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
                     trimmedText = ocrText.trim();
                 }
+            } else if (!ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages))) {
+                System.out.println("[PDF EXTRACTOR] OCR disabled for this deployment; returning text-layer extraction.");
             }
 
             // 4. Merge harvested clickable links if they are not already in the text
@@ -125,16 +132,19 @@ public class PdfExtractorService {
     public String extractWithOcr(PDDocument document) {
         StringBuilder fullOcrText = new StringBuilder();
         PDFRenderer renderer = new PDFRenderer(document);
-        int maxPages = Math.min(document.getNumberOfPages(), 6);
+        int maxPages = Math.min(document.getNumberOfPages(), 3);
 
         File scriptFile = resolveOcrScriptFile();
 
         for (int p = 0; p < maxPages; p++) {
             File tempImg = null;
             try {
-                BufferedImage img = renderer.renderImageWithDPI(p, 200);
+                // Keep cloud OCR deliberately bounded. 120 DPI grayscale is sufficient
+                // for most resume scans while using substantially less heap than 200 DPI color.
+                BufferedImage img = renderer.renderImageWithDPI(p, 120, ImageType.GRAY);
                 tempImg = File.createTempFile("vrezer_pdf_ocr_p" + p + "_", ".png");
                 ImageIO.write(img, "png", tempImg);
+                img.flush();
 
                 String pageOcr = runWindowsOcr(scriptFile, tempImg);
                 if (pageOcr != null && !pageOcr.trim().isEmpty()) {
