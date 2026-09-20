@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (targetContent) targetContent.classList.remove('hidden');
 
             if (targetId === 'tab-jobs') {
-                renderLiveJobs(lastData || { role: 'Performance Marketing Specialist', careerDomain: 'Digital Marketing & Growth' });
+                renderLiveJobs(lastData || {});
             } else if (lastData) {
                 if (targetId === 'tab-analytics') {
                     renderAnalytics(lastData);
@@ -697,161 +697,69 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     function renderCareerPrediction(d) {
         const el = $('ai-prediction');
         if (!el) return;
+        const cp = d.careerPrediction && typeof d.careerPrediction === 'object' ? d.careerPrediction : {};
+        const items = [];
 
-        const name = d.name || 'Candidate';
-        const role = d.role || 'Specialist';
-        const domain = d.careerDomain || d.primaryDomain || 'Technology';
-        const exp = d.experienceLevel || d.careerLevel || 'Mid-Level';
-        const skillsList = (d.topSkills || d.skills || []).slice(0, 5);
-        const skillsText = skillsList.join(', ');
-        const isFresher = (exp.toUpperCase().includes('FRESHER') || exp.toUpperCase().includes('ENTRY'));
+        const identity = sanitizeBioText(cp.professionalIdentity || '');
+        const roles = Array.isArray(cp.suitableRoles) ? cp.suitableRoles.filter(Boolean).slice(0,3) : [];
+        const trajectory = sanitizeBioText(cp.trajectory || cp.careerTrajectory || '');
+        const potential = sanitizeBioText(cp.careerPotential || '');
+        const next = sanitizeBioText(cp.recommendedNextStep || '');
 
-        let trajectoryText = '';
-        let potentialText = '';
-        let nextStepText = '';
+        if (identity) items.push('<div class="pred-item"><i class="fa-solid fa-user-tie"></i><div><strong>Professional Identity:</strong> ' + identity + '</div></div>');
+        if (roles.length) items.push('<div class="pred-item"><i class="fa-solid fa-bullseye"></i><div><strong>Suitable Roles:</strong> ' + roles.join(' · ') + '</div></div>');
+        if (trajectory) items.push('<div class="pred-item"><i class="fa-solid fa-arrow-trend-up"></i><div><strong>Trajectory:</strong> ' + trajectory + '</div></div>');
+        if (potential) items.push('<div class="pred-item"><i class="fa-solid fa-chart-line"></i><div><strong>Career Potential:</strong> ' + potential + '</div></div>');
+        if (next) items.push('<div class="pred-item"><i class="fa-solid fa-flag-checkered"></i><div><strong>Recommended Next Step:</strong> ' + next + '</div></div>');
 
-        const cp = d.careerPrediction;
-        if (cp && typeof cp === 'object') {
-            potentialText = cp.careerPotential || '';
-            const identity = cp.professionalIdentity || '';
-            nextStepText = cp.recommendedNextStep || '';
+        const forecast = sanitizeBioText(d.strategicForecast || '');
+        if (!items.length && forecast) items.push('<div class="pred-item"><i class="fa-solid fa-file-lines"></i><div>' + forecast + '</div></div>');
+        if (!items.length) items.push('<div class="pred-item">No AI career prediction was returned for this analysis.</div>');
 
-            let targetRoles = '';
-            if (Array.isArray(cp.suitableRoles)) {
-                targetRoles = cp.suitableRoles.slice(0, 2).join(' or ');
-            } else if (typeof cp.suitableRoles === 'string') {
-                targetRoles = cp.suitableRoles;
-            }
-
-            if (targetRoles) {
-                trajectoryText = `Projected career progression toward ${targetRoles} within 12–18 months.`;
-            } else if (identity) {
-                trajectoryText = sanitizeBioText(identity);
-            }
-        }
-
-        if (!trajectoryText) {
-            if (d.strategicForecast && typeof d.strategicForecast === 'string' && d.strategicForecast.length > 20) {
-                trajectoryText = sanitizeBioText(d.strategicForecast);
-            } else {
-                const nextTier = isFresher
-                    ? `Senior ${role} & Strategic ${domain} Growth Lead`
-                    : `Lead ${domain} Specialist & Principal Architect`;
-                trajectoryText = `Projected career progression toward ${nextTier} within 12–18 months.`;
-            }
-        }
-
-        if (!potentialText) {
-            potentialText = `High career expansion potential across ${domain} leveraging verified mastery in ${skillsText || 'core domain engineering'}.`;
-        }
-
-        if (!nextStepText) {
-            nextStepText = isFresher
-                ? `Lead end-to-end full-funnel project initiatives while expanding automated backend and cloud integrations.`
-                : `Spearhead cross-functional system design initiatives to accelerate executive tier placement.`;
-        }
-
-        const badgeEl = $('ai-pred-badge');
-        if (badgeEl) {
-            badgeEl.textContent = (d.atsScore >= 85) ? 'Top Tier Trajectory' : 'High Growth Potential';
-        }
-
-        el.innerHTML = `
-            <div class="pred-item">
-                <i class="fa-solid fa-arrow-trend-up"></i>
-                <div><strong>Predicted Trajectory:</strong> ${trajectoryText}</div>
-            </div>
-            <div class="pred-item">
-                <i class="fa-solid fa-bullseye"></i>
-                <div><strong>Domain Leverage:</strong> ${potentialText}</div>
-            </div>
-            <div class="pred-item">
-                <i class="fa-solid fa-flag-checkered"></i>
-                <div><strong>Recommended Next Step:</strong> ${nextStepText}</div>
-            </div>
-        `;
+        el.innerHTML = items.join('');
+        const badge = $('ai-pred-badge');
+        if (badge) badge.textContent = d.atsScore != null ? 'Evidence-grounded' : 'AI output';
     }
+
 
     // ── Unified AI Confidence & Grounding Meter ─────────
     function renderConfidenceMeter(d) {
         if (!d) return;
-        let conf = null;
-        if (d.confidenceScore != null) {
-            let parsedVal = Number(d.confidenceScore);
-            if (!isNaN(parsedVal)) {
-                conf = (parsedVal <= 1.0 && parsedVal > 0) ? Math.round(parsedVal * 100) : Math.round(parsedVal);
-            }
-        }
-        if (conf == null || isNaN(conf) || conf <= 0) {
-            let calculated = 72;
-            if (d.skills && d.skills.length >= 5) calculated += 10;
-            if (d.atsScore && d.atsScore >= 80) calculated += 10;
-            if (d.email || d.phone) calculated += 5;
-            conf = Math.min(96, calculated);
-        }
+        let conf = Number(d.confidenceScore);
+        if (!Number.isFinite(conf) || conf <= 0) conf = 0;
+        conf = Math.max(0, Math.min(100, Math.round(conf)));
 
-        conf = Math.max(1, Math.min(100, conf));
         const isHigh = conf >= 85;
         const isMed = conf >= 65;
+        const badgeText = conf === 0 ? 'N/A' : (isHigh ? 'Verified Evidence' : (isMed ? 'Moderate Grounding' : 'Basic Evidence'));
+        const levelTitle = conf === 0 ? 'Not available' : (isHigh ? 'High AI Grounding Confidence' : (isMed ? 'Moderate AI Grounding Confidence' : 'Basic Evidence Grounding'));
+        const expText = d.confidenceExplanation || (conf === 0 ? 'No deterministic confidence score returned.' : 'Confidence derived from parsed resume evidence.');
 
-        const badgeText = isHigh ? 'Verified Evidence' : (isMed ? 'Moderate Grounding' : 'Basic Evidence');
-        const badgeClass = 'conf-badge ' + (isHigh ? 'conf-badge-high' : (isMed ? 'conf-badge-med' : 'conf-badge-low'));
-        const fillClass = 'conf-bar-fill ' + (isHigh ? 'conf-fill-high' : (isMed ? 'conf-fill-med' : 'conf-fill-low'));
-        const levelTitle = isHigh ? 'High AI Grounding Confidence' : (isMed ? 'Moderate AI Grounding Confidence' : 'Basic Evidence Grounding');
+        setText('hm-confidence', conf ? conf + '%' : 'Not available');
 
-        const skillsCount = (d.topSkills || d.skills || []).length;
-        const expText = d.confidenceExplanation || (isHigh
-            ? `Analysis verified with strong resume evidence including ${skillsCount} technical competencies, clear education history, and matching project execution.`
-            : isMed
-                ? `Extracted core candidate profile with calibrated confidence based on ${skillsCount} verified competencies and domain alignment.`
-                : `Confidence calibrated due to concise text. Adding explicit impact metrics and repo links will boost grounding score.`);
-
-        // 1. Top Hero Metric
-        setText('hm-confidence', conf + '%');
-
-        // 2. Dossier Header Mini Confidence Strip
         const predBar = $('pred-conf-bar-fill');
-        if (predBar) {
-            predBar.style.width = conf + '%';
-            predBar.style.background = isHigh ? 'linear-gradient(90deg, #10b981, #059669)' : (isMed ? 'linear-gradient(90deg, #f59e0b, #d97706)' : 'linear-gradient(90deg, #ef4444, #dc2626)');
-        }
-        setText('pred-conf-val', conf + '%');
+        if (predBar) predBar.style.width = conf + '%';
+        setText('pred-conf-val', conf ? conf + '%' : 'N/A');
         const predTag = $('pred-conf-tag');
-        if (predTag) {
-            predTag.textContent = badgeText;
-            predTag.className = 'pred-conf-tag ' + (isHigh ? 'conf-badge-high' : (isMed ? 'conf-badge-med' : 'conf-badge-low'));
-        }
+        if (predTag) predTag.textContent = badgeText;
 
-        // 3. Overview Tab Meter
         const ovFill = $('ov-confidence-bar-fill');
-        if (ovFill) {
-            ovFill.style.width = conf + '%';
-            ovFill.className = fillClass;
-        }
-        setText('ov-conf-score-lbl', conf + '%');
+        if (ovFill) ovFill.style.width = conf + '%';
+        setText('ov-conf-score-lbl', conf ? conf + '%' : 'N/A');
         setText('ov-conf-level-lbl', levelTitle);
         const ovBadge = $('ov-conf-level-badge');
-        if (ovBadge) {
-            ovBadge.textContent = badgeText;
-            ovBadge.className = badgeClass;
-        }
-        setText('ov-conf-explanation-text', expText);
-
-        // 4. AI Profile Tab Meter
+        if (ovBadge) ovBadge.textContent = badgeText;
+        
         const confFill = $('confidence-bar-fill');
-        if (confFill) {
-            confFill.style.width = conf + '%';
-            confFill.className = fillClass;
-        }
-        setText('conf-score-lbl', conf + '%');
+        if (confFill) confFill.style.width = conf + '%';
+        setText('conf-score-lbl', conf ? conf + '%' : 'N/A');
         setText('conf-level-lbl', levelTitle);
         const badgeEl = $('conf-level-badge');
-        if (badgeEl) {
-            badgeEl.textContent = badgeText;
-            badgeEl.className = badgeClass;
-        }
+        if (badgeEl) badgeEl.textContent = badgeText;
+        setText('ov-conf-explanation-text', expText);
         setText('conf-explanation-text', expText);
     }
+
 
     // ═══════════════════════════════════════════════════
     //  MASTER RENDERER — 13 DYNAMIC DASHBOARD SECTIONS
