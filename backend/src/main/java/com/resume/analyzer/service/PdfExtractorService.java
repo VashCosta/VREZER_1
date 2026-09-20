@@ -53,14 +53,19 @@ public class PdfExtractorService {
             System.out.println("[PDF EXTRACTOR] Standard text extracted: " + trimmedText.length() + " chars (images detected: " + hasImages + ")");
 
             // 3. OCR activates for short/image-heavy PDFs. Render has bounded Tesseract OCR.
-            if (ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages))) {
-                System.out.println("[PDF EXTRACTOR] OCR enabled: starting bounded OCR fallback...");
+            boolean imageHeavy = hasImages && trimmedText.length() < 200;
+            boolean needsOcr = trimmedText.length() < 80 || imageHeavy;
+            // For image-heavy resumes, OCR is correctness-critical. The Render Docker image
+            // contains bounded Linux Tesseract, so do not silently disable OCR and analyze
+            // contact links as if they were the candidate resume text.
+            if (needsOcr) {
+                System.out.println("[PDF EXTRACTOR] OCR required for this PDF: starting bounded Tesseract/Windows OCR fallback...");
                 String ocrText = extractWithOcr(document);
                 if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
                     trimmedText = ocrText.trim();
                 }
-            } else if (!ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 200 && hasImages))) {
-                System.out.println("[PDF EXTRACTOR] OCR unavailable; text-layer extraction may be incomplete.");
+            } else if (!ocrEnabled) {
+                System.out.println("[PDF EXTRACTOR] OCR not needed; using text-layer extraction.");
             }
 
             // 4. Merge harvested clickable links if they are not already in the text
