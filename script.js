@@ -383,7 +383,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const buffer = await file.arrayBuffer();
         const digest = await crypto.subtle.digest('SHA-256', buffer);
         const bytes = Array.from(new Uint8Array(digest));
-        return 'vrezer-analysis-v2:' + bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+        return 'vrezer-analysis-v3:' + bytes.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
     function readDeterministicAnalysisCache(key) {
@@ -406,6 +406,84 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         }
     }
 
+    let tesseractLoadPromise = null;
+
+    async function loadTesseractForPdfOcr() {
+        if (window.Tesseract) return window.Tesseract;
+        if (!tesseractLoadPromise) {
+            tesseractLoadPromise = new Promise((resolve, reject) => {
+                const tag = document.createElement('script');
+                tag.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js';
+                tag.async = true;
+                tag.crossOrigin = 'anonymous';
+                tag.onload = () => window.Tesseract ? resolve(window.Tesseract) : reject(new Error('Tesseract OCR library loaded without OCR support.'));
+                tag.onerror = () => reject(new Error('Tesseract OCR library could not be loaded. Check the network connection.'));
+                document.head.appendChild(tag);
+            });
+        }
+        return tesseractLoadPromise;
+    }
+
+    async function clientSidePdfOcr(file) {
+        if (!file || !/\.pdf$/i.test(file.name || '')) throw new Error('Client OCR fallback requires a PDF resume.');
+        if (!window.pdfjsLib) throw new Error('PDF engine is unavailable in this browser.');
+        const Tesseract = await loadTesseractForPdfOcr();
+        const buffer = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+        const maxPages = Math.min(pdf.numPages, 4);
+        const worker = await Tesseract.createWorker('eng', 1, {
+            logger: msg => {
+                if (msg && msg.status && loadMsg) {
+                    const pct = Math.round((msg.progress || 0) * 100);
+                    loadMsg.textContent = 'Client OCR: ' + msg.status + ' ' + pct + '%';
+                }
+            }
+        });
+        let fullText = '';
+        try {
+            for (let pageNo = 1; pageNo <= maxPages; pageNo++) {
+                const page = await pdf.getPage(pageNo);
+                let scale = 1.7;
+                let viewport = page.getViewport({ scale });
+                const maxDimension = 2200;
+                const largest = Math.max(viewport.width, viewport.height);
+                if (largest > maxDimension) {
+                    scale = scale * maxDimension / largest;
+                    viewport = page.getViewport({ scale });
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.floor(viewport.width));
+                canvas.height = Math.max(1, Math.floor(viewport.height));
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                if (!ctx) throw new Error('Browser could not create the OCR canvas.');
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                const recognized = await worker.recognize(canvas);
+                const pageText = recognized && recognized.data && recognized.data.text ? recognized.data.text.trim() : '';
+                if (pageText) fullText += '\n\n' + pageText;
+                canvas.width = 1;
+                canvas.height = 1;
+            }
+        } finally {
+            await worker.terminate();
+        }
+        const cleaned = fullText.replace(/\n{3,}/g, '\n\n').trim();
+        if (cleaned.length < 160) throw new Error('Client OCR recovered only ' + cleaned.length + ' characters from the PDF.');
+        return cleaned;
+    }
+
+    async function analyzeWithClientPdfOcr(baseUrl, fileCacheKey) {
+        if (!currentFile || !/\.pdf$/i.test(currentFile.name || '')) throw new Error('The server could not read this document. Please use a text-based PDF or DOCX.');
+        if (loadMsg) loadMsg.textContent = 'Server OCR was inconclusive — switching to browser OCR…';
+        const ocrText = await clientSidePdfOcr(currentFile);
+        if (loadMsg) loadMsg.textContent = 'Browser OCR recovered the resume — running verified backend analysis…';
+        const result = await callBackendAPI(ocrText);
+        if (!result || result.error || result.status === 'ERROR') throw new Error((result && (result.error || result.message)) || 'Backend analysis failed after browser OCR.');
+        result.productionExtraction = result.productionExtraction || {};
+        result.productionExtraction.pipeline = 'browser PDF.js render -> Tesseract OCR -> backend parser -> AI';
+        result.productionExtraction.extractedTextLength = ocrText.length;
+        writeDeterministicAnalysisCache(fileCacheKey, result);
+        return result;
+    }
     async function waitForBackendReady(baseUrl) {
         const healthUrl = baseUrl.replace(/\/$/, '') + '/actuator/health';
         let lastError = null;
@@ -599,6 +677,17 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                         }
                     } finally {
                         clearTimeout(timeoutId);
+                    }
+                }
+
+                // Deterministic scanned-PDF fallback: OCR in the user's browser, then the same backend analyzer.
+                // It avoids Google PDF quota/cold-provider variability and preserves one analysis pipeline.
+                if (/\.pdf$/i.test(currentFile.name || '')) {
+                    try {
+                        return await analyzeWithClientPdfOcr(baseUrl, fileCacheKey);
+                    } catch (ocrErr) {
+                        console.error('[VREZER OCR FALLBACK] Client PDF OCR failed:', ocrErr);
+                        throw new Error('Resume PDF could not be read reliably. ' + (ocrErr.message || 'Client OCR failed.'));
                     }
                 }
 
