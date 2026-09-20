@@ -150,14 +150,7 @@ public class VrezerAnalyzerController {
             }
 
             System.out.println("[ANALYZER CACHE] Deterministic file-cache MISS: " + sourceFileHash);
-            MultipartFile analysisFile = new org.springframework.mock.web.MockMultipartFile(
-                    file.getName(),
-                    file.getOriginalFilename(),
-                    file.getContentType(),
-                    fileBytes
-            );
-
-            String rawText = fileParsingService.extractText(analysisFile);
+            String rawText = fileParsingService.extractText(file);
             if (rawText == null || rawText.trim().length() < 160) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "ERROR",
