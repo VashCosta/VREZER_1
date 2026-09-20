@@ -441,7 +441,10 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                         const fd = new FormData();
                         fd.append('file', currentFile);
                         const controller = new AbortController();
-                        const timeoutMs = 120000;
+                        // Scanned-PDF OCR + multimodal transcription + live market analysis can
+                        // legitimately take several minutes on a free Render instance. Do not
+                        // abort the request after the old 120-second client timeout.
+                        const timeoutMs = 300000;
                         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
                         try {
                             const analysisRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/analyze-file', {
@@ -454,6 +457,11 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                                 throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
                             }
                             data = resData;
+                        } catch (requestError) {
+                            if (requestError && requestError.name === 'AbortError') {
+                                throw new Error('VREZER analysis timed out after 5 minutes. The backend may still be processing OCR/AI; please try again once the Render instance is warm.');
+                            }
+                            throw requestError;
                         } finally {
                             clearTimeout(timeoutId);
                         }
