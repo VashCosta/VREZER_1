@@ -158,21 +158,34 @@ public class PdfExtractorService {
      * scanned resumes, which previously caused Java heap exhaustion on Render.
      */
     private String extractWithOcr(PDDocument document, byte[] pdfBytes) {
+        // First try extracting the original embedded scan images. This is fast and avoids
+        // rendering the PDF in the JVM.
         String embedded = runPdfImagesOcr(pdfBytes);
-        if (embedded != null && embedded.trim().length() >= 120) {
-            System.out.println("[PDF EXTRACTOR] Embedded-image OCR succeeded: " + embedded.trim().length() + " chars");
+        if (embedded != null && embedded.trim().length() >= 160) {
+            System.out.println("[PDF EXTRACTOR] Embedded-image OCR succeeded: "
+                    + embedded.trim().length() + " chars");
             return embedded.trim();
         }
 
-        System.out.println("[PDF EXTRACTOR] Embedded-image OCR returned insufficient text; trying tightly bounded page render...");
-        String rendered = extractWithPdfBoxRenderOcr(document);
-        if (rendered != null && !rendered.trim().isEmpty()) {
-            System.out.println("[PDF EXTRACTOR] Bounded PDFBox OCR produced " + rendered.trim().length() + " chars");
+        // For many resume PDFs the page is composed from multiple image/vector layers, so
+        // pdfimages can return only a logo/background. Render the actual PDF pages with the
+        // external Poppler process instead of PDFBox. The subprocess memory is independent of
+        // the Java heap, and the output dimensions are hard-bounded.
+        System.out.println("[PDF EXTRACTOR] Embedded-image OCR insufficient; using external Poppler pdftoppm page OCR...");
+        String rendered = runPopplerPageOcr(pdfBytes);
+        if (rendered != null && rendered.trim().length() >= 160) {
+            System.out.println("[PDF EXTRACTOR] Poppler page OCR succeeded: "
+                    + rendered.trim().length() + " chars");
+            return rendered.trim();
         }
-        return rendered;
+
+        // Do not fall back to PDFBox page rasterization on Render. That path previously caused
+        // repeated Java heap exhaustion on high-resolution scanned resumes.
+        System.err.println("[PDF EXTRACTOR] All safe OCR methods returned insufficient text.");
+        return rendered == null ? "" : rendered.trim();
     }
 
-    private String runPdfImagesOcr(byte[] pdfBytes) {
+    private String runPopplerPageOcr(byte[] pdfBytes) {
         if (pdfBytes == null || pdfBytes.length == 0 || isWindowsPlatform()) {
             return "";
         }
@@ -180,203 +193,81 @@ public class PdfExtractorService {
         Path tempDir = null;
         Path pdfFile = null;
         try {
-            tempDir = Files.createTempDirectory("vrezer-pdf-ocr-");
+            tempDir = Files.createTempDirectory("vrezer-pdftoppm-");
             pdfFile = tempDir.resolve("resume.pdf");
             Files.write(pdfFile, pdfBytes);
 
             String prefix = tempDir.resolve("page").toString();
             Process process = new ProcessBuilder(
-                    "pdfimages", "-j", "-f", "1", "-l", String.valueOf(MAX_OCR_PAGES),
-                    pdfFile.toString(), prefix
+                    "pdftoppm",
+                    "-png",
+                    "-f", "1",
+                    "-l", String.valueOf(MAX_OCR_PAGES),
+                    "-r", "120",
+                    "-scale-to", String.valueOf(MAX_IMAGE_DIMENSION),
+                    pdfFile.toString(),
+                    prefix
             ).redirectErrorStream(true).start();
 
-            String commandOutput = readProcessOutput(process, 20);
+            String commandOutput = readProcessOutput(process, 45);
             if (process.exitValue() != 0) {
-                System.err.println("[PDF EXTRACTOR] pdfimages failed: " + commandOutput);
+                System.err.println("[PDF EXTRACTOR] pdftoppm failed: " + commandOutput);
                 return "";
             }
 
-            List<Path> images;
+            List<Path> pages;
             try (Stream<Path> stream = Files.list(tempDir)) {
-                images = stream
+                pages = stream
                         .filter(Files::isRegularFile)
-                        .filter(p -> p.getFileName().toString().startsWith("page-"))
+                        .filter(path -> path.getFileName().toString().matches("page-\\d+\\.png"))
                         .sorted()
-                        .limit(MAX_OCR_IMAGES)
+                        .limit(MAX_OCR_PAGES)
                         .toList();
             }
 
-            if (images.isEmpty()) {
-                System.out.println("[PDF EXTRACTOR] pdfimages found no embedded image files.");
+            if (pages.isEmpty()) {
+                System.err.println("[PDF EXTRACTOR] pdftoppm produced no page images.");
                 return "";
             }
 
-            StringBuilder all = new StringBuilder();
-            for (Path imagePath : images) {
-                File boundedImage = null;
+            StringBuilder allText = new StringBuilder();
+            for (Path page : pages) {
+                File bounded = page.toFile();
                 try {
-                    boundedImage = createBoundedOcrImage(imagePath);
-                    if (boundedImage == null) continue;
+                    // Use multiple page-layout modes because resumes commonly contain columns,
+                    // dense skill lists, and icon/text blocks.
+                    String best = runTesseractOcr(bounded, "3");
+                    String block = runTesseractOcr(bounded, "6");
+                    String sparse = runTesseractOcr(bounded, "11");
 
-                    String ocr = runTesseractOcr(boundedImage, "6");
-                    if (ocr.length() < 120) {
-                        String sparse = runTesseractOcr(boundedImage, "11");
-                        if (sparse.length() > ocr.length()) ocr = sparse;
-                    }
+                    if (block.length() > best.length()) best = block;
+                    if (sparse.length() > best.length()) best = sparse;
 
-                    if (!ocr.trim().isEmpty()) {
-                        all.append(ocr.trim()).append("\n\n");
+                    if (!best.trim().isEmpty()) {
+                        allText.append(best.trim()).append("\n\n");
                     }
-                } catch (OutOfMemoryError oom) {
-                    System.err.println("[PDF EXTRACTOR] Skipping oversized embedded image after memory pressure.");
-                    break;
                 } finally {
-                    if (boundedImage != null && boundedImage.exists()) boundedImage.delete();
+                    // Tesseract reads the file directly; Java does not load the entire raster into
+                    // a BufferedImage, avoiding another large heap allocation.
                 }
             }
 
-            return all.toString().trim();
+            return allText.toString().trim();
         } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] Embedded-image OCR failed: " + e.getMessage());
-            return "";
-        } catch (OutOfMemoryError oom) {
-            System.err.println("[PDF EXTRACTOR] Embedded-image OCR hit JVM memory pressure; aborting OCR safely.");
+            System.err.println("[PDF EXTRACTOR] Poppler page OCR failed: " + e.getMessage());
             return "";
         } finally {
             if (pdfFile != null) {
                 try { Files.deleteIfExists(pdfFile); } catch (Exception ignored) {}
             }
             if (tempDir != null) {
-                try { Files.walk(tempDir).sorted(Comparator.reverseOrder()).forEach(path -> {
-                    try { Files.deleteIfExists(path); } catch (Exception ignored) {}
-                }); } catch (Exception ignored) {}
+                try (Stream<Path> stream = Files.walk(tempDir)) {
+                    stream.sorted(Comparator.reverseOrder()).forEach(path -> {
+                        try { Files.deleteIfExists(path); } catch (Exception ignored) {}
+                    });
+                } catch (Exception ignored) {}
             }
         }
-    }
-
-    private File createBoundedOcrImage(Path source) throws IOException {
-        File temp = File.createTempFile("vrezer_ocr_bounded_", ".png");
-        BufferedImage scaled = readImageBounded(source.toFile(), MAX_IMAGE_DIMENSION);
-        if (scaled == null) {
-            temp.delete();
-            return null;
-        }
-
-        BufferedImage gray = new BufferedImage(
-                scaled.getWidth(), scaled.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-        Graphics2D g = gray.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-            g.drawImage(scaled, 0, 0, null);
-        } finally {
-            g.dispose();
-            scaled.flush();
-        }
-
-        ImageIO.write(gray, "png", temp);
-        gray.flush();
-        return temp;
-    }
-
-    private BufferedImage readImageBounded(File source, int maxDimension) throws IOException {
-        try (ImageInputStream input = ImageIO.createImageInputStream(source)) {
-            if (input == null) return null;
-
-            Iterator<ImageReader> readers = ImageIO.getImageReaders(input);
-            if (!readers.hasNext()) return null;
-
-            ImageReader reader = readers.next();
-            try {
-                reader.setInput(input, true, true);
-                int width = reader.getWidth(0);
-                int height = reader.getHeight(0);
-                int factor = Math.max(1, (int) Math.ceil(
-                        Math.max(width, height) / (double) maxDimension));
-
-                javax.imageio.ImageReadParam param = reader.getDefaultReadParam();
-                if (factor > 1) {
-                    param.setSourceSubsampling(factor, factor, 0, 0);
-                }
-                return reader.read(0, param);
-            } finally {
-                reader.dispose();
-            }
-        }
-    }
-
-    private String readProcessOutput(Process process, int timeoutSeconds) throws IOException, InterruptedException {
-        boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-        if (!finished) {
-            process.destroyForcibly();
-            throw new IOException("OCR process timed out");
-        }
-        try (InputStream is = process.getInputStream()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
-        }
-    }
-
-    private String runTesseractOcr(File imageFile, String psm) {
-        if (imageFile == null || !imageFile.exists()) return "";
-        try {
-            Process process = new ProcessBuilder(
-                    "tesseract", imageFile.getAbsolutePath(), "stdout",
-                    "-l", "eng", "--oem", "1", "--psm", psm
-            ).redirectErrorStream(true).start();
-
-            boolean finished = process.waitFor(18, TimeUnit.SECONDS);
-            if (!finished) {
-                process.destroyForcibly();
-                return "";
-            }
-
-            try (InputStream is = process.getInputStream()) {
-                return new String(is.readAllBytes(), StandardCharsets.UTF_8).trim();
-            }
-        } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] Tesseract OCR unavailable/failed: " + e.getMessage());
-            return "";
-        }
-    }
-
-    /**
-     * Last-resort PDFBox rendering used only when pdfimages cannot extract an
-     * embedded scan. One page at 72 DPI keeps Java heap bounded.
-     */
-    private String extractWithPdfBoxRenderOcr(PDDocument document) {
-        if (document == null || document.getNumberOfPages() == 0) return "";
-
-        PDFRenderer renderer = new PDFRenderer(document);
-        int pages = Math.min(document.getNumberOfPages(), 1);
-        StringBuilder full = new StringBuilder();
-
-        for (int p = 0; p < pages; p++) {
-            BufferedImage img = null;
-            File tempImg = null;
-            try {
-                renderer.setSubsamplingAllowed(true);
-                img = renderer.renderImageWithDPI(p, 72, ImageType.GRAY);
-                tempImg = File.createTempFile("vrezer_pdfbox_ocr_", ".png");
-                ImageIO.write(img, "png", tempImg);
-
-                String pageText = runTesseractOcr(tempImg, "6");
-                if (pageText.length() < 120) {
-                    String sparse = runTesseractOcr(tempImg, "11");
-                    if (sparse.length() > pageText.length()) pageText = sparse;
-                }
-                if (!pageText.trim().isEmpty()) {
-                    full.append(pageText.trim()).append("\n\n");
-                }
-            } catch (OutOfMemoryError oom) {
-                System.err.println("[PDF EXTRACTOR] Bounded PDFBox render still exceeded heap; refusing unsafe fallback.");
-                return "";
-            } catch (Exception ex) {
-                System.err.println("[PDF EXTRACTOR] Bounded PDFBox OCR failed on page " + p + ": " + ex.getMessage());
-            } finally {
-                if (img != null) img.flush();
-                if (tempImg != null && tempImg.exists()) tempImg.delete();
-            }
-        }
-        return full.toString().trim();
     }
 
     private boolean isWindowsPlatform() {
