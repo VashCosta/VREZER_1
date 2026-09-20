@@ -461,12 +461,8 @@ public class VrezerAiAgentService {
             result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
         }
 
-        // Specialized LLaMA enrichment is optional because it introduces a second generation pass.
-        // Production defaults to deterministic parsing + one primary AI pass for output stability.
-        if (specializedLlamaEnrichmentEnabled) {
-            enrichWithLlamaSpecializedSections(result, resumeText,
-                    String.valueOf(result.getOrDefault("role", "Specialist")), candidateSkills, experienceLevel);
-        }
+        // Specialized LLaMA enrichment is disabled in the production stability pipeline.
+        // One primary AI pass plus deterministic post-processing keeps repeated analyses consistent.
 
         result.put("analysisId", analysisId);
         result.put("resumeHash", sha256Hash);
