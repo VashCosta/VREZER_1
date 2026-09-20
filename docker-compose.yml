@@ -64,7 +64,7 @@ services:
       - JOOBLE_API_KEY=${JOOBLE_API_KEY:-}
       # Vector store type: pgvector or qdrant
       - VECTOR_STORE_TYPE=${VECTOR_STORE_TYPE:-pgvector}
-      - JWT_SECRET=${JWT_SECRET:-vrezer_ai_super_secret_jwt_key_2026_production_secure_token_9876543210}
+      - JWT_SECRET=${JWT_SECRET:-change-me-locally}
     depends_on:
       postgres:
         condition: service_healthy

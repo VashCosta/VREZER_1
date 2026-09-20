@@ -88,6 +88,52 @@ public class VrezerAnalyzerController {
 
     private final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
 
+    /**
+     * Atomic production path: upload the original resume file and run
+     * extraction/OCR + canonical parsing + AI analysis in one request.
+     * This avoids losing resume data between separate browser extraction
+     * and analysis requests.
+     */
+    @PostMapping(value = "/analyze-file", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> analyzeResumeFile(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-GEMINI-API-KEY", required = false) String headerApiKey) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "ERROR",
+                        "error", "Resume file is empty."
+                ));
+            }
+
+            String rawText = fileParsingService.extractText(file);
+            if (rawText == null || rawText.trim().length() < 160) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "status", "ERROR",
+                        "error", "The uploaded resume could not be read reliably. OCR/text extraction returned insufficient content."
+                ));
+            }
+
+            Map<String, Object> result =
+                    vrezerAiAgentService.analyzeResumeWithAiAgent(rawText, "", headerApiKey);
+
+            // Tell the frontend exactly what was analyzed for debugging consistency.
+            result.put("productionExtraction", Map.of(
+                    "filename", file.getOriginalFilename() != null ? file.getOriginalFilename() : "Resume",
+                    "extractedTextLength", rawText.length(),
+                    "pipeline", "single-request extract -> OCR -> parser -> AI"
+            ));
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            System.err.println("[CONTROLLER] Atomic file analysis error: " +
+                    (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "ERROR",
+                    "error", e.getMessage() != null ? e.getMessage() : "Resume analysis failed."
+            ));
+        }
+    }
+
     @PostMapping("/analyze")
     public ResponseEntity<Map<String, Object>> analyzeResume(
             @RequestBody(required = false) String rawBody,

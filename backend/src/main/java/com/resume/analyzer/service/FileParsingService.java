@@ -55,16 +55,30 @@ public class FileParsingService {
         String lowerName = filename.toLowerCase().trim();
         System.out.println("[FILE PARSING] Extracting text from: " + filename + " (" + file.getSize() + " bytes)");
 
-        // ── Strategy 1: Dedicated PDF Extractor (with Link harvesting & OCR fallback) ──
+        // ── Strategy 1: Dedicated PDF Extractor (position-sorted text + safe OCR) ──
+        // NEVER pass a PDF to Apache Tika as a generic fallback. Tika's PDF OCR renderer
+        // can rasterize high-resolution scanned pages and exhaust the Render free-tier JVM.
         if (lowerName.endsWith(".pdf")) {
             try {
                 String pdfText = pdfExtractorService.extractTextFromPdf(file);
-                if (pdfText != null && pdfText.trim().length() > 60) {
+                if (pdfText != null && pdfText.trim().length() >= 160) {
                     System.out.println("[FILE PARSING] PDF extractor succeeded. Length: " + pdfText.length());
                     return pdfText.trim();
                 }
+
+                System.err.println("[FILE PARSING] Safe PDF extraction returned insufficient content; rejecting PDF instead of invoking unsafe Tika OCR fallback.");
+                throw new IllegalArgumentException(
+                        "This PDF could not be read reliably. Please upload a text-based PDF or a clearer scanned PDF.");
+            } catch (OutOfMemoryError oom) {
+                System.err.println("[FILE PARSING] PDF processing reached JVM memory limit; Tika fallback disabled.");
+                throw new IllegalArgumentException(
+                        "The uploaded PDF is too complex for the production OCR memory limit. Please export it at normal quality and try again.");
+            } catch (IllegalArgumentException ex) {
+                throw ex;
             } catch (Exception pdfEx) {
-                System.err.println("[FILE PARSING] Dedicated PDF extractor failed, trying Tika fallback: " + pdfEx.getMessage());
+                System.err.println("[FILE PARSING] Dedicated PDF extractor failed: " + pdfEx.getMessage());
+                throw new IllegalArgumentException(
+                        "The uploaded PDF could not be processed safely. Please upload a normal-quality PDF.");
             }
         }
 

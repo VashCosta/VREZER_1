@@ -175,29 +175,38 @@ public class VrezerAiAgentService {
     @Value("${app.llama.api-key:}")
     private String llamaApiKey;
 
-    @Value("${app.llama.model:llama-3.3-70b-versatile}")
+    @Value("${app.llama.model:openai/gpt-oss-120b}")
     private String llamaModel;
 
     @Value("${app.llama.url:https://api.groq.com/openai/v1/chat/completions}")
     private String llamaUrl;
 
+    // Stable Gemini model IDs with active production API availability.
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-2.5-flash",         "v1beta" },
-        { "gemini-2.0-flash",         "v1beta" },
-        { "gemini-1.5-flash-latest",  "v1beta" },
-        { "gemini-2.5-pro",           "v1beta" },
-        { "gemini-3.5-pro",           "v1beta" },
-        { "gemini-3.5-flash",         "v1beta" }
+        { "gemini-2.5-flash",      "v1beta" },
+        { "gemini-2.5-flash-lite", "v1beta" },
+        { "gemini-2.5-pro",        "v1beta" }
     };
 
+    // Current Groq production model IDs. Deprecated Llama IDs are intentionally excluded.
     private static final String[] LLAMA_MODELS = {
-        "llama-3.3-70b-versatile",
-        "llama-3.1-70b-versatile",
-        "llama-3.2-3b-preview",
-        "llama-3.1-8b-instant",
-        "llama3-70b-8192",
-        "llama3-8b-8192"
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.6-27b"
     };
+
+    private String resolveGroqModel() {
+        String configured = llamaModel == null ? "" : llamaModel.trim();
+        if (configured.isEmpty()) return LLAMA_MODELS[0];
+        for (String supported : LLAMA_MODELS) {
+            if (supported.equalsIgnoreCase(configured)) return supported;
+        }
+        // Known deprecated Groq Llama IDs are mapped to a current production model.
+        if (configured.startsWith("llama-") || configured.startsWith("meta-llama/") || configured.startsWith("llama3")) {
+            return LLAMA_MODELS[0];
+        }
+        return configured;
+    }
 
     // ─── RAG-ENFORCED GROUNDING RULES ─────────────────────────────────────
     private static final String EXTRACTION_RULES =
@@ -339,6 +348,9 @@ public class VrezerAiAgentService {
 
         // 1. Resume JSON
         Map<String, Object> baseParsed = resumeParserService.parseResumeText(resumeText);
+        // Preserve the exact extracted text in the canonical parsed object so every downstream
+        // confidence/ATS/RAG calculation uses the same evidence on local and production.
+        baseParsed.put("rawText", resumeText);
         System.out.println("================================================================================");
         System.out.println("[PRODUCTION AUDIT LOG 1/10] Resume JSON: " + baseParsed);
 
@@ -399,8 +411,30 @@ public class VrezerAiAgentService {
             }
         }
 
+        // Production fallback chain: Gemini -> Groq current model -> OpenAI -> deterministic local engine.
+        // This prevents a transient/provider-specific failure from silently downgrading a user to stale-looking output.
+        if (result == null && isValidKey(llamaApiKey)) {
+            try {
+                System.out.println("[VREZER MULTI-AGENT] Gemini unavailable; retrying with Groq production fallback: " + resolveGroqModel());
+                result = callGroqApiWithKey(resumeText, jobDescription, llamaApiKey);
+            } catch (Exception e) {
+                errorLog.append("Groq Fallback Error: ").append(e.getMessage()).append("; ");
+                System.err.println("[VREZER MULTI-AGENT] Groq fallback failed: " + e.getMessage());
+            }
+        }
+
+        if (result == null && isValidKey(openAiKey)) {
+            try {
+                System.out.println("[VREZER MULTI-AGENT] AI fallback: OpenAI production provider.");
+                result = callOpenAiApiWithKey(resumeText, jobDescription, openAiKey);
+            } catch (Exception e) {
+                errorLog.append("OpenAI Fallback Error: ").append(e.getMessage()).append("; ");
+                System.err.println("[VREZER MULTI-AGENT] OpenAI fallback failed: " + e.getMessage());
+            }
+        }
+
         if (result == null) {
-            System.out.println("[VREZER MULTI-AGENT] Engaging VREZER 6-Agent Local Neural Engine (Reason: " + (hasKey ? errorLog : "No API key configured") + ")");
+            System.out.println("[VREZER MULTI-AGENT] Engaging grounded local engine only after all configured AI providers fail. Reason: " + (hasKey ? errorLog : "No API key configured"));
             result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
         }
 
@@ -1037,22 +1071,53 @@ public class VrezerAiAgentService {
         ).trim();
         result.put("email", email);
 
+        // Canonical resume-grounded fields.
+        // The LLM may write narratives, but factual profile fields must always come from
+        // the same deterministic parser used by localhost and production.
+        result.put("phone", String.valueOf(parsed.getOrDefault("phone", "")).trim());
+        result.put("linkedin", String.valueOf(parsed.getOrDefault("linkedin", "")).trim());
+        result.put("github", String.valueOf(parsed.getOrDefault("github", "")).trim());
+        result.put("cgpa", String.valueOf(parsed.getOrDefault("cgpa", "")).trim());
+        result.put("programmingLanguages", parsed.getOrDefault("programmingLanguages", List.of()));
+        result.put("toolsAndTechnologies", parsed.getOrDefault("frameworks", List.of()));
+        result.put("topSkills", parsed.getOrDefault("allDetectedSkills", List.of()));
+        result.put("softSkills", parsed.getOrDefault("softSkills", List.of()));
+        result.put("certifications", parsed.getOrDefault("certifications", List.of()));
+        result.put("achievements", parsed.getOrDefault("achievements", List.of()));
+
+        List<String> canonicalProjects = new ArrayList<>();
+        Object projectObj = parsed.getOrDefault("projects", List.of());
+        if (projectObj instanceof List) {
+            for (Object item : (List<?>) projectObj) {
+                if (item instanceof Map) {
+                    Object title = ((Map<?, ?>) item).get("title");
+                    if (title != null && !String.valueOf(title).isBlank()) canonicalProjects.add(String.valueOf(title));
+                } else if (item != null && !String.valueOf(item).isBlank()) {
+                    canonicalProjects.add(String.valueOf(item));
+                }
+            }
+        }
+        result.put("projects", canonicalProjects);
+
         // Candidate Role
         List<String> skills = (List<String>) parsed.getOrDefault("allDetectedSkills", List.of());
-        String role = String.valueOf(
-            result.getOrDefault("role", result.getOrDefault("targetRole", result.getOrDefault("jobRole", "")))
-        ).trim();
-        if (role.isEmpty() || role.equalsIgnoreCase("null")) {
-            role = classifyCareerDomain(resumeText, skills);
+        Map<String, Object> canonicalProfile = resumeIntelligenceEngine.extractCandidateProfile(resumeText, parsed);
+        String canonicalRole = String.valueOf(canonicalProfile.getOrDefault("targetJobRole", "")).trim();
+        if (canonicalRole.isEmpty() || canonicalRole.equalsIgnoreCase("Software Development Engineer")) {
+            canonicalRole = classifyCareerDomain(resumeText, skills);
         }
-        result.put("role", role);
+        result.put("role", canonicalRole);
 
-        // Career Domain
-        String domain = String.valueOf(result.getOrDefault("careerDomain", "")).trim();
+        // Career Domain — deterministic and evidence-grounded to eliminate provider-to-provider drift.
+        String domain = String.valueOf(canonicalProfile.getOrDefault("careerDomain", "")).trim();
         if (domain.isEmpty() || domain.equalsIgnoreCase("null")) {
             domain = classifyCareerDomain(resumeText, skills);
         }
         result.put("careerDomain", domain);
+
+        result.put("careerLevel", String.valueOf(canonicalProfile.getOrDefault("experienceLevel", "FRESHER")));
+        result.put("experience", String.valueOf(canonicalProfile.getOrDefault("experience", "Fresher / Entry Level")));
+        result.put("education", String.valueOf(canonicalProfile.getOrDefault("education", "Not detected")));
 
         // ATS Score — Use AtsAnalysisEngine for real computation; never default to 75
         int atsScore = 0;
@@ -1377,7 +1442,7 @@ public class VrezerAiAgentService {
         headers.setBearerAuth(targetKey.trim());
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", "llama-3.3-70b-versatile");
+        body.put("model", resolveGroqModel());
         body.put("temperature", 0.2);
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(sysMsg, usrMsg));
@@ -1450,7 +1515,7 @@ public class VrezerAiAgentService {
             headers.setBearerAuth(activeLlamaKey);
 
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", llamaModel != null && !llamaModel.isEmpty() ? llamaModel : "llama-3.3-70b-versatile");
+            body.put("model", resolveGroqModel());
             body.put("temperature", 0.3);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));

@@ -2,7 +2,7 @@ services:
   - type: web
     name: vrezer-backend
     env: docker
-    region: ohio
+    region: oregon
     plan: free
     branch: main
     dockerfilePath: Dockerfile
@@ -13,11 +13,31 @@ services:
         value: 10000
       - key: GEMINI_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LLAMA_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: JOOBLE_API_KEY
         sync: false
       - key: ADZUNA_APP_ID
         sync: false
       - key: ADZUNA_APP_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: JSEARCH_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: GOOGLE_SEARCH_ENGINE_ID
         sync: false
       - key: SPRING_DATASOURCE_URL
         sync: false
@@ -29,7 +49,13 @@ services:
         value: org.postgresql.Driver
       - key: SPRING_JPA_DIALECT
         value: org.hibernate.dialect.PostgreSQLDialect
+      - key: SPRING_JPA_DDL_AUTO
+        value: update
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:7000,http://localhost:9000"
+        value: "https://vashcosta.github.io,https://vashcosta.github.io/VREZER_1/,https://vrezer-3-0.vercel.app,https://*.vercel.app,https://*.github.io,http://localhost:5173,http://localhost:3000,http://localhost:7000,http://localhost:9000"
+      - key: PDF_OCR_ENABLED
+        value: "true"
+      - key: LLAMA_MODEL
+        value: "openai/gpt-oss-120b"
       - key: JAVA_TOOL_OPTIONS
-        value: "-Xmx400m -Xss512k"
+        value: "-Xmx384m -Xss512k"
