@@ -379,6 +379,33 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         setTicker('Resume loaded: ' + file.name + ' — Click Launch AI Career Analysis to proceed');
     }
 
+    async function getFileCacheKey(file) {
+        const buffer = await file.arrayBuffer();
+        const digest = await crypto.subtle.digest('SHA-256', buffer);
+        const bytes = Array.from(new Uint8Array(digest));
+        return 'vrezer-analysis-v2:' + bytes.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function readDeterministicAnalysisCache(key) {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && (parsed.name || parsed.role || parsed.atsScore)) return parsed;
+        } catch (e) {
+            console.warn('VREZER local analysis cache read skipped:', e);
+        }
+        return null;
+    }
+
+    function writeDeterministicAnalysisCache(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+        } catch (e) {
+            console.warn('VREZER local analysis cache write skipped:', e);
+        }
+    }
+
     async function waitForBackendReady(baseUrl) {
         const healthUrl = baseUrl.replace(/\/$/, '') + '/actuator/health';
         let lastError = null;
@@ -537,6 +564,13 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 // Never fall back to browser-side generative AI for resume analysis.
                 await waitForBackendReady(baseUrl);
 
+                const fileCacheKey = await getFileCacheKey(currentFile);
+                const locallyCached = readDeterministicAnalysisCache(fileCacheKey);
+                if (locallyCached) {
+                    console.log('[VREZER CACHE] Browser cache HIT for exact uploaded file.');
+                    return locallyCached;
+                }
+
                 const fd = new FormData();
                 fd.append('file', currentFile);
                 const timeoutMs = baseUrl.includes('onrender.com') ? 330000 : 180000;
@@ -556,6 +590,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                         if (!res.ok || json.error || json.status === 'ERROR') {
                             throw new Error(json.error || json.message || 'VREZER backend analysis failed.');
                         }
+                        writeDeterministicAnalysisCache(fileCacheKey, json);
                         return json;
                     } catch (err) {
                         lastError = err;
