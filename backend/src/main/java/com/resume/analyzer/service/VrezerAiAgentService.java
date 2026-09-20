@@ -175,29 +175,38 @@ public class VrezerAiAgentService {
     @Value("${app.llama.api-key:}")
     private String llamaApiKey;
 
-    @Value("${app.llama.model:llama-3.3-70b-versatile}")
+    @Value("${app.llama.model:openai/gpt-oss-120b}")
     private String llamaModel;
 
     @Value("${app.llama.url:https://api.groq.com/openai/v1/chat/completions}")
     private String llamaUrl;
 
+    // Stable Gemini model IDs with active production API availability.
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-2.5-flash",         "v1beta" },
-        { "gemini-2.0-flash",         "v1beta" },
-        { "gemini-1.5-flash-latest",  "v1beta" },
-        { "gemini-2.5-pro",           "v1beta" },
-        { "gemini-3.5-pro",           "v1beta" },
-        { "gemini-3.5-flash",         "v1beta" }
+        { "gemini-2.5-flash",      "v1beta" },
+        { "gemini-2.5-flash-lite", "v1beta" },
+        { "gemini-2.5-pro",        "v1beta" }
     };
 
+    // Current Groq production model IDs. Deprecated Llama IDs are intentionally excluded.
     private static final String[] LLAMA_MODELS = {
-        "llama-3.3-70b-versatile",
-        "llama-3.1-70b-versatile",
-        "llama-3.2-3b-preview",
-        "llama-3.1-8b-instant",
-        "llama3-70b-8192",
-        "llama3-8b-8192"
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.6-27b"
     };
+
+    private String resolveGroqModel() {
+        String configured = llamaModel == null ? "" : llamaModel.trim();
+        if (configured.isEmpty()) return LLAMA_MODELS[0];
+        for (String supported : LLAMA_MODELS) {
+            if (supported.equalsIgnoreCase(configured)) return supported;
+        }
+        // Known deprecated Groq Llama IDs are mapped to a current production model.
+        if (configured.startsWith("llama-") || configured.startsWith("meta-llama/") || configured.startsWith("llama3")) {
+            return LLAMA_MODELS[0];
+        }
+        return configured;
+    }
 
     // ─── RAG-ENFORCED GROUNDING RULES ─────────────────────────────────────
     private static final String EXTRACTION_RULES =
@@ -399,8 +408,30 @@ public class VrezerAiAgentService {
             }
         }
 
+        // Production fallback chain: Gemini -> Groq current model -> OpenAI -> deterministic local engine.
+        // This prevents a transient/provider-specific failure from silently downgrading a user to stale-looking output.
+        if (result == null && isValidKey(llamaApiKey)) {
+            try {
+                System.out.println("[VREZER MULTI-AGENT] Gemini unavailable; retrying with Groq production fallback: " + resolveGroqModel());
+                result = callGroqApiWithKey(resumeText, jobDescription, llamaApiKey);
+            } catch (Exception e) {
+                errorLog.append("Groq Fallback Error: ").append(e.getMessage()).append("; ");
+                System.err.println("[VREZER MULTI-AGENT] Groq fallback failed: " + e.getMessage());
+            }
+        }
+
+        if (result == null && isValidKey(openAiKey)) {
+            try {
+                System.out.println("[VREZER MULTI-AGENT] AI fallback: OpenAI production provider.");
+                result = callOpenAiApiWithKey(resumeText, jobDescription, openAiKey);
+            } catch (Exception e) {
+                errorLog.append("OpenAI Fallback Error: ").append(e.getMessage()).append("; ");
+                System.err.println("[VREZER MULTI-AGENT] OpenAI fallback failed: " + e.getMessage());
+            }
+        }
+
         if (result == null) {
-            System.out.println("[VREZER MULTI-AGENT] Engaging VREZER 6-Agent Local Neural Engine (Reason: " + (hasKey ? errorLog : "No API key configured") + ")");
+            System.out.println("[VREZER MULTI-AGENT] Engaging grounded local engine only after all configured AI providers fail. Reason: " + (hasKey ? errorLog : "No API key configured"));
             result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
         }
 
@@ -1377,7 +1408,7 @@ public class VrezerAiAgentService {
         headers.setBearerAuth(targetKey.trim());
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", "llama-3.3-70b-versatile");
+        body.put("model", resolveGroqModel());
         body.put("temperature", 0.2);
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(sysMsg, usrMsg));
@@ -1450,7 +1481,7 @@ public class VrezerAiAgentService {
             headers.setBearerAuth(activeLlamaKey);
 
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", llamaModel != null && !llamaModel.isEmpty() ? llamaModel : "llama-3.3-70b-versatile");
+            body.put("model", resolveGroqModel());
             body.put("temperature", 0.3);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));
