@@ -52,16 +52,15 @@ public class PdfExtractorService {
 
             System.out.println("[PDF EXTRACTOR] Standard text extracted: " + trimmedText.length() + " chars (images detected: " + hasImages + ")");
 
-            // 3. OCR is opt-in. It is disabled on memory-constrained cloud deployments
-            // because PDF rasterization can consume hundreds of MB per page.
+            // 3. OCR activates for short/image-heavy PDFs. Render has bounded Tesseract OCR.
             if (ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages))) {
                 System.out.println("[PDF EXTRACTOR] OCR enabled: starting bounded OCR fallback...");
                 String ocrText = extractWithOcr(document);
                 if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
                     trimmedText = ocrText.trim();
                 }
-            } else if (!ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages))) {
-                System.out.println("[PDF EXTRACTOR] OCR disabled for this deployment; returning text-layer extraction.");
+            } else if (!ocrEnabled && (trimmedText.length() < 80 || (trimmedText.length() < 200 && hasImages))) {
+                System.out.println("[PDF EXTRACTOR] OCR unavailable; text-layer extraction may be incomplete.");
             }
 
             // 4. Merge harvested clickable links if they are not already in the text
@@ -78,7 +77,10 @@ public class PdfExtractorService {
                 }
             }
 
-            return finalOutput.toString().trim();
+            String result = finalOutput.toString().trim();
+            // Never treat a link-only/image-only PDF as a successful full extraction.
+            if (result.length() < 160) return "";
+            return result;
         }
     }
 
