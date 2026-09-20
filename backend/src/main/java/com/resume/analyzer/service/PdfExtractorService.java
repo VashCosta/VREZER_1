@@ -13,7 +13,14 @@ import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.rendering.ImageType;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -34,6 +41,24 @@ public class PdfExtractorService {
 
     @org.springframework.beans.factory.annotation.Value("${app.pdf.ocr.enabled:true}")
     private boolean ocrEnabled;
+
+    @org.springframework.beans.factory.annotation.Value("${app.gemini.api-key:}")
+    private String geminiApiKey;
+
+    @org.springframework.beans.factory.annotation.Value("${app.gemini.model:gemini-2.5-flash}")
+    private String geminiModel;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private final RestTemplate geminiRestTemplate = buildGeminiRestTemplate();
+
+    private static RestTemplate buildGeminiRestTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(8_000);
+        factory.setReadTimeout(75_000);
+        return new RestTemplate(factory);
+    }
 
     private static final int MAX_OCR_PAGES = 2;
     private static final int MAX_OCR_IMAGES = 4;
@@ -173,8 +198,94 @@ public class PdfExtractorService {
             return rendered.trim();
         }
 
-        System.err.println("[PDF EXTRACTOR] All safe OCR methods returned insufficient text.");
-        return rendered == null ? "" : rendered.trim();
+        // Final server-side multimodal fallback: send the original PDF directly to Gemini.
+        // Gemini's PDF/document input can understand both native text and rendered page content,
+        // which is useful for scanned resumes that Tesseract cannot reliably transcribe.
+        String geminiText = extractWithGeminiPdf(pdfBytes);
+        if (geminiText != null && geminiText.trim().length() >= 160) {
+            System.out.println("[PDF EXTRACTOR] Gemini multimodal PDF transcription succeeded: "
+                    + geminiText.trim().length() + " chars");
+            return geminiText.trim();
+        }
+
+        System.err.println("[PDF EXTRACTOR] All safe OCR/transcription methods returned insufficient text.");
+        return geminiText == null ? (rendered == null ? "" : rendered.trim()) : geminiText.trim();
+    }
+
+    private String extractWithGeminiPdf(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0 || geminiApiKey == null || geminiApiKey.trim().isEmpty()) {
+            System.err.println("[PDF EXTRACTOR] Gemini PDF fallback unavailable: API key not configured.");
+            return "";
+        }
+
+        try {
+            String model = (geminiModel == null || geminiModel.trim().isEmpty())
+                    ? "gemini-2.5-flash" : geminiModel.trim();
+
+            String prompt =
+                    "Transcribe this resume PDF into plain text for a downstream resume parser. " +
+                    "Read all visible text from every page, including text inside images, columns, headers, " +
+                    "footers, tables, and icons where readable. Preserve names, emails, phone numbers, URLs, " +
+                    "education, experience, projects, skills, certifications, achievements and dates exactly as " +
+                    "shown. Do not infer or invent missing information. Output only the transcribed resume text.";
+
+            Map<String, Object> textPart = Map.of("text", prompt);
+            Map<String, Object> pdfPart = Map.of(
+                    "inline_data", Map.of(
+                            "mime_type", "application/pdf",
+                            "data", Base64.getEncoder().encodeToString(pdfBytes)
+                    )
+            );
+
+            Map<String, Object> content = Map.of(
+                    "contents", List.of(Map.of(
+                            "parts", List.of(textPart, pdfPart)
+                    ))
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + java.net.URLEncoder.encode(model, StandardCharsets.UTF_8)
+                    + ":generateContent?key="
+                    + java.net.URLEncoder.encode(geminiApiKey.trim(), StandardCharsets.UTF_8);
+
+            ResponseEntity<String> response = geminiRestTemplate.postForEntity(
+                    url,
+                    new HttpEntity<>(content, headers),
+                    String.class
+            );
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                System.err.println("[PDF EXTRACTOR] Gemini PDF fallback HTTP error: "
+                        + response.getStatusCode());
+                return "";
+            }
+
+            JsonNode root = objectMapper.readTree(response.getBody());
+            StringBuilder text = new StringBuilder();
+            JsonNode candidates = root.path("candidates");
+            if (candidates.isArray()) {
+                for (JsonNode candidate : candidates) {
+                    JsonNode parts = candidate.path("content").path("parts");
+                    if (parts.isArray()) {
+                        for (JsonNode part : parts) {
+                            JsonNode t = part.path("text");
+                            if (t.isTextual()) {
+                                text.append(t.asText()).append("\n");
+                            }
+                        }
+                    }
+                }
+            }
+
+            return text.toString().replaceAll("\\s{3,}", "\n").trim();
+        } catch (Exception e) {
+            System.err.println("[PDF EXTRACTOR] Gemini PDF fallback failed: " + e.getMessage());
+            return "";
+        }
     }
 
     private String runPopplerPageOcr(byte[] pdfBytes) {
