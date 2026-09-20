@@ -19,7 +19,7 @@ import java.util.*;
 
 /**
  * Phase 5: RAG + Vector Semantic Search Service.
- * Computes semantic matching using vector embeddings fetched from the Gemini embedding API (models/text-embedding-004)
+ * Computes semantic matching using vector embeddings fetched from the Gemini embedding API (models/gemini-embedding-001)
  * or the OpenAI embedding API (text-embedding-3-small).
  * Supports optional indexing and retrieval via Qdrant or PostgreSQL pgvector.
  * Fallbacks to in-memory cosine similarity if database connections are unavailable.
