@@ -9,11 +9,26 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
+
 
 @RestController
 @RequestMapping("/api/analyzer")
 @CrossOrigin(origins = "*")
 public class VrezerAnalyzerController {
+
+    // Same uploaded bytes must resolve to the same completed dossier during the life of the service.
+    // This also prevents OCR/LLM provider variability from changing a repeated analysis request.
+    private static final int MAX_DETERMINISTIC_CACHE_ENTRIES = 32;
+    private static final Map<String, Map<String, Object>> DETERMINISTIC_FILE_CACHE =
+            Collections.synchronizedMap(new LinkedHashMap<String, Map<String, Object>>(MAX_DETERMINISTIC_CACHE_ENTRIES, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Map<String, Object>> eldest) {
+                    return size() > MAX_DETERMINISTIC_CACHE_ENTRIES;
+                }
+            });
+
 
     @Autowired
     private FileParsingService fileParsingService;
@@ -26,6 +41,14 @@ public class VrezerAnalyzerController {
 
     @Autowired
     private com.resume.analyzer.service.MarketIntelligenceService marketIntelligenceService;
+
+    private String sha256(byte[] bytes) throws Exception {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] digest = md.digest(bytes);
+        StringBuilder sb = new StringBuilder(digest.length * 2);
+        for (byte b : digest) sb.append(String.format("%02x", b));
+        return sb.toString();
+    }
 
     @GetMapping("/version")
     public ResponseEntity<Map<String, Object>> getVersion() {
@@ -106,7 +129,35 @@ public class VrezerAnalyzerController {
                 ));
             }
 
-            String rawText = fileParsingService.extractText(file);
+            byte[] fileBytes = file.getBytes();
+            String sourceFileHash = sha256(fileBytes);
+
+            Map<String, Object> cached;
+            synchronized (DETERMINISTIC_FILE_CACHE) {
+                cached = DETERMINISTIC_FILE_CACHE.get(sourceFileHash);
+            }
+            if (cached != null) {
+                Map<String, Object> cachedResult = new LinkedHashMap<>(cached);
+                Map<String, Object> extractionMeta = new LinkedHashMap<>();
+                Object existingMeta = cachedResult.get("productionExtraction");
+                if (existingMeta instanceof Map) extractionMeta.putAll((Map<String, Object>) existingMeta);
+                extractionMeta.put("sourceFileHash", sourceFileHash);
+                extractionMeta.put("cacheHit", true);
+                cachedResult.put("productionExtraction", extractionMeta);
+                cachedResult.put("resumeHash", sourceFileHash);
+                System.out.println("[ANALYZER CACHE] Deterministic file-cache HIT: " + sourceFileHash);
+                return ResponseEntity.ok(cachedResult);
+            }
+
+            System.out.println("[ANALYZER CACHE] Deterministic file-cache MISS: " + sourceFileHash);
+            MultipartFile analysisFile = new org.springframework.mock.web.MockMultipartFile(
+                    file.getName(),
+                    file.getOriginalFilename(),
+                    file.getContentType(),
+                    fileBytes
+            );
+
+            String rawText = fileParsingService.extractText(analysisFile);
             if (rawText == null || rawText.trim().length() < 160) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "ERROR",
@@ -117,12 +168,22 @@ public class VrezerAnalyzerController {
             Map<String, Object> result =
                     vrezerAiAgentService.analyzeResumeWithAiAgent(rawText, "", headerApiKey);
 
-            // Tell the frontend exactly what was analyzed for debugging consistency.
-            result.put("productionExtraction", Map.of(
-                    "filename", file.getOriginalFilename() != null ? file.getOriginalFilename() : "Resume",
-                    "extractedTextLength", rawText.length(),
-                    "pipeline", "single-request extract -> OCR -> parser -> AI"
-            ));
+            // Make the identity deterministic for the exact uploaded bytes.
+            result.put("analysisId", "an_" + sourceFileHash.substring(0, 12));
+            result.put("resumeHash", sourceFileHash);
+
+            Map<String, Object> extractionMeta = new LinkedHashMap<>();
+            extractionMeta.put("filename", file.getOriginalFilename() != null ? file.getOriginalFilename() : "Resume");
+            extractionMeta.put("extractedTextLength", rawText.length());
+            extractionMeta.put("sourceFileHash", sourceFileHash);
+            extractionMeta.put("pipeline", "single-request extract -> OCR -> parser -> AI");
+            extractionMeta.put("cacheHit", false);
+            result.put("productionExtraction", extractionMeta);
+
+            synchronized (DETERMINISTIC_FILE_CACHE) {
+                DETERMINISTIC_FILE_CACHE.put(sourceFileHash, new LinkedHashMap<>(result));
+            }
+
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             System.err.println("[CONTROLLER] Atomic file analysis error: " +

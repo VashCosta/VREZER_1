@@ -1320,6 +1320,7 @@ public class VrezerAiAgentService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", "gpt-4o-mini");
         body.put("temperature", 0.0);
+        body.put("seed", 42);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         ResponseEntity<String> resp = restTemplate.postForEntity(
@@ -1369,6 +1370,7 @@ public class VrezerAiAgentService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", targetModel);
         body.put("temperature", 0.0);
+        body.put("seed", 42);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         try {
@@ -1517,6 +1519,7 @@ public class VrezerAiAgentService {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", resolveGroqModel());
             body.put("temperature", 0.0);
+        body.put("seed", 42);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));
 
