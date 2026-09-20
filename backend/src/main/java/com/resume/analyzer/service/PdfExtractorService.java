@@ -48,6 +48,9 @@ public class PdfExtractorService {
     @org.springframework.beans.factory.annotation.Value("${app.gemini.model:gemini-2.5-flash}")
     private String geminiModel;
 
+    @org.springframework.beans.factory.annotation.Value("${app.gemini.fallback-models:gemini-2.5-flash-lite,gemini-2.5-pro}")
+    private String geminiFallbackModels;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final RestTemplate geminiRestTemplate = buildGeminiRestTemplate();
@@ -218,73 +221,131 @@ public class PdfExtractorService {
             return "";
         }
 
-        try {
-            String model = (geminiModel == null || geminiModel.trim().isEmpty())
-                    ? "gemini-2.5-flash" : geminiModel.trim();
+        String primary = (geminiModel == null || geminiModel.trim().isEmpty())
+                ? "gemini-2.5-flash" : geminiModel.trim();
 
-            String prompt =
-                    "Transcribe this resume PDF into plain text for a downstream resume parser. " +
-                    "Read all visible text from every page, including text inside images, columns, headers, " +
-                    "footers, tables, and icons where readable. Preserve names, emails, phone numbers, URLs, " +
-                    "education, experience, projects, skills, certifications, achievements and dates exactly as " +
-                    "shown. Do not infer or invent missing information. Output only the transcribed resume text.";
-
-            Map<String, Object> textPart = Map.of("text", prompt);
-            Map<String, Object> pdfPart = Map.of(
-                    "inline_data", Map.of(
-                            "mime_type", "application/pdf",
-                            "data", Base64.getEncoder().encodeToString(pdfBytes)
-                    )
-            );
-
-            Map<String, Object> content = Map.of(
-                    "contents", List.of(Map.of(
-                            "parts", List.of(textPart, pdfPart)
-                    ))
-            );
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                    + java.net.URLEncoder.encode(model, StandardCharsets.UTF_8)
-                    + ":generateContent?key="
-                    + java.net.URLEncoder.encode(geminiApiKey.trim(), StandardCharsets.UTF_8);
-
-            ResponseEntity<String> response = geminiRestTemplate.postForEntity(
-                    url,
-                    new HttpEntity<>(content, headers),
-                    String.class
-            );
-
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                System.err.println("[PDF EXTRACTOR] Gemini PDF fallback HTTP error: "
-                        + response.getStatusCode());
-                return "";
+        LinkedHashSet<String> models = new LinkedHashSet<>();
+        models.add(primary);
+        if (geminiFallbackModels != null) {
+            for (String value : geminiFallbackModels.split(",")) {
+                if (value != null && !value.trim().isEmpty()) {
+                    models.add(value.trim());
+                }
             }
+        }
 
-            JsonNode root = objectMapper.readTree(response.getBody());
-            StringBuilder text = new StringBuilder();
-            JsonNode candidates = root.path("candidates");
-            if (candidates.isArray()) {
-                for (JsonNode candidate : candidates) {
-                    JsonNode parts = candidate.path("content").path("parts");
-                    if (parts.isArray()) {
-                        for (JsonNode part : parts) {
-                            JsonNode t = part.path("text");
-                            if (t.isTextual()) {
-                                text.append(t.asText()).append("\n");
+        String prompt =
+                "Transcribe this resume PDF into plain text for a downstream resume parser. " +
+                "Read every page and every visible text region, including text inside images, columns, " +
+                "headers, footers, tables and icon-adjacent labels. Preserve names, emails, phone numbers, " +
+                "URLs, education, experience, projects, skills, certifications, achievements and dates " +
+                "exactly as shown. Do not infer or invent missing information. Output only the transcribed " +
+                "resume text and nothing else.";
+
+        Map<String, Object> textPart = Map.of("text", prompt);
+        Map<String, Object> pdfPart = Map.of(
+                "inline_data", Map.of(
+                        "mime_type", "application/pdf",
+                        "data", Base64.getEncoder().encodeToString(pdfBytes)
+                )
+        );
+        Map<String, Object> requestBody = Map.of(
+                "contents", List.of(Map.of(
+                        "parts", List.of(textPart, pdfPart)
+                ))
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        for (String model : models) {
+            for (int attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    System.out.println("[PDF EXTRACTOR] Gemini PDF transcription attempt "
+                            + attempt + "/2 using model " + model);
+
+                    String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                            + java.net.URLEncoder.encode(model, StandardCharsets.UTF_8)
+                            + ":generateContent?key="
+                            + java.net.URLEncoder.encode(geminiApiKey.trim(), StandardCharsets.UTF_8);
+
+                    ResponseEntity<String> response = geminiRestTemplate.postForEntity(
+                            url,
+                            new HttpEntity<>(requestBody, headers),
+                            String.class
+                    );
+
+                    if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                        System.err.println("[PDF EXTRACTOR] Gemini model " + model
+                                + " returned HTTP " + response.getStatusCode());
+                        if (isRetryableGeminiStatus(response.getStatusCode().value()) && attempt < 2) {
+                            sleepBeforeGeminiRetry(attempt);
+                            continue;
+                        }
+                        break;
+                    }
+
+                    JsonNode root = objectMapper.readTree(response.getBody());
+                    StringBuilder text = new StringBuilder();
+                    JsonNode candidates = root.path("candidates");
+                    if (candidates.isArray()) {
+                        for (JsonNode candidate : candidates) {
+                            JsonNode parts = candidate.path("content").path("parts");
+                            if (parts.isArray()) {
+                                for (JsonNode part : parts) {
+                                    JsonNode t = part.path("text");
+                                    if (t.isTextual()) {
+                                        text.append(t.asText()).append("\n");
+                                    }
+                                }
                             }
                         }
                     }
+
+                    String result = text.toString().replaceAll("\\s{3,}", "\n").trim();
+                    if (result.length() >= 160) {
+                        System.out.println("[PDF EXTRACTOR] Gemini PDF transcription succeeded with "
+                                + model + ": " + result.length() + " chars");
+                        return result;
+                    }
+
+                    System.err.println("[PDF EXTRACTOR] Gemini model " + model
+                            + " returned insufficient transcription (" + result.length() + " chars).");
+                    break;
+
+                } catch (org.springframework.web.client.HttpStatusCodeException httpEx) {
+                    int status = httpEx.getStatusCode().value();
+                    System.err.println("[PDF EXTRACTOR] Gemini model " + model
+                            + " HTTP " + status + ": " + httpEx.getResponseBodyAsString());
+
+                    if (isRetryableGeminiStatus(status) && attempt < 2) {
+                        sleepBeforeGeminiRetry(attempt);
+                        continue;
+                    }
+                    break;
+
+                } catch (Exception e) {
+                    System.err.println("[PDF EXTRACTOR] Gemini model " + model
+                            + " failed: " + e.getMessage());
+                    break;
                 }
             }
+        }
 
-            return text.toString().replaceAll("\\s{3,}", "\n").trim();
-        } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] Gemini PDF fallback failed: " + e.getMessage());
-            return "";
+        System.err.println("[PDF EXTRACTOR] All configured Gemini PDF transcription models failed.");
+        return "";
+    }
+
+    private boolean isRetryableGeminiStatus(int status) {
+        return status == 429 || status == 500 || status == 502 || status == 503 || status == 504;
+    }
+
+    private void sleepBeforeGeminiRetry(int attempt) {
+        try {
+            Thread.sleep(attempt == 1 ? 1800L : 3500L);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -306,8 +367,8 @@ public class PdfExtractorService {
                     "-png",
                     "-f", "1",
                     "-l", String.valueOf(MAX_OCR_PAGES),
-                    "-r", "120",
-                    "-scale-to", String.valueOf(MAX_IMAGE_DIMENSION),
+                    "-r", "180",
+                    "-scale-to", "2200",
                     pdfFile.toString(),
                     prefix
             ).redirectErrorStream(true).start();
@@ -342,6 +403,11 @@ public class PdfExtractorService {
 
                 if (block.length() > best.length()) best = block;
                 if (sparse.length() > best.length()) best = sparse;
+
+                if (best.length() < 160) {
+                    String alt = runTesseractOcr(image, "4");
+                    if (alt.length() > best.length()) best = alt;
+                }
 
                 if (!best.trim().isEmpty()) {
                     allText.append(best.trim()).append("\n\n");
