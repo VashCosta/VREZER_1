@@ -9,7 +9,6 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
-import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +17,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.concurrent.TimeUnit;
 import java.util.*;
 
 @Service
@@ -50,7 +51,7 @@ public class PdfExtractorService {
             // 3. If text is sparse / empty and document has pages/images, execute Autonomous OCR
             if (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages)) {
                 System.out.println("[PDF EXTRACTOR] Triggering high-precision OCR extraction pipeline...");
-                String ocrText = extractWithOcr(document);
+                String ocrText = extractWithOcr(pdfBytes);
                 if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
                     trimmedText = ocrText.trim();
                 }
@@ -120,36 +121,109 @@ public class PdfExtractorService {
     }
 
     /**
-     * Multi-page rendering and OCR extraction using Native Windows Media OCR bridge.
+     * Bounded Linux OCR fallback for scanned PDFs.
+     *
+     * Poppler renders one page at a time at 110 DPI and Tesseract processes that
+     * single image. No PDFRenderer/large BufferedImage is kept in the JVM.
      */
-    public String extractWithOcr(PDDocument document) {
+    public String extractWithOcr(byte[] pdfBytes) {
         StringBuilder fullOcrText = new StringBuilder();
-        PDFRenderer renderer = new PDFRenderer(document);
-        int maxPages = Math.min(document.getNumberOfPages(), 6);
+        File tempPdf = null;
 
-        File scriptFile = resolveOcrScriptFile();
+        try {
+            tempPdf = File.createTempFile("vrezer_upload_", ".pdf");
+            Files.write(tempPdf.toPath(), pdfBytes);
 
-        for (int p = 0; p < maxPages; p++) {
-            File tempImg = null;
-            try {
-                BufferedImage img = renderer.renderImageWithDPI(p, 200);
-                tempImg = File.createTempFile("vrezer_pdf_ocr_p" + p + "_", ".png");
-                ImageIO.write(img, "png", tempImg);
+            // Process at most six pages; each page is rendered independently.
+            try (PDDocument bounded = PDDocument.load(pdfBytes)) {
+                int maxPages = Math.min(bounded.getNumberOfPages(), 6);
+                for (int p = 0; p < maxPages; p++) {
+                    File tempBase = null;
+                    File tempPng = null;
+                    Process render = null;
+                    Process ocr = null;
+                    try {
+                        tempBase = File.createTempFile("vrezer_ocr_", "_page");
+                        if (tempBase.exists()) tempBase.delete();
+                        String prefix = tempBase.getAbsolutePath();
 
-                String pageOcr = runWindowsOcr(scriptFile, tempImg);
-                if (pageOcr != null && !pageOcr.trim().isEmpty()) {
-                    fullOcrText.append(pageOcr.trim()).append("\n\n");
-                }
-            } catch (Exception ex) {
-                System.err.println("[PDF EXTRACTOR] OCR on page " + p + " failed: " + ex.getMessage());
-            } finally {
-                if (tempImg != null && tempImg.exists()) {
-                    tempImg.delete();
+                        render = new ProcessBuilder(
+                            "pdftoppm",
+                            "-f", String.valueOf(p + 1),
+                            "-l", String.valueOf(p + 1),
+                            "-r", "110",
+                            "-png",
+                            "-singlefile",
+                            tempPdf.getAbsolutePath(),
+                            prefix
+                        ).redirectErrorStream(true).start();
+
+                        String renderOutput = readProcessOutput(render, 45);
+                        if (!render.waitFor(50, TimeUnit.SECONDS) || render.exitValue() != 0) {
+                            System.err.println("[PDF EXTRACTOR] Poppler failed on page " + p + ": " + renderOutput);
+                            continue;
+                        }
+
+                        tempPng = new File(prefix + ".png");
+                        if (!tempPng.exists() || tempPng.length() == 0) continue;
+
+                        ocr = new ProcessBuilder(
+                            "tesseract",
+                            tempPng.getAbsolutePath(),
+                            "stdout",
+                            "--psm", "6",
+                            "-l", "eng"
+                        ).redirectErrorStream(true).start();
+
+                        String pageText = readProcessOutput(ocr, 60);
+                        if (!ocr.waitFor(65, TimeUnit.SECONDS)) {
+                            ocr.destroyForcibly();
+                            System.err.println("[PDF EXTRACTOR] Tesseract timed out on page " + p);
+                            continue;
+                        }
+
+                        if (ocr.exitValue() == 0 && pageText != null && !pageText.trim().isEmpty()) {
+                            fullOcrText.append(pageText.trim()).append("\n\n");
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("[PDF EXTRACTOR] OCR on page " + p + " failed: " + ex.getMessage());
+                    } finally {
+                        if (ocr != null && ocr.isAlive()) ocr.destroyForcibly();
+                        if (render != null && render.isAlive()) render.destroyForcibly();
+                        deleteQuietly(tempPng);
+                        deleteQuietly(tempBase);
+                    }
                 }
             }
+        } catch (Exception e) {
+            System.err.println("[PDF EXTRACTOR] OCR pipeline failed: " + e.getMessage());
+        } finally {
+            deleteQuietly(tempPdf);
         }
 
         return fullOcrText.toString().trim();
+    }
+
+    private String readProcessOutput(Process process, int maxLines) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            int lines = 0;
+            while ((line = reader.readLine()) != null && lines++ < maxLines) {
+                sb.append(line).append('\\n');
+                if (sb.length() > 120_000) break;
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private void deleteQuietly(File file) {
+        if (file != null) {
+            try { Files.deleteIfExists(file.toPath()); } catch (Exception ignored) {}
+        }
     }
 
     private File resolveOcrScriptFile() {
