@@ -56,7 +56,7 @@ public class PdfExtractorService {
     }
 
     public String extractTextFromPdfBytes(byte[] pdfBytes) throws IOException {
-        try (PDDocument document = PDDocument.load(pdfBytes, MemoryUsageSetting.setupTempFileOnly())) {
+        try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfBytes), MemoryUsageSetting.setupTempFileOnly())) {
             List<String> links = harvestLinkAnnotations(document);
 
             PDFTextStripper stripper = new PDFTextStripper();
