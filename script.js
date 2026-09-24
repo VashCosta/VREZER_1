@@ -148,6 +148,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSpiderParticles();
 
+    // ── Production backend pre-warm ─────────────────────
+    // Start waking the Render service as soon as the Pages UI opens so the
+    // user is not forced to wait for a cold start after clicking Analyze.
+    let productionWarmPromise = null;
+
+    function ensureProductionWarm() {
+        if (productionWarmPromise) return productionWarmPromise;
+        productionWarmPromise = warmProductionBackend().catch(err => {
+            productionWarmPromise = null;
+            throw err;
+        });
+        return productionWarmPromise;
+    }
+
+    setTimeout(() => {
+        ensureProductionWarm().catch(() => {
+            // A later Analyze click will retry the warm-up automatically.
+        });
+    }, 350);
+
     // ── Theme Switcher ─────────────────────────────
     document.body.classList.add('dark');
     if (themeBtn) {
@@ -459,7 +479,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         hide(uploadSect, dashSect);
 
         const startTime = Date.now();
-        const TOTAL_DURATION_MS = 30000;
+        const TOTAL_DURATION_MS = 180000;
         const steps = [
             { text: 'Phase 1/5: Waking production backend & extracting resume text…', id: 'ps-parse' },
             { text: 'Phase 2/5: Calculating ATS score & semantic resume metrics…', id: 'ps-rag' },
@@ -489,7 +509,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         }, 100);
 
         try {
-            await warmProductionBackend();
+            await ensureProductionWarm();
 
             const baseUrl = getApiBaseUrl();
             const form = new FormData();
