@@ -1,44 +1,65 @@
 package com.resume.analyzer.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.pdfbox.cos.COSName;
+import org.apache.pdfbox.io.MemoryUsageSetting;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.PDXObject;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.pdmodel.interactive.action.PDActionURI;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAction;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotation;
 import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.concurrent.TimeUnit;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PdfExtractorService {
+
+    @Value("${app.gemini.api-key:}")
+    private String geminiApiKey;
+
+    @Value("${GEMINI_PDF_MODEL:gemini-2.5-flash}")
+    private String geminiPdfModel;
+
+    private final ObjectMapper mapper = new ObjectMapper();
+    private final RestTemplate restTemplate = buildRestTemplate();
+
+    private static RestTemplate buildRestTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+            new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(8_000);
+        factory.setReadTimeout(90_000);
+        return new RestTemplate(factory);
+    }
 
     public String extractTextFromPdf(MultipartFile file) throws IOException {
         return extractTextFromPdfBytes(file.getBytes());
     }
 
     public String extractTextFromPdf(InputStream inputStream) throws IOException {
-        byte[] bytes = inputStream.readAllBytes();
-        return extractTextFromPdfBytes(bytes);
+        return extractTextFromPdfBytes(inputStream.readAllBytes());
     }
 
     public String extractTextFromPdfBytes(byte[] pdfBytes) throws IOException {
-        try (PDDocument document = PDDocument.load(pdfBytes)) {
-            // 1. Harvest interactive link annotations (LinkedIn, GitHub, mailto, portfolio)
+        try (PDDocument document = PDDocument.load(pdfBytes, MemoryUsageSetting.setupTempFileOnly())) {
             List<String> links = harvestLinkAnnotations(document);
 
-            // 2. Standard position-sorted text extraction
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(true);
             String text = stripper.getText(document);
@@ -46,18 +67,24 @@ public class PdfExtractorService {
             boolean hasImages = containsImageObjects(document);
             String trimmedText = text != null ? text.trim() : "";
 
-            System.out.println("[PDF EXTRACTOR] Standard text extracted: " + trimmedText.length() + " chars (images detected: " + hasImages + ")");
+            System.out.println("[PDF EXTRACTOR] Standard text extracted: " + trimmedText.length()
+                    + " chars (images detected: " + hasImages + ")");
 
-            // 3. If text is sparse / empty and document has pages/images, execute Autonomous OCR
             if (trimmedText.length() < 80 || (trimmedText.length() < 150 && hasImages)) {
-                System.out.println("[PDF EXTRACTOR] Triggering high-precision OCR extraction pipeline...");
-                String ocrText = extractWithOcr(pdfBytes);
-                if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
-                    trimmedText = ocrText.trim();
+                System.out.println("[PDF EXTRACTOR] Native PDF text is sparse; trying Gemini native PDF vision...");
+                String aiText = extractWithGeminiPdfVision(pdfBytes);
+                if (aiText != null && aiText.trim().length() > trimmedText.length()) {
+                    trimmedText = aiText.trim();
+                    System.out.println("[PDF EXTRACTOR] Gemini PDF vision extracted " + trimmedText.length() + " chars.");
+                } else {
+                    System.out.println("[PDF EXTRACTOR] Gemini PDF vision unavailable/empty; using bounded OCR fallback...");
+                    String ocrText = extractWithOcr(pdfBytes);
+                    if (ocrText != null && ocrText.trim().length() > trimmedText.length()) {
+                        trimmedText = ocrText.trim();
+                    }
                 }
             }
 
-            // 4. Merge harvested clickable links if they are not already in the text
             StringBuilder finalOutput = new StringBuilder(trimmedText);
             if (!links.isEmpty()) {
                 StringBuilder linkSection = new StringBuilder();
@@ -70,14 +97,104 @@ public class PdfExtractorService {
                     finalOutput.append("\n\nLinks & URLs:").append(linkSection);
                 }
             }
-
             return finalOutput.toString().trim();
         }
     }
 
     /**
-     * Harvests all URI link annotations from the PDF document pages.
+     * Gemini can inspect PDFs natively, including image-only/scanned resume pages.
+     * This avoids JVM-heavy PDF-to-image rendering on constrained Render instances.
      */
+    private String extractWithGeminiPdfVision(byte[] pdfBytes) {
+        if (pdfBytes == null || pdfBytes.length == 0 || !isUsableGeminiKey(geminiApiKey)) {
+            return "";
+        }
+
+        try {
+            String model = (geminiPdfModel == null || geminiPdfModel.isBlank())
+                    ? "gemini-2.5-flash"
+                    : geminiPdfModel.trim();
+
+            String encoded = Base64.getEncoder().encodeToString(pdfBytes);
+
+            Map<String, Object> inlineData = new LinkedHashMap<>();
+            inlineData.put("mimeType", "application/pdf");
+            inlineData.put("data", encoded);
+
+            Map<String, Object> documentPart = new LinkedHashMap<>();
+            documentPart.put("inlineData", inlineData);
+
+            Map<String, Object> textPart = Map.of("text",
+                "Extract ALL readable resume content from this PDF. "
+              + "This may be a scanned/image-based resume. Preserve the candidate's exact "
+              + "name, email, phone, LinkedIn, GitHub, education, experience, internships, "
+              + "projects, skills, certifications, achievements, dates and URLs. "
+              + "Keep headings and bullet points in a clean plain-text layout. "
+              + "Do not summarize, classify, invent, or omit readable text. "
+              + "Return only the extracted resume text, with no markdown fences or commentary.");
+
+            Map<String, Object> content = Map.of(
+                "parts", List.of(documentPart, textPart)
+            );
+
+            Map<String, Object> generationConfig = new LinkedHashMap<>();
+            generationConfig.put("temperature", 0.0);
+            generationConfig.put("maxOutputTokens", 7000);
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("contents", List.of(content));
+            body.put("generationConfig", generationConfig);
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                    + model + ":generateContent?key=" + geminiApiKey.trim();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            System.out.println("[PDF EXTRACTOR] Calling Gemini native PDF model: " + model);
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                url, new HttpEntity<>(body, headers), String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                System.err.println("[PDF EXTRACTOR] Gemini PDF HTTP " + response.getStatusCode().value());
+                return "";
+            }
+
+            Map<?, ?> root = mapper.readValue(response.getBody(), Map.class);
+            Object candidatesObj = root.get("candidates");
+            if (!(candidatesObj instanceof List) || ((List<?>) candidatesObj).isEmpty()) return "";
+
+            Object first = ((List<?>) candidatesObj).get(0);
+            if (!(first instanceof Map)) return "";
+            Map<?, ?> candidate = (Map<?, ?>) first;
+
+            Object contentObj = candidate.get("content");
+            if (!(contentObj instanceof Map)) return "";
+            Map<?, ?> responseContent = (Map<?, ?>) contentObj;
+
+            Object partsObj = responseContent.get("parts");
+            if (!(partsObj instanceof List) || ((List<?>) partsObj).isEmpty()) return "";
+
+            Object part0 = ((List<?>) partsObj).get(0);
+            if (!(part0 instanceof Map)) return "";
+
+            Object textObj = ((Map<?, ?>) part0).get("text");
+            return textObj == null ? "" : String.valueOf(textObj).trim();
+        } catch (Exception e) {
+            System.err.println("[PDF EXTRACTOR] Gemini PDF vision failed: " + e.getMessage());
+            return "";
+        }
+    }
+
+    private boolean isUsableGeminiKey(String key) {
+        if (key == null) return false;
+        String k = key.trim();
+        return k.length() >= 15
+                && !k.startsWith("YOUR_")
+                && !k.startsWith("PASTE_")
+                && !k.equalsIgnoreCase("none");
+    }
+
     public List<String> harvestLinkAnnotations(PDDocument document) {
         List<String> links = new ArrayList<>();
         try {
@@ -110,9 +227,7 @@ public class PdfExtractorService {
                 if (res != null) {
                     for (COSName xName : res.getXObjectNames()) {
                         PDXObject xobj = res.getXObject(xName);
-                        if (xobj instanceof PDImageXObject) {
-                            return true;
-                        }
+                        if (xobj instanceof PDImageXObject) return true;
                     }
                 }
             }
@@ -121,10 +236,8 @@ public class PdfExtractorService {
     }
 
     /**
-     * Bounded Linux OCR fallback for scanned PDFs.
-     *
-     * Poppler renders one page at a time at 110 DPI and Tesseract processes that
-     * single image. No PDFRenderer/large BufferedImage is kept in the JVM.
+     * Bounded OCR fallback for environments where Gemini PDF vision is unavailable.
+     * Only two pages are rendered, one at a time, at 90 DPI.
      */
     public String extractWithOcr(byte[] pdfBytes) {
         StringBuilder fullOcrText = new StringBuilder();
@@ -134,63 +247,64 @@ public class PdfExtractorService {
             tempPdf = File.createTempFile("vrezer_upload_", ".pdf");
             Files.write(tempPdf.toPath(), pdfBytes);
 
-            // Process at most six pages; each page is rendered independently.
-            try (PDDocument bounded = PDDocument.load(pdfBytes)) {
-                int maxPages = Math.min(bounded.getNumberOfPages(), 6);
+            try (PDDocument bounded = PDDocument.load(pdfBytes, MemoryUsageSetting.setupTempFileOnly())) {
+                int maxPages = Math.min(bounded.getNumberOfPages(), 2);
+
                 for (int p = 0; p < maxPages; p++) {
                     File tempBase = null;
-                    File tempPng = null;
-                    Process render = null;
-                    Process ocr = null;
+                    File tempJpeg = null;
                     try {
                         tempBase = File.createTempFile("vrezer_ocr_", "_page");
                         if (tempBase.exists()) tempBase.delete();
                         String prefix = tempBase.getAbsolutePath();
 
-                        render = new ProcessBuilder(
-                            "pdftoppm",
+                        Process render = new ProcessBuilder(
+                            "pdftocairo",
                             "-f", String.valueOf(p + 1),
                             "-l", String.valueOf(p + 1),
-                            "-r", "110",
-                            "-png",
+                            "-r", "90",
+                            "-jpeg",
+                            "-jpegopt", "quality=65",
                             "-singlefile",
                             tempPdf.getAbsolutePath(),
                             prefix
                         ).redirectErrorStream(true).start();
 
-                        String renderOutput = readProcessOutput(render, 45);
-                        if (!render.waitFor(50, TimeUnit.SECONDS) || render.exitValue() != 0) {
-                            System.err.println("[PDF EXTRACTOR] Poppler failed on page " + p + ": " + renderOutput);
+                        ProcessResult renderResult = waitAndRead(render, 25);
+                        if (!renderResult.completed || renderResult.exitCode != 0) {
+                            System.err.println("[PDF EXTRACTOR] Poppler failed/timed out on page " + (p + 1)
+                                    + ": " + renderResult.output);
                             continue;
                         }
 
-                        tempPng = new File(prefix + ".png");
-                        if (!tempPng.exists() || tempPng.length() == 0) continue;
+                        tempJpeg = new File(prefix + ".jpg");
+                        if (!tempJpeg.exists() || tempJpeg.length() == 0) {
+                            System.err.println("[PDF EXTRACTOR] Poppler produced no image for page " + (p + 1));
+                            continue;
+                        }
 
-                        ocr = new ProcessBuilder(
+                        Process ocr = new ProcessBuilder(
                             "tesseract",
-                            tempPng.getAbsolutePath(),
+                            tempJpeg.getAbsolutePath(),
                             "stdout",
                             "--psm", "6",
                             "-l", "eng"
                         ).redirectErrorStream(true).start();
 
-                        String pageText = readProcessOutput(ocr, 60);
-                        if (!ocr.waitFor(65, TimeUnit.SECONDS)) {
-                            ocr.destroyForcibly();
-                            System.err.println("[PDF EXTRACTOR] Tesseract timed out on page " + p);
+                        ProcessResult ocrResult = waitAndRead(ocr, 25);
+                        if (!ocrResult.completed || ocrResult.exitCode != 0) {
+                            System.err.println("[PDF EXTRACTOR] Tesseract failed/timed out on page " + (p + 1)
+                                    + ": " + ocrResult.output);
                             continue;
                         }
 
-                        if (ocr.exitValue() == 0 && pageText != null && !pageText.trim().isEmpty()) {
-                            fullOcrText.append(pageText.trim()).append("\n\n");
+                        if (ocrResult.output != null && !ocrResult.output.trim().isEmpty()) {
+                            fullOcrText.append(ocrResult.output.trim()).append("\n\n");
                         }
                     } catch (Exception ex) {
-                        System.err.println("[PDF EXTRACTOR] OCR on page " + p + " failed: " + ex.getMessage());
+                        System.err.println("[PDF EXTRACTOR] OCR on page " + (p + 1) + " failed: " + ex.getMessage());
                     } finally {
-                        if (ocr != null && ocr.isAlive()) ocr.destroyForcibly();
-                        if (render != null && render.isAlive()) render.destroyForcibly();
-                        deleteQuietly(tempPng);
+                        deleteQuietly(tempJpeg);
                         deleteQuietly(tempBase);
                     }
                 }
@@ -204,19 +318,25 @@ public class PdfExtractorService {
         return fullOcrText.toString().trim();
     }
 
-    private String readProcessOutput(Process process, int maxLines) {
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            int lines = 0;
-            while ((line = reader.readLine()) != null && lines++ < maxLines) {
-                sb.append(line).append('\n');
-                if (sb.length() > 120_000) break;
+    private ProcessResult waitAndRead(Process process, int timeoutSeconds) {
+        if (process == null) return new ProcessResult(false, -1, "");
+        try {
+            boolean completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return new ProcessResult(false, -1, "");
             }
-            return sb.toString();
+
+            String output;
+            try (InputStream in = process.getInputStream()) {
+                output = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+
+            if (output.length() > 20_000) output = output.substring(0, 20_000);
+            return new ProcessResult(true, process.exitValue(), output);
         } catch (Exception e) {
-            return "";
+            process.destroyForcibly();
+            return new ProcessResult(false, -1, "");
         }
     }
 
@@ -226,59 +346,15 @@ public class PdfExtractorService {
         }
     }
 
-    private File resolveOcrScriptFile() {
-        // Try local resource / filesystem paths
-        File[] candidates = {
-            new File("src/main/resources/WinOcr.ps1"),
-            new File("backend/src/main/resources/WinOcr.ps1"),
-            new File("RES_2026/backend/src/main/resources/WinOcr.ps1")
-        };
-        for (File c : candidates) {
-            if (c.exists()) return c;
-        }
+    private static final class ProcessResult {
+        private final boolean completed;
+        private final int exitCode;
+        private final String output;
 
-        // Extract from classpath resource if running inside a jar
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("WinOcr.ps1")) {
-            if (is != null) {
-                File tempScript = File.createTempFile("WinOcr_", ".ps1");
-                tempScript.deleteOnExit();
-                try (FileOutputStream fos = new FileOutputStream(tempScript)) {
-                    is.transferTo(fos);
-                }
-                return tempScript;
-            }
-        } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] Unable to extract WinOcr.ps1 from classpath: " + e.getMessage());
-        }
-
-        return new File("src/main/resources/WinOcr.ps1");
-    }
-
-    private String runWindowsOcr(File scriptFile, File imageFile) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder(
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy", "Bypass",
-                "-File", scriptFile.getAbsolutePath(),
-                "-ImagePath", imageFile.getAbsolutePath()
-            );
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            StringBuilder sb = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-            }
-            process.waitFor();
-            return sb.toString();
-        } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] runWindowsOcr error: " + e.getMessage());
-            return "";
+        private ProcessResult(boolean completed, int exitCode, String output) {
+            this.completed = completed;
+            this.exitCode = exitCode;
+            this.output = output == null ? "" : output;
         }
     }
 }
