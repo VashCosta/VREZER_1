@@ -246,7 +246,7 @@ public class PdfExtractorService {
             tempPdf = File.createTempFile("vrezer_upload_", ".pdf");
             Files.write(tempPdf.toPath(), pdfBytes);
 
-            try (PDDocument bounded = PDDocument.load(pdfBytes, MemoryUsageSetting.setupTempFileOnly())) {
+            try (PDDocument bounded = PDDocument.load(new ByteArrayInputStream(pdfBytes), MemoryUsageSetting.setupTempFileOnly())) {
                 int maxPages = Math.min(bounded.getNumberOfPages(), 2);
 
                 for (int p = 0; p < maxPages; p++) {
