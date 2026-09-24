@@ -12,7 +12,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/analyzer")
-@CrossOrigin(origins = "*")
 public class VrezerAnalyzerController {
 
     @Autowired
