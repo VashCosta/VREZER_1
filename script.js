@@ -33,12 +33,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentFile = null, charts = {}, lastData = null;
 
-    // ── API Key Persistence ───────────────────────
+    // ── Production API credentials stay server-side ─────────────────
+    // The GitHub Pages client never stores or transmits provider keys.
     const keyInput = $('api-key-input');
     if (keyInput) {
-        keyInput.value = localStorage.getItem('vrezerApiKey') || '';
+        keyInput.value = '';
         keyInput.addEventListener('input', () => {
-            localStorage.setItem('vrezerApiKey', keyInput.value.trim());
+            keyInput.value = '';
         });
     }
 
@@ -381,126 +382,136 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     if (analyseBtn) analyseBtn.addEventListener('click', runAnalysis);
 
+    async function warmProductionBackend(maxWaitMs = 190000) {
+        const baseUrl = getApiBaseUrl();
+        if (!baseUrl) throw new Error('VREZER production backend URL is not configured.');
+
+        const deadline = Date.now() + maxWaitMs;
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        let lastError = null;
+
+        while (Date.now() < deadline) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            try {
+                setTicker('Waking VREZER production AI backend…');
+                const res = await fetch(baseUrl + '/api/analyzer/version?warm=' + Date.now(), {
+                    method: 'GET',
+                    mode: 'cors',
+                    credentials: 'omit',
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                const payload = await res.json().catch(() => null);
+                if (res.ok && payload && payload.status === 'ONLINE') return true;
+                lastError = new Error('Backend wake returned HTTP ' + res.status);
+            } catch (e) {
+                lastError = e;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+            await sleep(5000);
+        }
+
+        throw new Error('The production backend did not become ready in time. Please retry the analysis.');
+    }
+
+    async function fetchWithRetry(url, options = {}, config = {}) {
+        const attempts = config.attempts || 2;
+        const timeoutMs = config.timeoutMs || 120000;
+        const retryStatuses = config.retryStatuses || [502, 503, 504];
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const res = await fetch(url, {
+                    ...options,
+                    mode: options.mode || 'cors',
+                    credentials: 'omit',
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                clearTimeout(timer);
+                if (!retryStatuses.includes(res.status) || attempt === attempts) return res;
+                lastError = new Error('Temporary backend HTTP ' + res.status);
+            } catch (e) {
+                clearTimeout(timer);
+                lastError = e;
+            }
+            if (attempt < attempts) await new Promise(r => setTimeout(r, 5000));
+        }
+        throw lastError || new Error('Backend request failed.');
+    }
+
     async function runAnalysis() {
-        show(loadSect); 
+        if (!currentFile) {
+            const status = $('file-status');
+            if (status) {
+                status.style.display = 'block';
+                status.textContent = 'Please select or drop a resume file first.';
+            }
+            return;
+        }
+
+        show(loadSect);
         hide(uploadSect, dashSect);
 
         const startTime = Date.now();
-        const TOTAL_DURATION_MS = 15000; // Minimum 15 full seconds deep neural analysis
-
+        const TOTAL_DURATION_MS = 30000;
         const steps = [
-            { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
-            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
+            { text: 'Phase 1/5: Waking production backend & extracting resume text…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Calculating ATS score & semantic resume metrics…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Running server-side AI reasoning pipeline…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving live RAG market intelligence & jobs…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Building the final candidate dossier…', id: 'ps-render' }
         ];
-
         let stepIdx = 0;
         const loadPhase = $('load-phase');
 
         const iv = setInterval(() => {
             const elapsed = Date.now() - startTime;
             const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
-
             if (progFill) progFill.style.width = progressPct + '%';
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-
-            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
-            if (currentPhaseIdx !== stepIdx) {
-                stepIdx = currentPhaseIdx;
-            }
-
+            const phase = Math.min(4, Math.floor(elapsed / 6000));
+            if (phase !== stepIdx) stepIdx = phase;
             if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
-
             steps.forEach((st, idx) => {
-                const stepEl = $(st.id);
-                if (stepEl) {
-                    if (idx < stepIdx) {
-                        stepEl.classList.remove('active');
-                        stepEl.classList.add('done');
-                    } else if (idx === stepIdx) {
-                        stepEl.classList.add('active');
-                        stepEl.classList.remove('done');
-                    } else {
-                        stepEl.classList.remove('active', 'done');
-                    }
-                }
+                const el = $(st.id);
+                if (!el) return;
+                el.classList.toggle('active', idx === stepIdx);
+                el.classList.toggle('done', idx < stepIdx);
             });
         }, 100);
 
         try {
-            let data = null;
+            await warmProductionBackend();
 
-            const fetchPromise = (async () => {
-                if (currentFile) {
-                    const baseUrl = getApiBaseUrl();
-                    let data = null;
+            const baseUrl = getApiBaseUrl();
+            const form = new FormData();
+            form.append('file', currentFile, currentFile.name || 'resume.pdf');
 
-                    // If baseUrl is present (local or remote backend), attempt extraction
-                    if (baseUrl !== undefined) {
-                        try {
-                            const fd = new FormData();
-                            fd.append('file', currentFile);
-                            const controller = new AbortController();
-                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
-                            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            setTicker('Extracting resume with VREZER server parser…');
+            const exRes = await fetchWithRetry(
+                baseUrl + '/api/analyzer/extract?client=' + Date.now(),
+                { method: 'POST', body: form },
+                { attempts: 3, timeoutMs: 120000 }
+            );
+            const exJson = await exRes.json().catch(() => ({}));
 
-                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
-                                method: 'POST',
-                                body: fd,
-                                signal: controller.signal
-                            }).catch(() => null);
-                            clearTimeout(timeoutId);
+            if (!exRes.ok || exJson.status !== 'SUCCESS' || !exJson.text || exJson.text.trim().length < 20) {
+                throw new Error(exJson.message || exJson.error || 'The production backend could not extract readable resume text.');
+            }
 
-                            if (exRes && exRes.ok) {
-                                const exJson = await exRes.json().catch(() => null);
-                                if (exJson && exJson.text) {
-                                    data = await callBackendAPI(exJson.text);
-                                }
-                            }
-                        } catch (backendErr) {
-                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
-                        }
-                    }
+            setTicker('Resume extracted. Running server-side AI + RAG analysis…');
+            const data = await callBackendAPI(exJson.text);
 
-                    if (data && (data.name || data.atsScore || data.role)) {
-                        return data;
-                    }
-
-                    // High-fidelity client-side neural pipeline
-                    console.log('Executing VREZER high-fidelity client neural pipeline...');
-                    const text = await extractPdfTextClientSide(currentFile);
-                    const defaultAiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || defaultAiKey;
-                    if (userKey) {
-                        try {
-                            return await callGeminiDirectlyClientSide(text, userKey);
-                        } catch (aiErr) {
-                            console.warn('Direct AI Client Call notice, proceeding with neural parser:', aiErr);
-                        }
-                    }
-                    return parseResumeClientSide(currentFile.name, text);
-                } else {
-                    throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
-                }
-            })();
-
-            const [fetchedData] = await Promise.all([
-                fetchPromise,
-                new Promise(r => {
-                    const elapsed = Date.now() - startTime;
-                    const remaining = Math.max(0, TOTAL_DURATION_MS - elapsed);
-                    setTimeout(r, remaining);
-                })
-            ]);
-
-            data = fetchedData;
-
-            if (!data || (!data.name && !data.atsScore && !data.role)) {
-                throw new Error("No analysis data returned by the VREZER AI engine service.");
+            if (!data || (!data.name && !data.atsScore && !data.role && !data.careerDomain)) {
+                throw new Error('The production AI backend returned no usable analysis data.');
             }
 
             clearInterval(iv);
@@ -519,44 +530,43 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     hide(loadSect, uploadSect);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 }
-            }, 400);
-
+            }, 350);
         } catch (err) {
             console.error('Analysis error:', err);
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
-            
             const status = $('file-status');
             if (status) {
                 status.style.display = 'block';
                 status.style.background = 'rgba(255, 0, 60, 0.15)';
                 status.style.borderColor = 'rgba(255, 0, 60, 0.4)';
                 status.style.color = '#ff4a7d';
-                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ${err.message || err || 'Check console details.'}`;
-            } else {
-                alert("VREZER Pipeline Error: " + (err.message || err));
+                status.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ' +
+                    (err && err.message ? err.message : 'Production AI backend request failed.');
             }
         }
     }
 
 
-
     async function callBackendAPI(resumeText) {
-        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (customKey) {
-            headers['X-GEMINI-API-KEY'] = customKey;
+        if (!resumeText || resumeText.trim().length < 20) {
+            throw new Error('Resume text is too short to analyze.');
         }
-        const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ 
-                resumeText: resumeText, 
-                jobDescription: '',
-                apiKey: customKey
-            })
-        });
+
+        const res = await fetchWithRetry(
+            getApiBaseUrl() + '/api/analyzer/analyze?client=' + Date.now(),
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    resumeText: resumeText,
+                    jobDescription: ''
+                })
+            },
+            { attempts: 2, timeoutMs: 240000 }
+        );
+
         const resData = await res.json().catch(() => ({}));
         if (!res.ok || resData.error || resData.status === 'ERROR') {
             throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
