@@ -211,7 +211,7 @@ public class PdfExtractorService {
             String line;
             int lines = 0;
             while ((line = reader.readLine()) != null && lines++ < maxLines) {
-                sb.append(line).append('\\n');
+                sb.append(line).append('\n');
                 if (sb.length() > 120_000) break;
             }
             return sb.toString();
