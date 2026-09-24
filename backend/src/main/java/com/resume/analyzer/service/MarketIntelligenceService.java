@@ -126,15 +126,31 @@ public class MarketIntelligenceService {
         // 9. DuckDuckGo Live Search Crawler
         futures.add(CompletableFuture.supplyAsync(() -> fetchWithRetry(() -> fetchDuckDuckGoJobs(searchKeyword, skillContext), "DuckDuckGo"), executor));
 
+        // Use one global market-retrieval deadline. The old implementation waited
+        // up to 6 seconds on each future sequentially, so nine providers could
+        // stall the resume analysis for roughly 54 seconds even though they were
+        // launched in parallel. A single deadline keeps the dashboard responsive.
         List<Map<String, String>> combined = new ArrayList<>();
+        CompletableFuture<Void> allProviders = CompletableFuture.allOf(
+            futures.toArray(new CompletableFuture[0])
+        );
+
+        try {
+            allProviders.get(6500, TimeUnit.MILLISECONDS);
+        } catch (Exception timeout) {
+            System.err.println("[MARKET INTELLIGENCE] Global provider deadline reached; using completed provider results.");
+        }
+
         for (CompletableFuture<List<Map<String, String>>> future : futures) {
+            if (!future.isDone() || future.isCompletedExceptionally() || future.isCancelled()) {
+                if (!future.isDone()) future.cancel(true);
+                continue;
+            }
             try {
-                List<Map<String, String>> res = future.get(6, TimeUnit.SECONDS);
-                if (res != null) {
-                    combined.addAll(res);
-                }
+                List<Map<String, String>> res = future.getNow(List.of());
+                if (res != null) combined.addAll(res);
             } catch (Exception e) {
-                System.err.println("[MARKET INTELLIGENCE] Provider task execution error: " + e.getMessage());
+                System.err.println("[MARKET INTELLIGENCE] Completed provider result unavailable: " + e.getMessage());
             }
         }
 
