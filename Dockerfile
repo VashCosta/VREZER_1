@@ -15,4 +15,4 @@ COPY --from=build /app/target/analyzer-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 7000 10000
 
 # Command to run the application
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx320m", "-Xss512k", "-XX:+UseSerialGC", "-jar", "app.jar"]
