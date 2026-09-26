@@ -386,21 +386,20 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         const startTime = Date.now();
         const steps = [
-            { text: 'Phase 1/5: Uploading and parsing resume…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Building ATS and skill signals…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Running AI career intelligence…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving job and market intelligence…', id: 'ps-jobs' },
-            { text: 'Phase 5/5: Building the personalized dashboard…', id: 'ps-render' }
+            { text: 'Phase 1/5: Uploading resume to VREZER…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Secure server-side resume extraction…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Running AI + RAG career intelligence…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Building personalized job and market signals…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Rendering your personalized dashboard…', id: 'ps-render' }
         ];
         let stepIdx = 0;
-
         const iv = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(94, 8 + Math.floor(elapsed / 900));
+            const progressPct = Math.min(94, 8 + Math.floor(elapsed / 1200));
             if (progFill) progFill.style.width = progressPct + '%';
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI ENGINE · ' + progressPct + '% COMPLETE';
-            stepIdx = Math.min(4, Math.floor(elapsed / 2500));
+            stepIdx = Math.min(4, Math.floor(elapsed / 6000));
             if ($('load-phase')) $('load-phase').textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
             steps.forEach((st, idx) => {
@@ -409,60 +408,101 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 el.classList.toggle('active', idx === stepIdx);
                 el.classList.toggle('done', idx < stepIdx);
             });
-        }, 250);
+        }, 500);
+
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function readJson(res) {
+            const body = await res.text();
+            let parsed = {};
+            try { parsed = body ? JSON.parse(body) : {}; }
+            catch (_) { throw new Error(body || ('Backend returned HTTP ' + res.status)); }
+            if (!res.ok || parsed.status === 'ERROR' || parsed.error) {
+                throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
+            }
+            return parsed;
+        }
+
+        async function queueAndWait(file, customKey) {
+            const fd = new FormData();
+            fd.append('file', file);
+            const headers = {};
+            if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            try {
+                const queued = await fetch(getApiBaseUrl() + '/api/analyzer/analyze-file-async', {
+                    method: 'POST',
+                    body: fd,
+                    headers,
+                    signal: controller.signal
+                });
+                const job = await readJson(queued);
+                if (!job.jobId) throw new Error('Production backend did not return an analysis job ID.');
+
+                const deadline = Date.now() + 8 * 60 * 1000;
+                let lastStatus = '';
+                while (Date.now() < deadline) {
+                    await sleep(2000);
+                    const statusController = new AbortController();
+                    const statusTimeout = setTimeout(() => statusController.abort(), 20000);
+                    try {
+                        const statusRes = await fetch(
+                            getApiBaseUrl() + '/api/analyzer/analyze-file-status/' + encodeURIComponent(job.jobId),
+                            { method: 'GET', cache: 'no-store', signal: statusController.signal }
+                        );
+                        const state = await readJson(statusRes);
+                        lastStatus = state.status || lastStatus;
+
+                        if (state.status === 'SUCCESS' && state.result) return state.result;
+                        if (state.status === 'ERROR') {
+                            throw new Error(state.error || state.message || 'VREZER server-side analysis failed.');
+                        }
+
+                        if (loadMsg && state.message) loadMsg.textContent = state.message;
+                        if ($('load-phase')) {
+                            $('load-phase').textContent =
+                                state.status === 'PROCESSING' ? 'Server analysis in progress' : 'Queued';
+                        }
+                    } finally {
+                        clearTimeout(statusTimeout);
+                    }
+                }
+                throw new Error('VREZER server-side analysis timed out after 8 minutes (' + (lastStatus || 'UNKNOWN') + ').');
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
 
         try {
             if (!currentFile) throw new Error('Please select or drop a resume file first.');
 
             let data = null;
-            const baseUrl = getApiBaseUrl();
 
             // Demo sample profiles are generated in-browser as TXT; keep them fast and deterministic.
             if (/\.txt$/i.test(currentFile.name)) {
                 const sampleText = await currentFile.text();
                 data = parseResumeClientSide(currentFile.name, sampleText);
             } else {
+                const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
                 let lastError = null;
 
-                // Single production contract: multipart resume -> complete personalized dossier.
-                // Render cold starts and large PDFs can legitimately take a few minutes.
-                for (let attempt = 1; attempt <= 3 && !data; attempt++) {
-                    const controller = new AbortController();
-                    const timeoutMs = 180000;
-                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                // IMPORTANT: the production Spring Boot backend exposes an async queue,
+                // not /analyze-file. Queue once and poll the real job endpoint so PDF/OCR/AI
+                // work is not killed by browser request timeouts.
+                for (let attempt = 1; attempt <= 2 && !data; attempt++) {
                     try {
-                        const fd = new FormData();
-                        fd.append('file', currentFile);
-                        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-                        const headers = {};
-                        if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
-
-                        const res = await fetch(baseUrl + '/api/analyzer/analyze-file', {
-                            method: 'POST',
-                            body: fd,
-                            headers,
-                            signal: controller.signal
-                        });
-                        const body = await res.text();
-                        let parsed = {};
-                        try { parsed = body ? JSON.parse(body) : {}; } catch (_) {
-                            throw new Error(body || 'Invalid response from production backend');
-                        }
-                        if (!res.ok || parsed.error || parsed.status === 'ERROR') {
-                            throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
-                        }
-                        data = parsed;
+                        data = await queueAndWait(currentFile, customKey);
                     } catch (e) {
                         lastError = e;
-                        console.warn('[VREZER] production analysis attempt ' + attempt + ' failed:', e);
-                        if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
-                    } finally {
-                        clearTimeout(timeoutId);
+                        console.warn('[VREZER] server analysis attempt ' + attempt + ' failed:', e);
+                        if (attempt < 2) await sleep(2500);
                     }
                 }
 
                 if (!data) {
-                    throw new Error('Production backend analysis failed after 3 attempts. ' +
+                    throw new Error('Production backend analysis failed. ' +
                         (lastError && lastError.message ? lastError.message : 'Please retry once Render is online.'));
                 }
             }
@@ -480,7 +520,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const safeData = normalizeDossierData(data);
             lastData = safeData;
 
-            // Render immediately; do not add an artificial 15-second delay.
             try {
                 renderDash(safeData);
             } catch (renderErr) {
@@ -510,26 +549,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             }
         }
     }
-
-
-    async function callBackendAPI(resumeText) {
-        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
-        const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ resumeText: resumeText, jobDescription: '', apiKey: customKey })
-        });
-        const body = await res.text();
-        let data = {};
-        try { data = body ? JSON.parse(body) : {}; } catch (_) { throw new Error(body || 'Invalid backend response'); }
-        if (!res.ok || data.error || data.status === 'ERROR') {
-            throw new Error(data.error || data.message || ('Backend returned HTTP ' + res.status));
-        }
-        return normalizeDossierData(data);
-    }
-
     function startProgress() {
         let p = 5;
         const progPct = $('prog-pct');
