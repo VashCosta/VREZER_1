@@ -2082,13 +2082,15 @@ public class VrezerAiAgentService {
         result.put("yearsOfExperience", expYears);
         result.put("experienceLevel", expLevel);
 
-        double baseLpaMin = 7.0 + expYears * 2.8;
-        double baseLpaMax = 14.0 + expYears * 4.8;
-        String expectedLpaRange = String.format(java.util.Locale.US, "%.1f - %.1f LPA", baseLpaMin, baseLpaMax);
-        String salaryUsd = String.format(java.util.Locale.US, "$ %dK - %dK USD", Math.round(baseLpaMin * 1.2), Math.round(baseLpaMax * 1.3));
+        // Local fallback must never invent compensation figures. Only verified job-market salary data
+        // should populate the dashboard; otherwise the UI explicitly shows "Salary data unavailable".
+        String expectedLpaRange = "";
+        String salaryUsd = "";
+        Integer salaryMin = null;
+        Integer salaryMax = null;
         result.put("expectedLpaRange", expectedLpaRange);
-        result.put("salaryMin", (int) Math.round(baseLpaMin));
-        result.put("salaryMax", (int) Math.round(baseLpaMax));
+        result.put("salaryMin", salaryMin);
+        result.put("salaryMax", salaryMax);
         result.put("salaryCurrency", "INR");
         result.put("salaryUsd", salaryUsd);
 
@@ -2117,24 +2119,24 @@ public class VrezerAiAgentService {
         List<Map<String, Object>> careerGrowthTimeline = new ArrayList<>();
         careerGrowthTimeline.add(Map.of(
             "stage", "0-6 months",
-            "title", "Core / Senior " + targetRole,
-            "expectedSalaryProgression", String.format(java.util.Locale.US, "%.1f - %.1f LPA", baseLpaMin, baseLpaMin + 4.0),
+            "title", "Core / Junior " + targetRole,
+            "expectedSalaryProgression", "Salary data unavailable",
             "recommendedCertifications", "Professional " + domain + " Certification / System Design",
-            "roadmapNotes", "Master production architecture and system optimization in " + domain + "."
+            "roadmapNotes", "Strengthen core " + domain + " execution, portfolio evidence, and measurable project outcomes."
         ));
         careerGrowthTimeline.add(Map.of(
             "stage", "6-18 months",
             "title", "Lead " + targetRole,
-            "expectedSalaryProgression", String.format(java.util.Locale.US, "%.1f - %.1f LPA", baseLpaMin + 5.0, baseLpaMax + 4.0),
+            "expectedSalaryProgression", "Salary data unavailable",
             "recommendedCertifications", "Enterprise Architecture & Cloud Systems",
-            "roadmapNotes", "Drive core platform strategy and cross-functional technical delivery."
+            "roadmapNotes", "Take ownership of larger delivery scopes, cross-functional work, and production-quality outcomes."
         ));
         careerGrowthTimeline.add(Map.of(
             "stage", "2-3 years",
             "title", "Principal / Staff " + targetRole,
-            "expectedSalaryProgression", String.format(java.util.Locale.US, "%.1f - %.1f LPA", baseLpaMax + 5.0, baseLpaMax + 15.0),
+            "expectedSalaryProgression", "Salary data unavailable",
             "recommendedCertifications", "Executive Technology Leadership",
-            "roadmapNotes", "Direct engineering vision, high-scale architecture, and hiring."
+            "roadmapNotes", "Drive technical direction, high-impact architecture, mentoring, and organizational influence."
         ));
         result.put("careerGrowthTimeline", careerGrowthTimeline);
 
