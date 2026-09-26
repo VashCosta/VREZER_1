@@ -1911,17 +1911,20 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 { stage: '3-5 YEARS', title: 'Principal Architect', expectedSalaryProgression: '₹55 - ₹80 LPA', roadmapNotes: 'Set company-wide technology strategy and platform standards.' }
             ];
 
-            tl.innerHTML = stages.map(s => `
-                <div class="timeline-item">
-                    <div class="tl-dot"><i class="fa-solid fa-rocket"></i></div>
-                    <div class="tl-content">
-                        <div class="tl-stage">${s.stage}</div>
-                        <div class="tl-title">${s.title}</div>
-                        <div class="tl-sal">${s.expectedSalaryProgression || ''}</div>
-                        <div class="tl-notes">${s.roadmapNotes || ''}</div>
+            tl.innerHTML = stages.map(rawStage => {
+                const stage = (rawStage && typeof rawStage === 'object') ? rawStage : { title: String(rawStage || 'Career Stage') };
+                return `
+                    <div class="timeline-item">
+                        <div class="tl-dot"><i class="fa-solid fa-rocket"></i></div>
+                        <div class="tl-content">
+                            <div class="tl-stage">${toTextString(stage.stage || 'ROADMAP')}</div>
+                            <div class="tl-title">${toTextString(stage.title || d.role || 'Career Growth Stage')}</div>
+                            <div class="tl-sal">${toTextString(stage.expectedSalaryProgression || stage.salary || 'Salary data unavailable')}</div>
+                            <div class="tl-notes">${toTextString(stage.roadmapNotes || stage.notes || '')}</div>
+                        </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         // Learning Roadmap
