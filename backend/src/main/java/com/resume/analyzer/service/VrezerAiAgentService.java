@@ -412,6 +412,28 @@ public class VrezerAiAgentService {
             result = buildDynamicLocalEngineDossier(resumeText, jobDescription);
         }
 
+        // Final canonicalization across Gemini/Groq/OpenAI/local paths.
+        // This is intentionally performed AFTER all provider selection so no
+        // model fallback can change the dashboard's primary career domain.
+        careerDomain = String.valueOf(profile.getOrDefault(
+                "primaryDomain",
+                profile.getOrDefault("careerDomain", "Professional & Domain Specialist"))).trim();
+        String canonicalSecondaryDomain = String.valueOf(
+                profile.getOrDefault("secondaryDomain", "")).trim();
+        String canonicalRole = String.valueOf(
+                profile.getOrDefault("targetJobRole", "")).trim();
+
+        if (careerDomain.isBlank()) {
+            careerDomain = "Professional & Domain Specialist";
+        }
+        result.put("careerDomain", careerDomain);
+        result.put("primaryDomain", careerDomain);
+        result.put("secondaryDomain", canonicalSecondaryDomain);
+        result.put("domainClassificationSource", "Deterministic resume evidence");
+        if (!canonicalRole.isBlank()) {
+            result.put("role", canonicalRole);
+        }
+
         // Enrich specialized sub-sections with Meta LLaMA 3.3 (Interview Prep, Resume AI, Career Roadmap, Recruiter Dossier)
         enrichWithLlamaSpecializedSections(result, resumeText, String.valueOf(result.getOrDefault("role", "Specialist")), candidateSkills, experienceLevel);
 
@@ -1048,22 +1070,52 @@ public class VrezerAiAgentService {
         ).trim();
         result.put("email", email);
 
-        // Candidate Role
+        // Candidate Role + Career Domain
+        // NEVER trust the model's domain label. Recompute it from the same
+        // deterministic evidence classifier used before RAG/job retrieval.
         List<String> skills = (List<String>) parsed.getOrDefault("allDetectedSkills", List.of());
-        String role = String.valueOf(
-            result.getOrDefault("role", result.getOrDefault("targetRole", result.getOrDefault("jobRole", "")))
-        ).trim();
-        if (role.isEmpty() || role.equalsIgnoreCase("null")) {
-            role = classifyCareerDomain(resumeText, skills);
-        }
-        result.put("role", role);
+        List<String> progLangs = (List<String>) parsed.getOrDefault("programmingLanguages", List.of());
+        List<String> frameworks = (List<String>) parsed.getOrDefault("frameworks", List.of());
+        List<Map<String, String>> education = (List<Map<String, String>>) parsed.getOrDefault("education", List.of());
 
-        // Career Domain
-        String domain = String.valueOf(result.getOrDefault("careerDomain", "")).trim();
-        if (domain.isEmpty() || domain.equalsIgnoreCase("null")) {
-            domain = classifyCareerDomain(resumeText, skills);
-        }
+        String degree = education.isEmpty()
+                ? ""
+                : education.stream()
+                    .map(e -> e.getOrDefault("degree", "") + " " + e.getOrDefault("institution", ""))
+                    .reduce((a,b) -> a + "; " + b)
+                    .orElse("");
+        String spec = String.valueOf(parsed.getOrDefault("specialization", ""));
+
+        Map<String, String> domainEvidence =
+                resumeIntelligenceEngine.detectPrimaryAndSecondaryDomains(
+                    resumeText,
+                    skills,
+                    progLangs,
+                    frameworks,
+                    degree,
+                    spec
+                );
+
+        String domain = String.valueOf(domainEvidence.getOrDefault(
+                "primaryDomain", "Professional & Domain Specialist")).trim();
+        String secondaryDomain = String.valueOf(
+                domainEvidence.getOrDefault("secondaryDomain", "")).trim();
+
         result.put("careerDomain", domain);
+        result.put("primaryDomain", domain);
+        result.put("secondaryDomain", secondaryDomain);
+        result.put("domainClassificationSource", "Deterministic resume evidence");
+
+        // Use the deterministic target-role mapping for the dashboard role too,
+        // so a stale/creative LLM role cannot conflict with the detected domain.
+        Map<String, Object> deterministicProfile =
+                resumeIntelligenceEngine.extractCandidateProfile(resumeText, parsed);
+        String canonicalRole = String.valueOf(
+                deterministicProfile.getOrDefault("targetJobRole", "")).trim();
+        String role = canonicalRole.isBlank()
+                ? domain + " Specialist"
+                : canonicalRole;
+        result.put("role", role);
 
         // ATS Score — Use AtsAnalysisEngine for real computation; never default to 75
         int atsScore = 0;
@@ -1546,58 +1598,33 @@ public class VrezerAiAgentService {
      * each domain scores points for keyword hits. Highest score wins.
      * Prevents ambiguous resumes from always falling into the same default bucket.
      */
+    /**
+     * Single source of truth for career-domain classification.
+     * The ResumeIntelligenceEngine owns deterministic evidence scoring;
+     * this service must not maintain a second competing classifier.
+     */
     private String classifyCareerDomain(String text, List<String> skills) {
-        String lower = text.toLowerCase();
-        Map<String, Integer> scores = new LinkedHashMap<>();
+        Map<String, Object> parsed = resumeParserService.parseResumeText(text == null ? "" : text);
+        List<String> progLangs = (List<String>) parsed.getOrDefault("programmingLanguages", List.of());
+        List<String> frameworks = (List<String>) parsed.getOrDefault("frameworks", List.of());
+        List<Map<String, String>> education = (List<Map<String, String>>) parsed.getOrDefault("education", List.of());
 
-        // Each domain gets a score based on keyword hits in text + skill list
-        scores.put("Digital Marketing",    scoreKeywords(lower, skills, new String[]{"marketing","seo","adwords","social media","sem","campaigns","google ads","content marketing","email marketing","hubspot","influencer","brand","copywriting","ga4"}));
-        scores.put("Finance",              scoreKeywords(lower, skills, new String[]{"finance","accounting","banking","investment","financial","audit","cpa","chartered accountant","valuation","dcf","lbo","equity","tax","tally","gst","ifrs","ledger"}));
-        scores.put("Human Resources",      scoreKeywords(lower, skills, new String[]{"human resources","recruitment","recruiter","talent acquisition","hris","onboarding","payroll","labor law","people analytics","employee relations","performance appraisal"}));
-        scores.put("Sales",                scoreKeywords(lower, skills, new String[]{"sales","business development","account manager","telesales","crm","salesforce","revenue","b2b","b2c","pipeline","lead generation","quota"}));
-        scores.put("UI/UX Design",         scoreKeywords(lower, skills, new String[]{"ui/ux","figma","photoshop","illustrator","graphic designer","user experience","wireframe","prototype","adobe xd","design system","usability","ux research"}));
-        scores.put("Cybersecurity",        scoreKeywords(lower, skills, new String[]{"cybersecurity","penetration testing","firewall","security engineer","ethical hacking","cryptography","siem","soc","vulnerability","zero trust","ceh","oscp"}));
-        scores.put("Mechanical Engineering",scoreKeywords(lower, skills, new String[]{"mechanical","solidworks","thermodynamics","fluid mechanics","cad","catia","ansys","fea","manufacturing","mechatronics","turbine","hvac","gd&t"}));
-        scores.put("Civil Engineering",    scoreKeywords(lower, skills, new String[]{"civil engineering","structural","concrete","surveying","autocad","revit","bim","primavera","staad","foundation","highway","geotechnical"}));
-        scores.put("AI & Machine Learning",scoreKeywords(lower, skills, new String[]{"machine learning","deep learning","pytorch","tensorflow","scikit","artificial intelligence","data science","data scientist","nlp","computer vision","llm","generative ai","mlops","hugging face","langchain"}));
-        scores.put("Cloud & DevOps",       scoreKeywords(lower, skills, new String[]{"devops","kubernetes","docker","terraform","aws","ci/cd","jenkins","ansible","helm","argocd","site reliability","sre","azure devops","github actions"}));
-        scores.put("Full Stack Development",scoreKeywords(lower, skills, new String[]{"full stack","spring boot","django","laravel","react","node","angular","vue","next.js","rest api","microservices","graphql","postgresql","mongodb"}));
-        scores.put("Data Engineering",     scoreKeywords(lower, skills, new String[]{"data engineer","spark","hadoop","kafka","airflow","dbt","snowflake","bigquery","etl","pipeline","databricks","redshift"}));
-        scores.put("Mobile Development",   scoreKeywords(lower, skills, new String[]{"android","ios","flutter","react native","kotlin","swift","mobile app","xcode","play store","app store"}));
-        scores.put("Blockchain & Web3",    scoreKeywords(lower, skills, new String[]{"blockchain","solidity","web3","ethereum","smart contract","defi","nft","metamask","truffle","hardhat"}));
-        scores.put("Healthcare",           scoreKeywords(lower, skills, new String[]{"patient care","nursing","clinical","pharmacology","ehr","emr","diagnosis","triage","physician","hospital","mbbs","bpharm"}));
-        scores.put("Education & Teaching", scoreKeywords(lower, skills, new String[]{"teacher","curriculum","lesson plan","classroom","pedagogy","lms","e-learning","assessment","professor","instructor"}));
-        scores.put("Electrical Engineering",scoreKeywords(lower, skills, new String[]{"electrical","circuit","pcb","vlsi","embedded","arduino","microcontroller","power systems","plc","scada","iot","fpga"}));
-        scores.put("Legal",                scoreKeywords(lower, skills, new String[]{"legal","attorney","lawyer","contracts","compliance","litigation","corporate law","ip","intellectual property","paralegal","llb"}));
-        scores.put("Supply Chain & Logistics",scoreKeywords(lower, skills, new String[]{"supply chain","logistics","procurement","inventory","warehouse","erp","sap","vendor management","six sigma","lean"}));
+        String degree = education.isEmpty()
+                ? ""
+                : education.stream()
+                    .map(e -> e.getOrDefault("degree", "") + " " + e.getOrDefault("institution", ""))
+                    .reduce((a,b) -> a + "; " + b)
+                    .orElse("");
 
-        // Find domain with highest score
-        String bestDomain = null;
-        int bestScore = 0;
-        for (Map.Entry<String, Integer> entry : scores.entrySet()) {
-            if (entry.getValue() > bestScore) {
-                bestScore = entry.getValue();
-                bestDomain = entry.getKey();
-            }
-        }
-
-        if (bestDomain != null && bestScore > 0) {
-            return bestDomain;
-        }
-
-        if (lower.contains("mechanical")) return "Mechanical Engineering";
-        if (lower.contains("civil")) return "Civil Engineering";
-        if (lower.contains("electrical") || lower.contains("electronics")) return "Electrical Engineering";
-        if (lower.contains("finance") || lower.contains("accounting") || lower.contains("commerce") || lower.contains("ca ")) return "Finance";
-        if (lower.contains("marketing") || lower.contains("seo")) return "Digital Marketing";
-        if (lower.contains("human resource") || lower.contains("hr ")) return "Human Resources";
-        if (lower.contains("healthcare") || lower.contains("clinical") || lower.contains("pharma")) return "Healthcare";
-        if (lower.contains("legal") || lower.contains("lawyer")) return "Legal";
-
-        if (skills != null && !skills.isEmpty()) {
-            return skills.get(0) + " Specialist";
-        }
-        return "Professional & Domain Specialist";
+        String spec = String.valueOf(parsed.getOrDefault("specialization", ""));
+        return resumeIntelligenceEngine.detectPrimaryCareerDomain(
+                text == null ? "" : text,
+                skills == null ? List.of() : skills,
+                progLangs,
+                frameworks,
+                degree,
+                spec
+        );
     }
 
     /** Count how many keywords appear in the resume text or skill list. */
