@@ -1169,7 +1169,7 @@ public class VrezerAiAgentService {
             String name = job.getOrDefault("name", "Employer");
             String title = job.getOrDefault("title", domain + " Specialist");
             String location = job.getOrDefault("location", "Remote / Global");
-            String salary = job.getOrDefault("salary", "Market Benchmark");
+            String salary = job.getOrDefault("salary", "Salary data unavailable");
             String url = job.getOrDefault("url", "");
             String source = job.getOrDefault("source", "Live Job Board API");
             String reqSkills = job.getOrDefault("requiredSkills", String.join(", ", skills));
@@ -1866,7 +1866,7 @@ public class VrezerAiAgentService {
                 comp.put("skillMatchPercentage", 88);
                 comp.put("explanation", "Retrieved live opportunity matching candidate's " + String.join(", ", allSkills.subList(0, Math.min(3, allSkills.size()))) + " stack.");
                 comp.put("location", c.getOrDefault("location", "Remote / Hybrid"));
-                comp.put("salary", c.getOrDefault("salary", "Market Benchmark"));
+                comp.put("salary", c.getOrDefault("salary", "Salary data unavailable"));
                 comp.put("url", c.getOrDefault("url", ""));
                 comp.put("retrievalSource", c.getOrDefault("source", "Live Job Board API"));
                 recommendedCompanies.add(comp);
@@ -2032,7 +2032,7 @@ public class VrezerAiAgentService {
                 locationDetails.put("latitude", lat);
                 locationDetails.put("longitude", lon);
                 locationDetails.put("demandLevel", "Active Live Hiring");
-                locationDetails.put("estimatedSalaryRange", isInd ? "₹12 - ₹28 LPA" : "$95,000 - $155,000 USD");
+                locationDetails.put("estimatedSalaryRange", "Salary data unavailable");
                 locationDetails.put("remoteOpportunitiesPercentage", 50);
                 locationDetails.put("costOfLivingIndicator", isInd ? "Moderate" : "High");
                 locationDetails.put("topIndustries", List.of(domain));
