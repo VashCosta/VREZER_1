@@ -1,4 +1,4 @@
-name: Build & Deploy VREZER 3.0
+name: Build & Deploy VREZER 3.0 # DEPLOY_TRIGGER_20260926_DASHBOARD
 
 on:
   push:
