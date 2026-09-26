@@ -1374,66 +1374,73 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const rawRole = (d.role || d.targetJobRole || d.careerDomain || 'Specialist').trim();
         const cleanRoleStr = rawRole.replace(/\s*Specialist$/i, '').trim();
 
-        // 1. Tier cards (Always render candidate-grounded 3-tier trajectory cards cleanly)
+        // Tier cards are shown only when the backend actually returned a tier.
+        // Never fabricate employers, locations, or compensation for an empty result.
         const t1Data = Array.isArray(d.tier1) ? d.tier1[0] : d.tier1;
         const t2Data = Array.isArray(d.tier2) ? d.tier2[0] : d.tier2;
         const t3Data = Array.isArray(d.tier3) ? d.tier3[0] : d.tier3;
 
-        fillTier('t1', t1Data || { role: 'Lead / Staff ' + cleanRoleStr, company: getTier1DefaultComp(d.careerDomain), city: 'Bengaluru / Remote', salary: '22 - 38 LPA' });
-        fillTier('t2', t2Data || { role: 'Senior ' + cleanRoleStr, company: getTier2DefaultComp(d.careerDomain), city: 'Bengaluru / Hybrid', salary: '12 - 20 LPA' });
-        fillTier('t3', t3Data || { role: cleanRoleStr + ' Specialist', company: getTier3DefaultComp(d.careerDomain), city: 'Hyderabad / Remote', salary: '6 - 10 LPA' });
+        fillTier('t1', t1Data || { role: 'Target Role', company: 'No verified employer data', city: '—', salary: 'Salary data unavailable' });
+        fillTier('t2', t2Data || { role: cleanRoleStr ? cleanRoleStr : 'Target Role', company: 'No verified employer data', city: '—', salary: 'Salary data unavailable' });
+        fillTier('t3', t3Data || { role: 'Career path', company: 'No verified employer data', city: '—', salary: 'Salary data unavailable' });
 
         const grid = $('job-cards-grid');
         if (!grid) return;
 
-        // 2. Normalize and retrieve all live job cards
-        let rawJobs = [];
-        if (Array.isArray(d.retrievedJobOpportunities) && d.retrievedJobOpportunities.length > 0) {
-            rawJobs.push(...d.retrievedJobOpportunities);
-        }
+        // Only use jobs returned by the live backend/RAG layer.
+        const rawJobs = [];
+        if (Array.isArray(d.retrievedJobOpportunities)) rawJobs.push(...d.retrievedJobOpportunities);
 
-        const compList = Array.isArray(d.recommendedCompanies) && d.recommendedCompanies.length > 0
-            ? d.recommendedCompanies
-            : ['Razorpay', 'Zoho Corporation', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'];
-
-        const defaultLocations = ['Bengaluru, India', 'Chennai, India', 'Hyderabad, India', 'Pune, India', 'Remote (India / Global)', 'Mumbai, India'];
-        const defaultSalaries = ['₹18 - ₹28 LPA', '₹14 - ₹22 LPA', '₹20 - ₹32 LPA', '₹12 - ₹18 LPA', '$65,000 USD/yr', '$95,000 USD/yr'];
-
-        compList.forEach((c, idx) => {
-            const compName = typeof c === 'string' ? c : (c.company || c.name || 'Tech Leader');
-            const jobTitle = typeof c === 'object' && (c.title || c.role) ? (c.title || c.role) : (idx % 2 === 0 ? `Senior ${cleanRoleStr}` : `${cleanRoleStr} Lead`);
+        const companyJobs = Array.isArray(d.recommendedCompanies) ? d.recommendedCompanies : [];
+        companyJobs.forEach(c => {
+            if (!c || typeof c !== 'object') return;
             rawJobs.push({
-                company: compName,
-                title: jobTitle,
-                location: defaultLocations[idx % defaultLocations.length],
-                salary: defaultSalaries[idx % defaultSalaries.length],
-                matchPercentage: Math.max(78, (d.atsScore || 85) - idx * 2),
-                url: `https://www.google.com/search?q=${encodeURIComponent(compName + ' ' + jobTitle + ' careers')}`,
-                source: 'Live Market Intel'
+                company: c.company || c.name,
+                title: c.title || c.role,
+                location: c.location || c.city,
+                salary: c.salary || c.expectedSalary || '',
+                matchPercentage: c.matchPercentage || c.matchScore,
+                url: c.url || '',
+                source: c.retrievalSource || c.source || 'Live Market Intelligence',
+                explanation: c.explanation || ''
             });
         });
 
         const seenKeys = new Set();
         const uniqueJobs = [];
         for (const j of rawJobs) {
-            if (!j) continue;
-            const comp = (typeof j === 'string' ? j : (j.company || j.name || 'Company')).trim();
-            const title = (typeof j === 'string' ? cleanRoleStr : (j.title || j.role || cleanRoleStr)).trim();
-            const key = (comp + '_' + title).toLowerCase();
+            if (!j || typeof j !== 'object') continue;
+            const comp = String(j.company || j.name || '').trim();
+            const title = String(j.title || j.role || cleanRoleStr || '').trim();
+            if (!comp || !title) continue;
 
-            if (comp && title && !seenKeys.has(key)) {
-                seenKeys.add(key);
-                uniqueJobs.push({
-                    company: comp,
-                    title: title,
-                    location: j.location || j.city || 'Bengaluru / Remote',
-                    salary: j.salary || j.expectedSalary || d.expectedLpaRange || '15-25 LPA',
-                    matchPercentage: j.matchPercentage || j.matchScore || Math.min(96, Math.max(72, (d.atsScore || 85))),
-                    url: (j.url && j.url !== '#') ? j.url : `https://www.google.com/search?q=${encodeURIComponent(comp + ' ' + title + ' careers')}`,
-                    source: j.source || 'Live AI Engine',
-                    explanation: j.explanation || `Role matching ${cleanRoleStr} skill competencies and target compensation.`
-                });
-            }
+            const key = (comp + '_' + title).toLowerCase();
+            if (seenKeys.has(key)) continue;
+            seenKeys.add(key);
+
+            uniqueJobs.push({
+                company: comp,
+                title,
+                location: j.location || j.city || 'Location not disclosed',
+                salary: j.salary || j.expectedSalary || 'Salary data unavailable',
+                matchPercentage: j.matchPercentage || j.matchScore || null,
+                url: (j.url && j.url !== '#') ? j.url : '',
+                source: j.source || 'Live Market Intelligence',
+                explanation: j.explanation || 'Retrieved from the live market intelligence pipeline.'
+            });
+        }
+
+        if (!uniqueJobs.length) {
+            grid.innerHTML = `
+                <div class="job-card" style="grid-column:1/-1; border:1px dashed rgba(255,0,127,0.35);">
+                    <div class="job-card-header">
+                        <div class="job-company" style="color:#ffffff; font-weight:800;">No verified live openings returned</div>
+                    </div>
+                    <div class="job-desc" style="color:#d1a0bd;">
+                        VREZER could not verify a current opening matching this resume. No fallback company or salary has been inserted.
+                    </div>
+                </div>`;
+            return;
         }
 
         grid.innerHTML = uniqueJobs.map(j => `
@@ -1442,7 +1449,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     <div class="job-company" style="color:#ffffff; font-weight:800;">${j.company}</div>
                     <div style="display:flex; align-items:center; gap:0.4rem;">
                         <span style="font-size:0.68rem; padding:0.25rem 0.6rem; border-radius:12px; background:rgba(255,0,127,0.15); color:#ff007f; border:1px solid rgba(255,0,127,0.4); font-weight:700;"><i class="fa-solid fa-bolt"></i> ${j.source}</span>
-                        <div class="job-match-badge" style="background:linear-gradient(135deg, #ff007f, #ff003c); color:white; font-weight:800; padding:0.25rem 0.6rem; border-radius:8px; box-shadow:0 0 10px rgba(255,0,127,0.5);">${j.matchPercentage}% MATCH</div>
+                        ${j.matchPercentage != null ? `<div class="job-match-badge" style="background:linear-gradient(135deg, #ff007f, #ff003c); color:white; font-weight:800; padding:0.25rem 0.6rem; border-radius:8px; box-shadow:0 0 10px rgba(255,0,127,0.5);">${j.matchPercentage}% MATCH</div>` : ''}
                     </div>
                 </div>
                 <div class="job-title" style="color:#f3c4db; font-weight:700;">${j.title}</div>
@@ -1452,7 +1459,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 <div class="job-desc" style="color:#d1a0bd;">${j.explanation}</div>
                 <div class="job-footer">
                     <div class="job-salary" style="color:#4ade80; font-weight:800; font-family:var(--mono);">${j.salary}</div>
-                    <a href="${j.url}" target="_blank" rel="noopener noreferrer" class="job-apply-btn" style="background:linear-gradient(135deg, #ff007f 0%, #ff003c 100%); color:white; font-weight:800; border-radius:10px; box-shadow: 0 0 12px rgba(255,0,127,0.4);"><i class="fa-solid fa-paper-plane"></i> Apply Now</a>
+                    ${j.url ? `<a href="${j.url}" target="_blank" rel="noopener noreferrer" class="job-apply-btn" style="background:linear-gradient(135deg, #ff007f 0%, #ff003c 100%); color:white; font-weight:800; border-radius:10px; box-shadow: 0 0 12px rgba(255,0,127,0.4);"><i class="fa-solid fa-paper-plane"></i> Apply Now</a>` : ''}
                 </div>
             </div>
         `).join('');
