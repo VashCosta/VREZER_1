@@ -25,6 +25,17 @@ jobs:
         run: |
           node --check script.js
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Validate backend build
+        run: |
+          mvn -q -f backend/pom.xml -DskipTests package
+
       - name: Prepare Site Assets for GitHub Pages
         run: |
           mkdir -p _site
@@ -50,4 +61,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        continue-on-error: true
