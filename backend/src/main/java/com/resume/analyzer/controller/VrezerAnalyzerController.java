@@ -21,6 +21,23 @@ import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/analyzer")
+@CrossOrigin(
+        origins = {
+                "https://vashcosta.github.io",
+                "https://vrezer-3-0.vercel.app",
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://localhost:9000"
+        },
+        allowedHeaders = "*",
+        methods = {
+                RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
+                RequestMethod.DELETE, RequestMethod.OPTIONS, RequestMethod.HEAD,
+                RequestMethod.PATCH
+        },
+        allowCredentials = "true",
+        maxAge = 3600
+)
 public class VrezerAnalyzerController {
 
     @Autowired
