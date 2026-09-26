@@ -801,9 +801,136 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     }
 
     // ═══════════════════════════════════════════════════
+    //  DASHBOARD DATA NORMALIZATION / FAULT TOLERANCE
+    // ═══════════════════════════════════════════════════
+    function asString(value, fallback = '') {
+        if (value === null || value === undefined) return fallback;
+        if (typeof value === 'string') return value.trim() || fallback;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        if (Array.isArray(value)) {
+            const joined = value.map(v => asString(v, '')).filter(Boolean).join(', ');
+            return joined || fallback;
+        }
+        if (typeof value === 'object') {
+            const preferred = ['value', 'text', 'label', 'title', 'name', 'role', 'salary', 'range', 'description'];
+            for (const key of preferred) {
+                if (value[key] !== undefined && value[key] !== null) {
+                    const out = asString(value[key], '');
+                    if (out) return out;
+                }
+            }
+            try {
+                const json = JSON.stringify(value);
+                return json && json !== '{}' ? json : fallback;
+            } catch (_) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
+    function asNumber(value, fallback = null) {
+        if (value === null || value === undefined || value === '') return fallback;
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        const n = Number(String(value).replace(/[^0-9.+-]/g, ''));
+        return Number.isFinite(n) ? n : fallback;
+    }
+
+    function asArray(value) {
+        if (Array.isArray(value)) return value;
+        if (value === null || value === undefined || value === '') return [];
+        if (typeof value === 'string') {
+            return value.split(/[\\n,;|]+/).map(v => v.trim()).filter(Boolean);
+        }
+        return [value];
+    }
+
+    function asObject(value) {
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    }
+
+    function normalizeDossierData(rawData) {
+        let source = asObject(rawData);
+
+        // Accept either the direct dossier or common API wrapper shapes.
+        for (const key of ['dossier', 'data', 'result', 'analysis']) {
+            if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                const nested = source[key];
+                if (nested.name || nested.atsScore || nested.role || nested.careerDomain || nested.topSkills) {
+                    source = nested;
+                    break;
+                }
+            }
+        }
+
+        const d = { ...source };
+
+        // Scalar fields used by the dashboard.
+        d.name = asString(d.name, 'Candidate Dossier');
+        d.role = asString(d.role || d.targetRole || d.jobRole, 'Career Specialist');
+        d.careerDomain = asString(d.careerDomain || d.primaryDomain, 'Technology');
+        d.secondaryDomain = asString(d.secondaryDomain, '');
+        d.experience = asString(d.experience, '');
+        d.experienceLevel = asString(d.experienceLevel || d.careerLevel, 'FRESHER');
+        d.education = asString(d.education, 'Degree information not available');
+        d.professionalSummary = asString(d.professionalSummary, '');
+        d.expectedLpaRange = asString(d.expectedLpaRange, '');
+        d.salaryUsd = asString(d.salaryUsd, '');
+        d.atsScore = asNumber(d.atsScore, null);
+        d.profileStrength = asNumber(d.profileStrength, null);
+        d.confidenceScore = asNumber(d.confidenceScore, null);
+
+        // Arrays that are rendered with map/slice/join throughout the UI.
+        const arrayFields = [
+            'topSkills', 'skills', 'softSkills', 'skillGaps', 'improvements',
+            'programmingLanguages', 'toolsAndTechnologies', 'transferableSkills',
+            'internships', 'certifications', 'achievements', 'projects',
+            'bestMatchingJobRoles', 'careerGrowthTimeline',
+            'recommendedCompanies', 'retrievedJobOpportunities', 'liveJobs',
+            'targetEmployers', 'bulletPointRewrites', 'keywords',
+            'missingSkills'
+        ];
+        for (const key of arrayFields) d[key] = asArray(d[key]);
+
+        d.topSkills = d.topSkills.length ? d.topSkills : d.skills;
+        d.skills = d.skills.length ? d.skills : d.topSkills;
+
+        d.swot = asObject(d.swot);
+        d.swot.strengths = asArray(d.swot.strengths);
+        d.swot.weaknesses = asArray(d.swot.weaknesses);
+        d.swot.opportunities = asArray(d.swot.opportunities);
+        d.swot.improvements = asArray(d.swot.improvements);
+
+        d.hiringTrends = asObject(d.hiringTrends);
+        d.hiringTrends.emergingTechnologies = asArray(d.hiringTrends.emergingTechnologies);
+
+        d.careerPrediction = asObject(d.careerPrediction);
+        d.careerPrediction.suitableRoles = asArray(d.careerPrediction.suitableRoles);
+
+        d.interviewPreparation = asObject(d.interviewPreparation);
+        d.interviewPreparation.technicalQuestions = asArray(d.interviewPreparation.technicalQuestions);
+        d.interviewPreparation.hrQuestions = asArray(d.interviewPreparation.hrQuestions);
+        d.interviewPreparation.behavioralQuestions = asArray(d.interviewPreparation.behavioralQuestions);
+        d.interviewPreparation.projectDiscussionQuestions = asArray(d.interviewPreparation.projectDiscussionQuestions);
+
+        d.atsScoreDetails = asObject(d.atsScoreDetails);
+        d.resumeQualityScoreDetails = asObject(d.resumeQualityScoreDetails);
+        d.debugPanel = asObject(d.debugPanel);
+
+        // Keep salary display honest: no invented salary range is injected here.
+        if (!d.expectedLpaRange) {
+            const tierSource = asObject(d.tier1);
+            d.expectedLpaRange = asString(tierSource.expectedLpaRange || tierSource.salary || tierSource.salaryRange, '');
+        }
+
+        return d;
+    }
+
+    // ═══════════════════════════════════════════════════
     //  MASTER RENDERER — 13 DYNAMIC DASHBOARD SECTIONS
     // ═══════════════════════════════════════════════════
-    function renderDash(d) {
+    function renderDash(rawData) {
+        const d = normalizeDossierData(rawData);
         lastData = d;
         if (exportBtn) exportBtn.style.display = 'flex';
         if (resetBtn) resetBtn.style.display = 'flex';
@@ -839,23 +966,30 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         setTicker(`Analysis Complete · ${name} · ATS: ${ats}% · Domain: ${d.careerDomain || 'Tech'} · Status: Active`);
 
-        // Render all 13 sections dynamically
-        renderHeroMetrics(d);
-        renderOverviewGauges(d);
-        renderSwot(d);
-        renderProfileIntelligence(d);
-        renderAtsIntelligence(d);
-        renderSkillIntelligence(d);
-        renderLiveJobs(d);
-        renderCompanyExplorer(d);
-        renderMarketIntelligence(d);
-        renderCareerRecommendations(d);
-        renderInterviewIntelligence(d);
-        renderResumeImprovement(d);
-        renderAnalytics(d);
-        renderDownloadCenter(d);
-        initChatWidget(d);
-        renderDebugPanel(d.debugPanel || {});
+        // Render each section independently so one chart/data shape cannot blank the whole dashboard.
+        const renderSection = (label, fn) => {
+            try {
+                fn();
+            } catch (e) {
+                console.error('[VREZER DASHBOARD] ' + label + ' render failed:', e);
+            }
+        };
+        renderSection('Hero Metrics', () => renderHeroMetrics(d));
+        renderSection('Overview', () => renderOverviewGauges(d));
+        renderSection('SWOT', () => renderSwot(d));
+        renderSection('AI Profile', () => renderProfileIntelligence(d));
+        renderSection('ATS Intelligence', () => renderAtsIntelligence(d));
+        renderSection('Skill Intelligence', () => renderSkillIntelligence(d));
+        renderSection('Live Jobs', () => renderLiveJobs(d));
+        renderSection('Company Explorer', () => renderCompanyExplorer(d));
+        renderSection('Market Intelligence', () => renderMarketIntelligence(d));
+        renderSection('Career Recommendations', () => renderCareerRecommendations(d));
+        renderSection('Interview Intelligence', () => renderInterviewIntelligence(d));
+        renderSection('Resume Improvement', () => renderResumeImprovement(d));
+        renderSection('Analytics', () => renderAnalytics(d));
+        renderSection('Downloads', () => renderDownloadCenter(d));
+        renderSection('AI Coach', () => initChatWidget(d));
+        renderSection('Developer Debug', () => renderDebugPanel(d.debugPanel));
     }
 
     function renderDebugPanel(db) {
@@ -916,13 +1050,13 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
 
         const t1 = d.tier1 || {};
-        const salRange = d.expectedLpaRange || (t1.expectedLpaRange || t1.salary || '12 - 20 LPA');
-        const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
+        const salRange = asString(d.expectedLpaRange || t1.expectedLpaRange || t1.salary || t1.salaryRange, '');
+        const cleanSalVal = salRange ? salRange.replace(/\s*LPA/i, '').trim() : 'N/A';
         setText('sal-val', cleanSalVal);
-        setText('sal-unit', 'LPA');
-        const usdVal = d.salaryUsd || t1.salaryUsd || ('₹ ' + salRange + ' · Market Estimate');
-        setText('sal-usd', usdVal);
-        makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
+        setText('sal-unit', salRange ? 'LPA' : '');
+        const usdVal = asString(d.salaryUsd || t1.salaryUsd, '');
+        setText('sal-usd', usdVal || 'Salary data unavailable');
+        makeDonut('sal-chart', salRange ? 85 : 0, salRange ? 15 : 100, '#4ade80', 'rgba(74,222,128,0.1)');
 
         makeRadar(d.topSkills || ['Technical', 'Domain', 'Architecture', 'Problem Solving', 'Tools']);
         makeBar(ats);
@@ -1947,6 +2081,10 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 13. ANALYTICS DASHBOARD ────────────────────────
     function renderAnalytics(d) {
+        if (typeof Chart === 'undefined') {
+            console.warn('[VREZER DASHBOARD] Chart.js is unavailable; analytics charts skipped.');
+            return;
+        }
         const ats = Number(d.atsScore) || 85;
 
         // Analytics ATS Breakdown Chart
@@ -4529,6 +4667,7 @@ ${resumeText.substring(0, 12000)}`;
     }
 
     function makeDonut(id, v1, v2, c1, c2) {
+        if (typeof Chart === 'undefined') return;
         const ctx = $(id); if (!ctx) return;
         if (charts[id]) charts[id].destroy();
         charts[id] = new Chart(ctx, {
@@ -4539,6 +4678,7 @@ ${resumeText.substring(0, 12000)}`;
     }
 
     function makeRadar(skills) {
+        if (typeof Chart === 'undefined') return;
         const ctx = $('radar-chart'); if (!ctx) return;
         if (charts.radar) charts.radar.destroy();
         charts.radar = new Chart(ctx, {
@@ -4552,6 +4692,7 @@ ${resumeText.substring(0, 12000)}`;
     }
 
     function makeBar(ats) {
+        if (typeof Chart === 'undefined') return;
         const ctx = $('bar-chart'); if (!ctx) return;
         if (charts.bar) charts.bar.destroy();
         charts.bar = new Chart(ctx, {
