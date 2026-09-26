@@ -518,8 +518,6 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         updateLoader();
 
         try {
-            await ensureProductionWarm();
-
             const data = await callBackendFileAPI(currentFile, (status, message) => {
                 jobStatus = status || jobStatus;
                 pollMessage = message || pollMessage;
@@ -568,13 +566,14 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     async function callBackendFileAPI(file, onStatus) {
         if (!file) throw new Error('No resume file selected.');
+        onStatus?.('PROCESSING', 'Connecting directly to the VREZER production analyzer…');
         const baseUrl = getApiBaseUrl();
         if (!baseUrl) throw new Error('VREZER production backend URL is not configured.');
 
         const upload = await fetchWithRetry(
             baseUrl + '/api/analyzer/analyze-file-async?client=' + Date.now(),
             { method: 'POST', body: (() => { const f = new FormData(); f.append('file', file, file.name || 'resume.pdf'); return f; })() },
-            { attempts: 3, timeoutMs: 90000, retryStatuses: [408, 429, 502, 503, 504] }
+            { attempts: 3, timeoutMs: 180000, retryStatuses: [408, 429, 502, 503, 504] }
         );
 
         const queued = await upload.json().catch(() => ({}));
