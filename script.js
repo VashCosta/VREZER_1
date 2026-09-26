@@ -386,22 +386,25 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         const startTime = Date.now();
         const steps = [
-            { text: 'Phase 1/5: Uploading resume to VREZER…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Secure server-side resume extraction…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Running AI + RAG career intelligence…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Building personalized job and market signals…', id: 'ps-jobs' },
+            { text: 'Phase 1/5: Uploading resume and extracting content…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Calculating ATS and skill signals…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Running AI career intelligence…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving job and market intelligence…', id: 'ps-jobs' },
             { text: 'Phase 5/5: Rendering your personalized dashboard…', id: 'ps-render' }
         ];
         let stepIdx = 0;
+
         const iv = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(94, 8 + Math.floor(elapsed / 1200));
+            const progressPct = Math.min(97, 8 + Math.floor(elapsed / 1400));
             if (progFill) progFill.style.width = progressPct + '%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI ENGINE · ' + progressPct + '% COMPLETE';
-            stepIdx = Math.min(4, Math.floor(elapsed / 6000));
+            if ($('prog-pct')) $('prog-pct').textContent = 'VREZER AI ENGINE · ' + progressPct + '% COMPLETE';
+
+            const nextIdx = Math.min(4, Math.floor(elapsed / 12000));
+            if (nextIdx !== stepIdx) stepIdx = nextIdx;
             if ($('load-phase')) $('load-phase').textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
+
             steps.forEach((st, idx) => {
                 const el = $(st.id);
                 if (!el) return;
@@ -412,67 +415,35 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-        async function readJson(res) {
-            const body = await res.text();
-            let parsed = {};
-            try { parsed = body ? JSON.parse(body) : {}; }
-            catch (_) { throw new Error(body || ('Backend returned HTTP ' + res.status)); }
-            if (!res.ok || parsed.status === 'ERROR' || parsed.error) {
-                throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
-            }
-            return parsed;
-        }
+        async function fetchJson(url, options, timeoutMs) {
+            let lastError = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                try {
+                    const res = await fetch(url, {
+                        ...options,
+                        cache: 'no-store',
+                        signal: controller.signal
+                    });
+                    const body = await res.text();
+                    let parsed = {};
+                    try { parsed = body ? JSON.parse(body) : {}; }
+                    catch (_) { throw new Error(body || ('Backend returned HTTP ' + res.status)); }
 
-        async function queueAndWait(file, customKey) {
-            const fd = new FormData();
-            fd.append('file', file);
-            const headers = {};
-            if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-            try {
-                const queued = await fetch(getApiBaseUrl() + '/api/analyzer/analyze-file-async', {
-                    method: 'POST',
-                    body: fd,
-                    headers,
-                    signal: controller.signal
-                });
-                const job = await readJson(queued);
-                if (!job.jobId) throw new Error('Production backend did not return an analysis job ID.');
-
-                const deadline = Date.now() + 8 * 60 * 1000;
-                let lastStatus = '';
-                while (Date.now() < deadline) {
-                    await sleep(2000);
-                    const statusController = new AbortController();
-                    const statusTimeout = setTimeout(() => statusController.abort(), 20000);
-                    try {
-                        const statusRes = await fetch(
-                            getApiBaseUrl() + '/api/analyzer/analyze-file-status/' + encodeURIComponent(job.jobId),
-                            { method: 'GET', cache: 'no-store', signal: statusController.signal }
-                        );
-                        const state = await readJson(statusRes);
-                        lastStatus = state.status || lastStatus;
-
-                        if (state.status === 'SUCCESS' && state.result) return state.result;
-                        if (state.status === 'ERROR') {
-                            throw new Error(state.error || state.message || 'VREZER server-side analysis failed.');
-                        }
-
-                        if (loadMsg && state.message) loadMsg.textContent = state.message;
-                        if ($('load-phase')) {
-                            $('load-phase').textContent =
-                                state.status === 'PROCESSING' ? 'Server analysis in progress' : 'Queued';
-                        }
-                    } finally {
-                        clearTimeout(statusTimeout);
+                    if (!res.ok || parsed.status === 'ERROR' || parsed.error) {
+                        throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
                     }
+                    return parsed;
+                } catch (e) {
+                    lastError = e;
+                    console.warn('[VREZER] request attempt ' + attempt + ' failed:', e);
+                    if (attempt < 2) await sleep(1500);
+                } finally {
+                    clearTimeout(timeoutId);
                 }
-                throw new Error('VREZER server-side analysis timed out after 8 minutes (' + (lastStatus || 'UNKNOWN') + ').');
-            } finally {
-                clearTimeout(timeoutId);
             }
+            throw lastError || new Error('Backend request failed.');
         }
 
         try {
@@ -480,31 +451,58 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
             let data = null;
 
-            // Demo sample profiles are generated in-browser as TXT; keep them fast and deterministic.
+            // TXT quick-test profiles remain fully local and deterministic.
             if (/\.txt$/i.test(currentFile.name)) {
-                const sampleText = await currentFile.text();
-                data = parseResumeClientSide(currentFile.name, sampleText);
+                data = parseResumeClientSide(currentFile.name, await currentFile.text());
             } else {
+                const baseUrl = getApiBaseUrl();
                 const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
-                let lastError = null;
+                const headers = {};
+                if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
 
-                // IMPORTANT: the production Spring Boot backend exposes an async queue,
-                // not /analyze-file. Queue once and poll the real job endpoint so PDF/OCR/AI
-                // work is not killed by browser request timeouts.
-                for (let attempt = 1; attempt <= 2 && !data; attempt++) {
+                // Match localhost's proven production flow:
+                // 1) backend extracts/reads the PDF
+                // 2) backend analyzes that extracted text
+                // This avoids the broken async status-polling path on GitHub Pages.
+                const fd = new FormData();
+                fd.append('file', currentFile);
+
+                if (loadMsg) loadMsg.textContent = 'Phase 1/5: Extracting resume content from Render…';
+                const extracted = await fetchJson(
+                    baseUrl + '/api/analyzer/extract',
+                    { method: 'POST', body: fd, headers },
+                    180000
+                );
+
+                let resumeText = extracted.text || '';
+                if (resumeText.trim().length < 20) {
+                    // Browser extraction fallback for PDFs where server extraction is sparse.
                     try {
-                        data = await queueAndWait(currentFile, customKey);
-                    } catch (e) {
-                        lastError = e;
-                        console.warn('[VREZER] server analysis attempt ' + attempt + ' failed:', e);
-                        if (attempt < 2) await sleep(2500);
+                        resumeText = await extractPdfTextClientSide(currentFile);
+                    } catch (fallbackErr) {
+                        console.warn('[VREZER] browser PDF extraction fallback failed:', fallbackErr);
                     }
                 }
-
-                if (!data) {
-                    throw new Error('Production backend analysis failed. ' +
-                        (lastError && lastError.message ? lastError.message : 'Please retry once Render is online.'));
+                if (resumeText.trim().length < 20) {
+                    throw new Error('The resume could not be read reliably. Please upload a clearer PDF/DOCX file.');
                 }
+
+                if ($('load-phase')) $('load-phase').textContent = 'Phase 2 / 5';
+                if (loadMsg) loadMsg.textContent = 'Phase 2/5: Sending extracted resume to AI engine…';
+
+                data = await fetchJson(
+                    baseUrl + '/api/analyzer/analyze',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...headers },
+                        body: JSON.stringify({
+                            resumeText: resumeText,
+                            jobDescription: '',
+                            apiKey: customKey
+                        })
+                    },
+                    180000
+                );
             }
 
             if (!data || (!data.name && data.atsScore == null && !data.role)) {
@@ -527,6 +525,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 throw new Error('Dashboard data was received, but a dashboard section failed: ' + renderErr.message);
             }
 
+            // Exact localhost-style result: data first, then dashboard immediately.
             show(dashSect);
             hide(loadSect, uploadSect);
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -536,6 +535,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
+
             const status = $('file-status');
             if (status) {
                 status.style.display = 'block';
