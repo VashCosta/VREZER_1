@@ -7,22 +7,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Centralized API Client Base URL Resolver ──────────
     function getApiBaseUrl() {
-        if (typeof window !== 'undefined' && window.VREZER_API_URL) {
-            return window.VREZER_API_URL.replace(/\/$/, '');
-        }
+        const configured = (typeof window !== 'undefined' && window.VREZER_API_URL)
+            ? String(window.VREZER_API_URL).trim()
+            : '';
+        if (configured) return configured.replace(/\/+$/, '');
         if (typeof window !== 'undefined' && window.location) {
             const host = window.location.hostname;
-            if (host.includes('vercel.app') || host.includes('github.io')) {
+            if (host.includes('github.io') || host.includes('vercel.app')) {
                 return 'https://vrezer-backend.onrender.com';
             }
-            if ((host === 'localhost' || host === '127.0.0.1') && window.location.port !== '9000') {
+            if (host === 'localhost' || host === '127.0.0.1') {
                 return 'http://localhost:9000';
             }
-            if (window.location.protocol === 'file:') {
-                return 'http://localhost:9000';
-            }
+            if (window.location.protocol === 'file:') return 'http://localhost:9000';
         }
-        return '';
+        return 'https://vrezer-backend.onrender.com';
     }
     const dropZone = $('drop-zone'), fileInput = $('file-input');
     const analyseBtn = $('analyse-btn'), fileStatus = $('file-status');
@@ -382,186 +381,153 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     if (analyseBtn) analyseBtn.addEventListener('click', runAnalysis);
 
     async function runAnalysis() {
-        show(loadSect); 
+        show(loadSect);
         hide(uploadSect, dashSect);
 
         const startTime = Date.now();
-        const TOTAL_DURATION_MS = 15000; // Minimum 15 full seconds deep neural analysis
-
         const steps = [
-            { text: 'Phase 1/5: Extracting resume text via PDF.js & Tika Parsing…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Calculating ATS Score & Keyword Density Metrics…', id: 'ps-rag' },
-            { text: 'Phase 3/5: Executing 6-Agent Meta LLaMA 3.3 70B Deep Reasoning…', id: 'ps-ai' },
-            { text: 'Phase 4/5: Retrieving Live RAG Job Intelligence & Market Competencies…', id: 'ps-jobs' },
-            { text: 'Phase 5/5: Synthesizing 13-Section High-Impact Dynamic Dossier…', id: 'ps-render' }
+            { text: 'Phase 1/5: Uploading and parsing resume…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Building ATS and skill signals…', id: 'ps-rag' },
+            { text: 'Phase 3/5: Running AI career intelligence…', id: 'ps-ai' },
+            { text: 'Phase 4/5: Retrieving job and market intelligence…', id: 'ps-jobs' },
+            { text: 'Phase 5/5: Building the personalized dashboard…', id: 'ps-render' }
         ];
-
         let stepIdx = 0;
-        const loadPhase = $('load-phase');
 
         const iv = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
-
+            const progressPct = Math.min(94, 8 + Math.floor(elapsed / 900));
             if (progFill) progFill.style.width = progressPct + '%';
             const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-
-            const currentPhaseIdx = Math.min(4, Math.floor(elapsed / 3000));
-            if (currentPhaseIdx !== stepIdx) {
-                stepIdx = currentPhaseIdx;
-            }
-
-            if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
+            if (progPct) progPct.textContent = 'VREZER AI ENGINE · ' + progressPct + '% COMPLETE';
+            stepIdx = Math.min(4, Math.floor(elapsed / 2500));
+            if ($('load-phase')) $('load-phase').textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
             if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
-
             steps.forEach((st, idx) => {
-                const stepEl = $(st.id);
-                if (stepEl) {
-                    if (idx < stepIdx) {
-                        stepEl.classList.remove('active');
-                        stepEl.classList.add('done');
-                    } else if (idx === stepIdx) {
-                        stepEl.classList.add('active');
-                        stepEl.classList.remove('done');
-                    } else {
-                        stepEl.classList.remove('active', 'done');
-                    }
-                }
+                const el = $(st.id);
+                if (!el) return;
+                el.classList.toggle('active', idx === stepIdx);
+                el.classList.toggle('done', idx < stepIdx);
             });
-        }, 100);
+        }, 250);
 
         try {
+            if (!currentFile) throw new Error('Please select or drop a resume file first.');
+
             let data = null;
+            const baseUrl = getApiBaseUrl();
 
-            const fetchPromise = (async () => {
-                if (currentFile) {
-                    const baseUrl = getApiBaseUrl();
-                    let data = null;
+            // Demo sample profiles are generated in-browser as TXT; keep them fast and deterministic.
+            if (/\.txt$/i.test(currentFile.name)) {
+                const sampleText = await currentFile.text();
+                data = parseResumeClientSide(currentFile.name, sampleText);
+            } else {
+                let lastError = null;
 
-                    // If baseUrl is present (local or remote backend), attempt extraction
-                    if (baseUrl !== undefined) {
-                        try {
-                            const fd = new FormData();
-                            fd.append('file', currentFile);
-                            const controller = new AbortController();
-                            const timeoutMs = (baseUrl === '' || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) ? 25000 : 4000;
-                            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                // Single production contract: multipart resume -> complete personalized dossier.
+                // Render cold starts and large PDFs can legitimately take a few minutes.
+                for (let attempt = 1; attempt <= 3 && !data; attempt++) {
+                    const controller = new AbortController();
+                    const timeoutMs = 180000;
+                    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const fd = new FormData();
+                        fd.append('file', currentFile);
+                        const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
+                        const headers = {};
+                        if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
 
-                            const exRes = await fetch((baseUrl ? baseUrl : '') + '/api/analyzer/extract', {
-                                method: 'POST',
-                                body: fd,
-                                signal: controller.signal
-                            }).catch(() => null);
-                            clearTimeout(timeoutId);
-
-                            if (exRes && exRes.ok) {
-                                const exJson = await exRes.json().catch(() => null);
-                                if (exJson && exJson.text) {
-                                    data = await callBackendAPI(exJson.text);
-                                }
-                            }
-                        } catch (backendErr) {
-                            console.warn('Backend API connection bypassed, switching to client neural pipeline:', backendErr);
+                        const res = await fetch(baseUrl + '/api/analyzer/analyze-file', {
+                            method: 'POST',
+                            body: fd,
+                            headers,
+                            signal: controller.signal
+                        });
+                        const body = await res.text();
+                        let parsed = {};
+                        try { parsed = body ? JSON.parse(body) : {}; } catch (_) {
+                            throw new Error(body || 'Invalid response from production backend');
                         }
-                    }
-
-                    if (data && (data.name || data.atsScore || data.role)) {
-                        return data;
-                    }
-
-                    // High-fidelity client-side neural pipeline
-                    console.log('Executing VREZER high-fidelity client neural pipeline...');
-                    const text = await extractPdfTextClientSide(currentFile);
-                    const defaultAiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
-                    const userKey = ($('api-key-input') ? $('api-key-input').value.trim() : '') || localStorage.getItem('vrezerApiKey') || defaultAiKey;
-                    if (userKey) {
-                        try {
-                            return await callGeminiDirectlyClientSide(text, userKey);
-                        } catch (aiErr) {
-                            console.warn('Direct AI Client Call notice, proceeding with neural parser:', aiErr);
+                        if (!res.ok || parsed.error || parsed.status === 'ERROR') {
+                            throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
                         }
+                        data = parsed;
+                    } catch (e) {
+                        lastError = e;
+                        console.warn('[VREZER] production analysis attempt ' + attempt + ' failed:', e);
+                        if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
+                    } finally {
+                        clearTimeout(timeoutId);
                     }
-                    return parseResumeClientSide(currentFile.name, text);
-                } else {
-                    throw new Error("Please select or drop a resume file (PDF/DOCX) first, or click one of the Quick-Test Sample Profiles below.");
                 }
-            })();
 
-            const [fetchedData] = await Promise.all([
-                fetchPromise,
-                new Promise(r => {
-                    const elapsed = Date.now() - startTime;
-                    const remaining = Math.max(0, TOTAL_DURATION_MS - elapsed);
-                    setTimeout(r, remaining);
-                })
-            ]);
+                if (!data) {
+                    throw new Error('Production backend analysis failed after 3 attempts. ' +
+                        (lastError && lastError.message ? lastError.message : 'Please retry once Render is online.'));
+                }
+            }
 
-            data = fetchedData;
-
-            if (!data || (!data.name && !data.atsScore && !data.role)) {
-                throw new Error("No analysis data returned by the VREZER AI engine service.");
+            if (!data || (!data.name && data.atsScore == null && !data.role)) {
+                throw new Error('The AI backend returned no usable resume dossier.');
             }
 
             clearInterval(iv);
             if (progFill) progFill.style.width = '100%';
-            const progPct = $('prog-pct');
-            if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
-            if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
+            if ($('prog-pct')) $('prog-pct').textContent = 'VREZER AI ENGINE · 100% COMPLETE';
+            if ($('load-phase')) $('load-phase').textContent = 'Complete';
+            if (loadMsg) loadMsg.textContent = 'Personalized dashboard ready.';
 
-            setTimeout(() => {
-                try {
-                    renderDash(data);
-                } catch (e) {
-                    console.error('renderDash error:', e);
-                } finally {
-                    show(dashSect);
-                    hide(loadSect, uploadSect);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-            }, 400);
+            const safeData = normalizeDossierData(data);
+            lastData = safeData;
+
+            // Render immediately; do not add an artificial 15-second delay.
+            try {
+                renderDash(safeData);
+            } catch (renderErr) {
+                console.error('[VREZER] dashboard render error:', renderErr);
+                throw new Error('Dashboard data was received, but a dashboard section failed: ' + renderErr.message);
+            }
+
+            show(dashSect);
+            hide(loadSect, uploadSect);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
 
         } catch (err) {
-            console.error('Analysis error:', err);
+            console.error('[VREZER] Analysis error:', err);
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
-            
             const status = $('file-status');
             if (status) {
                 status.style.display = 'block';
                 status.style.background = 'rgba(255, 0, 60, 0.15)';
                 status.style.borderColor = 'rgba(255, 0, 60, 0.4)';
                 status.style.color = '#ff4a7d';
-                status.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ${err.message || err || 'Check console details.'}`;
+                status.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ' +
+                    String(err.message || err || 'Check the backend status and retry.').replace(/[<>]/g, '');
             } else {
-                alert("VREZER Pipeline Error: " + (err.message || err));
+                alert('VREZER Pipeline Error: ' + (err.message || err));
             }
         }
     }
 
 
-
     async function callBackendAPI(resumeText) {
         const customKey = $('api-key-input') ? $('api-key-input').value.trim() : '';
         const headers = { 'Content-Type': 'application/json' };
-        if (customKey) {
-            headers['X-GEMINI-API-KEY'] = customKey;
-        }
+        if (customKey) headers['X-GEMINI-API-KEY'] = customKey;
         const res = await fetch(getApiBaseUrl() + '/api/analyzer/analyze', {
             method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ 
-                resumeText: resumeText, 
-                jobDescription: '',
-                apiKey: customKey
-            })
+            headers,
+            body: JSON.stringify({ resumeText: resumeText, jobDescription: '', apiKey: customKey })
         });
-        const resData = await res.json().catch(() => ({}));
-        if (!res.ok || resData.error || resData.status === 'ERROR') {
-            throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
+        const body = await res.text();
+        let data = {};
+        try { data = body ? JSON.parse(body) : {}; } catch (_) { throw new Error(body || 'Invalid backend response'); }
+        if (!res.ok || data.error || data.status === 'ERROR') {
+            throw new Error(data.error || data.message || ('Backend returned HTTP ' + res.status));
         }
-        return resData;
+        return normalizeDossierData(data);
     }
 
     function startProgress() {
@@ -773,6 +739,61 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
     // ═══════════════════════════════════════════════════
     //  MASTER RENDERER — 13 DYNAMIC DASHBOARD SECTIONS
     // ═══════════════════════════════════════════════════
+    function normalizeDossierData(raw) {
+        const d = (raw && typeof raw === 'object') ? { ...raw } : {};
+        const asArray = (v) => Array.isArray(v) ? v.filter(x => x != null) : (v ? [v] : []);
+        const asText = (v, fallback = '') => {
+            if (v == null) return fallback;
+            if (typeof v === 'string') return v.trim() || fallback;
+            if (typeof v === 'number') return String(v);
+            if (typeof v === 'object') return String(v.salary || v.range || v.value || v.label || v.title || fallback);
+            return String(v);
+        };
+        d.topSkills = asArray(d.topSkills || d.skills).map(x => asText(x)).filter(Boolean);
+        d.softSkills = asArray(d.softSkills || d.transferableSkills).map(x => asText(x)).filter(Boolean);
+        d.skillGaps = asArray(d.skillGaps).map(x => asText(x)).filter(Boolean);
+        d.improvements = asArray(d.improvements).map(x => asText(x)).filter(Boolean);
+
+        const t1 = (d.tier1 && typeof d.tier1 === 'object') ? { ...d.tier1 } : {};
+        d.tier1 = t1;
+
+        // Never let salary type errors break the entire dashboard.
+        const salaryRaw = d.expectedLpaRange ?? t1.expectedLpaRange ?? t1.salary;
+        const salaryText = asText(salaryRaw, '');
+        d.expectedLpaRange = salaryText || 'Salary data unavailable';
+        if (d.salaryUsd != null) d.salaryUsd = asText(d.salaryUsd);
+        if (t1.salary != null) t1.salary = asText(t1.salary);
+
+        // Career timeline is normalized independently so malformed AI stages cannot blank Career Path.
+        let timeline = asArray(d.careerGrowthTimeline).filter(x => x && typeof x === 'object');
+        if (!timeline.length) {
+            const role = d.role || 'Current Role';
+            const domain = d.careerDomain || 'Career';
+            timeline = [
+                { stage: 'CURRENT', title: role, expectedSalaryProgression: d.expectedLpaRange, roadmapNotes: 'Build measurable impact and strengthen the core skills already evidenced in the resume.' },
+                { stage: '12–18 MONTHS', title: 'Advanced ' + role, expectedSalaryProgression: 'Salary data unavailable', roadmapNotes: 'Expand ownership, measurable outcomes and role-specific depth in ' + domain + '.' },
+                { stage: '3–5 YEARS', title: 'Senior / Lead ' + domain + ' Specialist', expectedSalaryProgression: 'Salary data unavailable', roadmapNotes: 'Develop leadership, strategy and cross-functional impact.' }
+            ];
+        }
+        d.careerGrowthTimeline = timeline.map((x, i) => ({
+            stage: asText(x.stage, ['CURRENT','12–18 MONTHS','3–5 YEARS'][i] || 'NEXT'),
+            title: asText(x.title, d.role || 'Career Growth Stage'),
+            expectedSalaryProgression: asText(x.expectedSalaryProgression, 'Salary data unavailable'),
+            roadmapNotes: asText(x.roadmapNotes || x.notes || x.description, 'Continue developing evidence-backed skills and measurable career impact.')
+        }));
+
+        const atsNum = Number(d.atsScore);
+        d.atsScore = Number.isFinite(atsNum) ? Math.max(0, Math.min(100, atsNum)) : null;
+        const confNum = Number(d.confidenceScore);
+        if (Number.isFinite(confNum)) d.confidenceScore = Math.max(0, Math.min(100, confNum));
+
+        if (!d.name) d.name = 'Candidate';
+        if (!d.role) d.role = 'Career Specialist';
+        if (!d.careerDomain) d.careerDomain = 'Technology';
+        if (!d.experienceLevel && d.careerLevel) d.experienceLevel = d.careerLevel;
+        return d;
+    }
+
     function renderDash(d) {
         lastData = d;
         if (exportBtn) exportBtn.style.display = 'flex';
@@ -886,12 +907,12 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
 
         const t1 = d.tier1 || {};
-        const salRange = d.expectedLpaRange || (t1.expectedLpaRange || t1.salary || '12 - 20 LPA');
+        const salRange = String(d.expectedLpaRange || t1.expectedLpaRange || t1.salary || 'Salary data unavailable');
         const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
         setText('sal-val', cleanSalVal);
-        setText('sal-unit', 'LPA');
-        const usdVal = d.salaryUsd || t1.salaryUsd || ('₹ ' + salRange + ' · Market Estimate');
-        setText('sal-usd', usdVal);
+        setText('sal-unit', cleanSalVal.toLowerCase().includes('unavailable') ? '' : 'LPA');
+        const usdVal = d.salaryUsd || t1.salaryUsd || (cleanSalVal.toLowerCase().includes('unavailable') ? 'Salary data unavailable' : 'Market estimate');
+        setText('sal-usd', String(usdVal));
         makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
 
         makeRadar(d.topSkills || ['Technical', 'Domain', 'Architecture', 'Problem Solving', 'Tools']);
@@ -4537,13 +4558,6 @@ ${resumeText.substring(0, 12000)}`;
     function rebuildCharts() {
         if (lastData) renderDash(lastData);
     }
-
-    // ── Interactive Cyber-Tech Effects (Black + Red + Pink + White) ────────
-    initCursorTrail();
-    init3DTiltAndSpotlight();
-    initMagneticButtons();
-    initClickRipples();
-    initScrollReveal();
 
     function initCursorTrail() {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
