@@ -478,60 +478,57 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         show(loadSect);
         hide(uploadSect, dashSect);
 
-        const startTime = Date.now();
-        const TOTAL_DURATION_MS = 180000;
+        const startedAt = Date.now();
+        const LOAD_LIMIT_MS = 600000;
         const steps = [
-            { text: 'Phase 1/5: Waking production backend & extracting resume text…', id: 'ps-parse' },
-            { text: 'Phase 2/5: Calculating ATS score & semantic resume metrics…', id: 'ps-rag' },
+            { text: 'Phase 1/5: Waking production backend & accepting resume…', id: 'ps-parse' },
+            { text: 'Phase 2/5: Extracting and validating resume evidence…', id: 'ps-rag' },
             { text: 'Phase 3/5: Running server-side AI reasoning pipeline…', id: 'ps-ai' },
             { text: 'Phase 4/5: Retrieving live RAG market intelligence & jobs…', id: 'ps-jobs' },
             { text: 'Phase 5/5: Building the final candidate dossier…', id: 'ps-render' }
         ];
-        let stepIdx = 0;
-        const loadPhase = $('load-phase');
 
-        const iv = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progressPct = Math.min(99, Math.round((elapsed / TOTAL_DURATION_MS) * 100));
+        let jobStatus = 'QUEUED';
+        let pollMessage = 'Waiting for the VREZER analysis worker…';
+
+        const updateLoader = () => {
+            const elapsed = Date.now() - startedAt;
+            const progressPct = Math.min(96, Math.max(8, Math.round((elapsed / LOAD_LIMIT_MS) * 94)));
             if (progFill) progFill.style.width = progressPct + '%';
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · ' + progressPct + '% COMPLETE';
-            const phase = Math.min(4, Math.floor(elapsed / 6000));
-            if (phase !== stepIdx) stepIdx = phase;
-            if (loadPhase) loadPhase.textContent = 'Phase ' + (stepIdx + 1) + ' / 5';
-            if (loadMsg) loadMsg.textContent = steps[stepIdx].text;
+
+            let phase = 0;
+            if (jobStatus === 'PROCESSING') phase = elapsed > 35000 ? 2 : 1;
+            if (jobStatus === 'PROCESSING' && /AI|RAG|career intelligence/i.test(pollMessage)) phase = 2;
+            if (jobStatus === 'PROCESSING' && /market|job/i.test(pollMessage)) phase = 3;
+            if (jobStatus === 'SUCCESS') phase = 4;
+            if (loadPhase) loadPhase.textContent = 'Phase ' + (phase + 1) + ' / 5';
+            if (loadMsg) loadMsg.textContent = pollMessage || steps[phase].text;
+
             steps.forEach((st, idx) => {
                 const el = $(st.id);
                 if (!el) return;
-                el.classList.toggle('active', idx === stepIdx);
-                el.classList.toggle('done', idx < stepIdx);
+                el.classList.toggle('active', idx === phase);
+                el.classList.toggle('done', idx < phase);
             });
-        }, 100);
+        };
+
+        const iv = setInterval(updateLoader, 500);
+        updateLoader();
 
         try {
             await ensureProductionWarm();
 
-            const baseUrl = getApiBaseUrl();
-            const form = new FormData();
-            form.append('file', currentFile, currentFile.name || 'resume.pdf');
+            const data = await callBackendFileAPI(currentFile, (status, message) => {
+                jobStatus = status || jobStatus;
+                pollMessage = message || pollMessage;
+                setTicker(message || ('VREZER analysis status: ' + jobStatus));
+                updateLoader();
+            });
 
-            setTicker('Extracting resume with VREZER server parser…');
-            const exRes = await fetchWithRetry(
-                baseUrl + '/api/analyzer/extract?client=' + Date.now(),
-                { method: 'POST', body: form },
-                { attempts: 3, timeoutMs: 120000 }
-            );
-            const exJson = await exRes.json().catch(() => ({}));
-
-            if (!exRes.ok || exJson.status !== 'SUCCESS' || !exJson.text || exJson.text.trim().length < 20) {
-                throw new Error(exJson.message || exJson.error || 'The production backend could not extract readable resume text.');
-            }
-
-            setTicker('Resume extracted. Running server-side AI + RAG analysis…');
-            const data = await callBackendAPI(exJson.text);
-
-            if (!data || (!data.name && !data.atsScore && !data.role && !data.careerDomain)) {
-                throw new Error('The production AI backend returned no usable analysis data.');
+            if (!data || data.status === 'ERROR' || (!data.name && !data.atsScore && !data.role && !data.careerDomain)) {
+                throw new Error(data?.error || data?.message || 'The production AI backend returned no usable analysis data.');
             }
 
             clearInterval(iv);
@@ -539,20 +536,21 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const progPct = $('prog-pct');
             if (progPct) progPct.textContent = 'VREZER AI NEURAL ENGINE · 100% COMPLETE';
             if (loadPhase) loadPhase.textContent = 'Phase 5 / 5';
+            if (loadMsg) loadMsg.textContent = 'Analysis complete. Building your career intelligence dashboard…';
 
             setTimeout(() => {
                 try {
                     renderDash(data);
                 } catch (e) {
-                    console.error('renderDash error:', e);
-                } finally {
-                    show(dashSect);
-                    hide(loadSect, uploadSect);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    console.error('[VREZER DASHBOARD] renderDash error:', e);
+                    throw e;
                 }
-            }, 350);
+                show(dashSect);
+                hide(loadSect, uploadSect);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 250);
         } catch (err) {
-            console.error('Analysis error:', err);
+            console.error('[VREZER] Analysis error:', err);
             clearInterval(iv);
             hide(loadSect);
             show(uploadSect);
@@ -563,36 +561,81 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 status.style.borderColor = 'rgba(255, 0, 60, 0.4)';
                 status.style.color = '#ff4a7d';
                 status.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> <strong>VREZER Pipeline Error:</strong> ' +
-                    (err && err.message ? err.message : 'Production AI backend request failed.');
+                    (err && err.message ? err.message : 'Production AI backend request failed. Please retry once.');
             }
         }
     }
 
+    async function callBackendFileAPI(file, onStatus) {
+        if (!file) throw new Error('No resume file selected.');
+        const baseUrl = getApiBaseUrl();
+        if (!baseUrl) throw new Error('VREZER production backend URL is not configured.');
 
-    async function callBackendAPI(resumeText) {
-        if (!resumeText || resumeText.trim().length < 20) {
-            throw new Error('Resume text is too short to analyze.');
-        }
-
-        const res = await fetchWithRetry(
-            getApiBaseUrl() + '/api/analyzer/analyze?client=' + Date.now(),
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    resumeText: resumeText,
-                    jobDescription: ''
-                })
-            },
-            { attempts: 2, timeoutMs: 240000 }
+        const upload = await fetchWithRetry(
+            baseUrl + '/api/analyzer/analyze-file-async?client=' + Date.now(),
+            { method: 'POST', body: (() => { const f = new FormData(); f.append('file', file, file.name || 'resume.pdf'); return f; })() },
+            { attempts: 3, timeoutMs: 90000, retryStatuses: [408, 429, 502, 503, 504] }
         );
 
-        const resData = await res.json().catch(() => ({}));
-        if (!res.ok || resData.error || resData.status === 'ERROR') {
-            throw new Error(resData.error || resData.message || 'AI Pipeline Execution Failed');
+        const queued = await upload.json().catch(() => ({}));
+
+        // Compatibility fallback: keep the original synchronous API alive for old
+        // backend deployments while the new queue endpoint rolls out.
+        if (upload.status === 404 || upload.status === 405) {
+            onStatus?.('PROCESSING', 'Legacy production endpoint detected. Falling back to synchronous resume extraction…');
+            const form = new FormData();
+            form.append('file', file, file.name || 'resume.pdf');
+            const exRes = await fetchWithRetry(
+                baseUrl + '/api/analyzer/extract?client=' + Date.now(),
+                { method: 'POST', body: form },
+                { attempts: 3, timeoutMs: 120000, retryStatuses: [408, 429, 502, 503, 504] }
+            );
+            const exJson = await exRes.json().catch(() => ({}));
+            if (!exRes.ok || exJson.status !== 'SUCCESS' || !exJson.text || exJson.text.trim().length < 20) {
+                throw new Error(exJson.error || exJson.message || 'The production backend could not extract readable resume text.');
+            }
+            onStatus?.('PROCESSING', 'Resume extracted. Running server-side AI + RAG analysis…');
+            return await callBackendAPI(exJson.text);
         }
-        return resData;
+
+        if (!upload.ok || !queued.jobId) {
+            throw new Error(queued.error || queued.message || ('Resume analysis could not be queued (HTTP ' + upload.status + ').'));
+        }
+
+        const jobId = queued.jobId;
+        onStatus?.(queued.status || 'QUEUED', queued.message || 'Resume accepted. Waiting for the analysis worker…');
+
+        const deadline = Date.now() + 600000;
+        let delayMs = 1200;
+
+        while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+
+            const res = await fetchWithRetry(
+                baseUrl + '/api/analyzer/analyze-file-status/' + encodeURIComponent(jobId) + '?client=' + Date.now(),
+                { method: 'GET' },
+                { attempts: 2, timeoutMs: 20000, retryStatuses: [408, 429, 502, 503, 504] }
+            );
+            const payload = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+                if (res.status === 404) throw new Error(payload.error || 'The queued analysis expired or was not found.');
+                throw new Error(payload.error || payload.message || ('Analysis status request failed (HTTP ' + res.status + ').'));
+            }
+
+            onStatus?.(payload.status || 'PROCESSING', payload.message || 'VREZER is processing your resume…');
+
+            if (payload.status === 'SUCCESS') return payload;
+            if (payload.status === 'ERROR') {
+                throw new Error(payload.error || payload.message || 'VREZER analysis failed on the production backend.');
+            }
+
+            delayMs = Math.min(3000, delayMs + 300);
+        }
+
+        throw new Error('VREZER analysis is taking longer than expected. The job is still server-side; please retry once.');
     }
+
 
     function startProgress() {
         let p = 5;
