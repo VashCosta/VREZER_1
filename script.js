@@ -985,9 +985,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Top Dossier Header
         setText('drc-name', name);
         setText('drc-role', role);
-        renderCareerPrediction(d);
-        renderConfidenceMeter(d);
-        
+                
         let expText = d.experience || 'Fresher / Entry Level';
         if (expText.toLowerCase().includes('0.0 years') || expText.toLowerCase().includes('0 years') || expText.trim() === '' || expText.trim() === 'null') {
             expText = (d.internships && d.internships.length > 0) ? 'Internship Experience' : 'Fresher / Entry Level';
@@ -1017,6 +1015,8 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 console.error('[VREZER DASHBOARD] ' + label + ' render failed:', e);
             }
         };
+        renderSection('Career Prediction', () => renderCareerPrediction(d));
+        renderSection('Confidence Meter', () => renderConfidenceMeter(d));
         renderSection('Hero Metrics', () => renderHeroMetrics(d));
         renderSection('Overview', () => renderOverviewGauges(d));
         renderSection('SWOT', () => renderSwot(d));
