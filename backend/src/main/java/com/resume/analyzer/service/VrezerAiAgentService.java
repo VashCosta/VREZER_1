@@ -358,6 +358,16 @@ public class VrezerAiAgentService {
         List<Map<String, String>> liveJobs = new ArrayList<>();
         try {
             liveJobs = marketIntelligenceService.fetchLiveMarketJobs(careerDomain, candidateSkills, candidateLocation, experienceLevel);
+            // Parallel providers can finish in different orders. Sort the merged set so
+            // identical retrieval data produces identical dashboard ordering.
+            if (liveJobs != null) {
+                liveJobs.sort(java.util.Comparator
+                    .comparing((Map<String,String> j) -> String.valueOf(j.getOrDefault("source", "")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(j -> String.valueOf(j.getOrDefault("name", j.getOrDefault("company", ""))), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(j -> String.valueOf(j.getOrDefault("title", "")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(j -> String.valueOf(j.getOrDefault("location", "")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(j -> String.valueOf(j.getOrDefault("url", "")), String.CASE_INSENSITIVE_ORDER));
+            }
             System.out.println("[PRODUCTION AUDIT LOG 4/10] Live Jobs Retrieved: " + liveJobs.size() + " jobs across connected APIs");
         } catch (Exception jobEx) {
             System.err.println("[VREZER MULTI-AGENT] Live job retrieval warning: " + jobEx.getMessage());
@@ -891,7 +901,7 @@ public class VrezerAiAgentService {
                 Map<String, Object> genConfig = new LinkedHashMap<>();
                 // Gemini 3.8 rejects legacy sampling parameters such as temperature.
                 if (!model.startsWith("gemini-3.8")) {
-                    genConfig.put("temperature", 0.2);
+                    genConfig.put("temperature", 0.0);
                 }
                 genConfig.put("maxOutputTokens", 8192);
                 if ("v1beta".equals(version)) {
@@ -1255,7 +1265,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", "gpt-4o-mini");
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         ResponseEntity<String> resp = restTemplate.postForEntity(
@@ -1304,7 +1314,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", targetModel);
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("messages", List.of(sysMsg, usrMsg));
 
         try {
@@ -1379,7 +1389,7 @@ public class VrezerAiAgentService {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", "llama-3.3-70b-versatile");
-        body.put("temperature", 0.2);
+        body.put("temperature", 0.0);
         body.put("response_format", Map.of("type", "json_object"));
         body.put("messages", List.of(sysMsg, usrMsg));
 
@@ -1452,7 +1462,7 @@ public class VrezerAiAgentService {
 
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("model", llamaModel != null && !llamaModel.isEmpty() ? llamaModel : "llama-3.3-70b-versatile");
-            body.put("temperature", 0.3);
+            body.put("temperature", 0.0);
             body.put("response_format", Map.of("type", "json_object"));
             body.put("messages", List.of(sysMsg, usrMsg));
 
