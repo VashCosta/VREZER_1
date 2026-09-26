@@ -486,6 +486,32 @@ public class VrezerAiAgentService {
         }
         result.put("retrievedJobOpportunities", finalJobs);
 
+        // Dedicated AI salary prediction: this focused pass prevents a missing salary
+        // field in the main dossier response from blanking the salary card.
+        if (hasKey) {
+            try {
+                Map<String, Object> aiSalaryPrediction =
+                        predictCandidateSalaryWithAi(resumeText, profile, liveJobs, activeKey);
+                if (aiSalaryPrediction != null) {
+                    result.put("resumeSalaryEstimate", aiSalaryPrediction);
+                    result.put("expectedLpaRange", formatSalaryRange(
+                            aiSalaryPrediction.get("minLpa"),
+                            aiSalaryPrediction.get("maxLpa")));
+                    result.put("expectedSalaryLpa", aiSalaryPrediction.get("medianLpa"));
+                    result.put("salaryCurrency", "INR");
+                    result.put("salaryUsd", "");
+                    result.put("salaryEstimateSource", "AI resume evidence + market signals");
+                    result.put("salaryPredictionConfidence",
+                            aiSalaryPrediction.getOrDefault("confidence", 0));
+                    result.put("salaryPredictionBasis",
+                            aiSalaryPrediction.getOrDefault("basis",
+                                    "Resume role, experience, skills, projects and market signals"));
+                }
+            } catch (Exception salaryEx) {
+                System.err.println("[VREZER SALARY AI] Dedicated prediction failed: " + salaryEx.getMessage());
+            }
+        }
+
         // AI Career Prediction ("Who You Are")
         String candidateName = String.valueOf(result.getOrDefault("name", profile.getOrDefault("name", "Candidate")));
         Map<String, Object> careerPrediction = new LinkedHashMap<>();
@@ -1194,7 +1220,7 @@ public class VrezerAiAgentService {
 
         result.put("professionalSummary", summary);
 
-        // Candidate-specific salary from Gemini. Generic benchmark labels are
+        // Candidate-specific salary from the dedicated AI predictor. Generic benchmark labels are
         // rejected so they cannot be displayed as the candidate's salary.
         Map<String, Object> resumeSalary = normalizeResumeSalaryEstimate(result.get("resumeSalaryEstimate"));
         if (resumeSalary != null) {
@@ -1206,7 +1232,7 @@ public class VrezerAiAgentService {
             if (!candidateSalaryRange.isBlank()) {
                 result.put("expectedLpaRange", candidateSalaryRange);
                 result.put("salaryCurrency", "INR");
-                result.put("salaryEstimateSource", "Gemini resume analysis + retrieved market evidence");
+                result.put("salaryEstimateSource", "AI resume evidence + market signals");
                 Object median = resumeSalary.get("medianLpa");
                 if (median instanceof Number) {
                     result.put("expectedSalaryLpa", ((Number) median).doubleValue());
@@ -1216,7 +1242,7 @@ public class VrezerAiAgentService {
         } else {
             result.put("expectedLpaRange", "Salary data unavailable");
             result.put("salaryUsd", "");
-            result.put("salaryEstimateSource", "No candidate-specific Gemini estimate returned");
+            result.put("salaryEstimateSource", "AI salary prediction not returned");
         }
 
         // Clean status and remove error
@@ -1274,7 +1300,7 @@ public class VrezerAiAgentService {
         out.put("currency", "INR");
         Object basisValue = m.containsKey("basis")
                 ? m.get("basis")
-                : "Candidate-specific Gemini estimate anchored to retrieved market evidence";
+                : "Candidate-specific AI estimate anchored to resume evidence and available market signals";
         out.put("basis", String.valueOf(basisValue));
         return out;
     }
@@ -1300,6 +1326,136 @@ public class VrezerAiAgentService {
         Double max = toPositiveDouble(maxObj);
         if (min == null || max == null) return "";
         return String.format(Locale.US, "%.1f - %.1f LPA", min, max);
+    }
+
+
+    /**
+     * Focused AI compensation predictor.
+     * Uses the candidate's actual resume evidence and optional disclosed market salaries.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> predictCandidateSalaryWithAi(
+            String resumeText,
+            Map<String, Object> profile,
+            List<Map<String, String>> liveJobs,
+            String preferredKey) throws Exception {
+
+        String key=(preferredKey!=null && !preferredKey.trim().isEmpty())?preferredKey.trim():"";
+        if(!isValidKey(key)) return null;
+
+        List<Map<String,String>> salaryEvidence=new ArrayList<>();
+        if(liveJobs!=null){
+            for(Map<String,String> job:liveJobs){
+                if(job==null) continue;
+                String rawSalary=job.get("salary");
+                if(rawSalary==null || rawSalary.isBlank()) rawSalary=job.get("expectedLpaRange");
+                if(rawSalary==null || rawSalary.isBlank()) continue;
+                String low=rawSalary.toLowerCase(Locale.ROOT);
+                if(low.contains("not disclosed") || low.contains("unavailable")
+                        || low.contains("market benchmark") || low.contains("competitive market")) continue;
+                Map<String,String> row=new LinkedHashMap<>();
+                row.put("company",String.valueOf(job.getOrDefault("name",job.getOrDefault("company",""))));
+                row.put("role",String.valueOf(job.getOrDefault("title","")));
+                row.put("location",String.valueOf(job.getOrDefault("location","")));
+                row.put("salary",rawSalary);
+                row.put("source",String.valueOf(job.getOrDefault("source","")));
+                salaryEvidence.add(row);
+                if(salaryEvidence.size()>=12) break;
+            }
+        }
+
+        String profileJson=mapper.writeValueAsString(profile==null?Map.of():profile);
+        String evidenceJson=mapper.writeValueAsString(salaryEvidence);
+        String boundedResume=resumeText==null?"":(resumeText.length()>14000?resumeText.substring(0,14000):resumeText);
+
+        String prompt=
+                "You are VREZER's dedicated AI compensation prediction engine.\n" +
+                "Predict the candidate's expected annual compensation in India in LPA.\n\n" +
+                "RULES:\n" +
+                "1. Use actual resume evidence first: target role, domain, experience, education, skills, projects, internships, certifications, location and measurable impact.\n" +
+                "2. Use disclosed job-market salary postings when supplied as calibration evidence.\n" +
+                "3. If no salary postings disclose pay, STILL produce a numeric candidate-specific AI estimate from the resume. Never answer with 'Salary data unavailable' only because job postings hide salary.\n" +
+                "4. Predict a realistic expected-offer range for this candidate, not a generic domain benchmark and not a top-1% outlier package.\n" +
+                "5. Keep 0 < minLpa <= medianLpa <= maxLpa, with one decimal place.\n" +
+                "6. Confidence is 0-100 and should reflect the amount and quality of resume/market evidence.\n" +
+                "7. This is a prediction, not a guaranteed offer.\n" +
+                "8. Return ONLY the JSON object below.\n\n" +
+                "JSON:\n" +
+                "{\"minLpa\": number, \"maxLpa\": number, \"medianLpa\": number, \"currency\": \"INR\", \"confidence\": number, \"basis\": \"brief candidate-specific reasoning\"}\n\n" +
+                "CANDIDATE PROFILE:\n" + profileJson + "\n\n" +
+                "DISCLOSED MARKET SALARY EVIDENCE:\n" + evidenceJson + "\n\n" +
+                "RESUME TEXT:\n\"\"\"\n" + boundedResume + "\n\"\"\"";
+
+        String rawResponse;
+        if(key.startsWith("sk-") || key.startsWith("AQ.")){
+            Map<String,Object> body=new LinkedHashMap<>();
+            body.put("model","gpt-4o-mini");
+            body.put("temperature",0.0);
+            body.put("messages",List.of(
+                    Map.of("role","system","content","Return valid JSON only."),
+                    Map.of("role","user","content",prompt)));
+            HttpHeaders headers=new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(key);
+            ResponseEntity<String> resp=restTemplate.postForEntity(
+                    openAiUrl,new HttpEntity<>(body,headers),String.class);
+            Map<?,?> root=mapper.readValue(resp.getBody(),Map.class);
+            List<?> choices=(List<?>)root.get("choices");
+            if(choices==null || choices.isEmpty()) return null;
+            rawResponse=String.valueOf(((Map<?,?>)((Map<?,?>)choices.get(0)).get("message")).get("content"));
+        } else if(key.startsWith("gsk_")){
+            Map<String,Object> body=new LinkedHashMap<>();
+            body.put("model","llama-3.3-70b-versatile");
+            body.put("temperature",0.0);
+            body.put("response_format",Map.of("type","json_object"));
+            body.put("messages",List.of(
+                    Map.of("role","system","content","Return valid JSON only."),
+                    Map.of("role","user","content",prompt)));
+            HttpHeaders headers=new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setBearerAuth(key);
+            ResponseEntity<String> resp=restTemplate.postForEntity(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    new HttpEntity<>(body,headers),String.class);
+            Map<?,?> root=mapper.readValue(resp.getBody(),Map.class);
+            List<?> choices=(List<?>)root.get("choices");
+            if(choices==null || choices.isEmpty()) return null;
+            rawResponse=String.valueOf(((Map<?,?>)((Map<?,?>)choices.get(0)).get("message")).get("content"));
+        } else {
+            String url="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+key;
+            Map<String,Object> generationConfig=new LinkedHashMap<>();
+            generationConfig.put("temperature",0.0);
+            generationConfig.put("maxOutputTokens",512);
+            generationConfig.put("responseMimeType","application/json");
+            Map<String,Object> body=new LinkedHashMap<>();
+            body.put("contents",List.of(Map.of("parts",List.of(Map.of("text",prompt)))));
+            body.put("generationConfig",generationConfig);
+            HttpHeaders headers=new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<String> resp=restTemplate.postForEntity(
+                    url,new HttpEntity<>(body,headers),String.class);
+            Map<?,?> root=mapper.readValue(resp.getBody(),Map.class);
+            List<?> candidates=(List<?>)root.get("candidates");
+            if(candidates==null || candidates.isEmpty()) return null;
+            Map<?,?> candidate=(Map<?,?>)candidates.get(0);
+            Map<?,?> content=(Map<?,?>)candidate.get("content");
+            List<?> parts=content==null?null:(List<?>)content.get("parts");
+            if(parts==null || parts.isEmpty()) return null;
+            rawResponse=String.valueOf(((Map<?,?>)parts.get(0)).get("text"));
+        }
+
+        Map<String,Object> parsedSalary=parseOrRepairJson(rawResponse);
+        Map<String,Object> normalized=normalizeResumeSalaryEstimate(parsedSalary);
+        if(normalized==null) return null;
+
+        Double confidence=toPositiveDouble(parsedSalary==null?null:parsedSalary.get("confidence"));
+        normalized.put("confidence",confidence==null?78:(int)Math.min(97,Math.round(confidence)));
+        Object basis=parsedSalary==null?null:parsedSalary.get("basis");
+        if(basis==null || String.valueOf(basis).isBlank()){
+            basis="Candidate role, experience, skills, projects, location and available market salary signals";
+        }
+        normalized.put("basis",String.valueOf(basis));
+        return normalized;
     }
 
     @SuppressWarnings("unchecked")

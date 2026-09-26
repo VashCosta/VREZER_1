@@ -809,7 +809,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         // Never let salary type errors break the entire dashboard.
         const salaryRaw = d.expectedLpaRange ?? t1.expectedLpaRange ?? t1.salary;
         const salaryText = asText(salaryRaw, '');
-        d.expectedLpaRange = salaryText || 'Salary data unavailable';
+        d.expectedLpaRange = salaryText || '';
         if (d.salaryUsd != null) d.salaryUsd = asText(d.salaryUsd);
         if (t1.salary != null) t1.salary = asText(t1.salary);
 
@@ -820,14 +820,14 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             const domain = d.careerDomain || 'Career';
             timeline = [
                 { stage: 'CURRENT', title: role, expectedSalaryProgression: d.expectedLpaRange, roadmapNotes: 'Build measurable impact and strengthen the core skills already evidenced in the resume.' },
-                { stage: '12–18 MONTHS', title: 'Advanced ' + role, expectedSalaryProgression: 'Salary data unavailable', roadmapNotes: 'Expand ownership, measurable outcomes and role-specific depth in ' + domain + '.' },
-                { stage: '3–5 YEARS', title: 'Senior / Lead ' + domain + ' Specialist', expectedSalaryProgression: 'Salary data unavailable', roadmapNotes: 'Develop leadership, strategy and cross-functional impact.' }
+                { stage: '12–18 MONTHS', title: 'Advanced ' + role, expectedSalaryProgression: d.expectedLpaRange || 'AI estimate pending', roadmapNotes: 'Expand ownership, measurable outcomes and role-specific depth in ' + domain + '.' },
+                { stage: '3–5 YEARS', title: 'Senior / Lead ' + domain + ' Specialist', expectedSalaryProgression: 'AI estimate pending', roadmapNotes: 'Develop leadership, strategy and cross-functional impact.' }
             ];
         }
         d.careerGrowthTimeline = timeline.map((x, i) => ({
             stage: asText(x.stage, ['CURRENT','12–18 MONTHS','3–5 YEARS'][i] || 'NEXT'),
             title: asText(x.title, d.role || 'Career Growth Stage'),
-            expectedSalaryProgression: asText(x.expectedSalaryProgression, 'Salary data unavailable'),
+            expectedSalaryProgression: asText(x.expectedSalaryProgression, 'AI estimate pending'),
             roadmapNotes: asText(x.roadmapNotes || x.notes || x.description, 'Continue developing evidence-backed skills and measurable career impact.')
         }));
 
@@ -956,11 +956,13 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         makeDonut('ats-chart', ats, 100 - ats, '#ff003c', 'rgba(255,0,60,0.1)');
 
         const t1 = d.tier1 || {};
-        const salRange = String(d.expectedLpaRange || t1.expectedLpaRange || t1.salary || 'Salary data unavailable');
+        const aiEstimate = d.resumeSalaryEstimate || {};
+        const aiRange = (aiEstimate.minLpa != null && aiEstimate.maxLpa != null) ? (Number(aiEstimate.minLpa).toFixed(1) + ' - ' + Number(aiEstimate.maxLpa).toFixed(1) + ' LPA') : '';
+        const salRange = String(aiRange || d.expectedLpaRange || t1.expectedLpaRange || t1.salary || 'AI estimate pending');
         const cleanSalVal = salRange.replace(/\s*LPA/i, '').trim();
         setText('sal-val', cleanSalVal);
         setText('sal-unit', cleanSalVal.toLowerCase().includes('unavailable') ? '' : 'LPA');
-        const usdVal = d.salaryUsd || t1.salaryUsd || (cleanSalVal.toLowerCase().includes('unavailable') ? 'Salary data unavailable' : 'Market estimate');
+        const usdVal = d.salaryUsd || t1.salaryUsd || (cleanSalVal.toLowerCase().includes('unavailable') ? 'AI estimate pending' : 'AI market signal');
         setText('sal-usd', String(usdVal));
         makeDonut('sal-chart', 85, 15, '#4ade80', 'rgba(74,222,128,0.1)');
 
@@ -1285,9 +1287,9 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
         const t2Data = Array.isArray(d.tier2) ? d.tier2[0] : d.tier2;
         const t3Data = Array.isArray(d.tier3) ? d.tier3[0] : d.tier3;
 
-        fillTier('t1', t1Data || { role: 'Lead / Staff ' + cleanRoleStr, company: getTier1DefaultComp(d.careerDomain), city: 'Bengaluru / Remote', salary: '22 - 38 LPA' });
-        fillTier('t2', t2Data || { role: 'Senior ' + cleanRoleStr, company: getTier2DefaultComp(d.careerDomain), city: 'Bengaluru / Hybrid', salary: '12 - 20 LPA' });
-        fillTier('t3', t3Data || { role: cleanRoleStr + ' Specialist', company: getTier3DefaultComp(d.careerDomain), city: 'Hyderabad / Remote', salary: '6 - 10 LPA' });
+        fillTier('t1', t1Data || { role: 'Lead / Staff ' + cleanRoleStr, company: getTier1DefaultComp(d.careerDomain), city: 'Bengaluru / Remote', salary: d.expectedLpaRange || 'Salary not disclosed' });
+        fillTier('t2', t2Data || { role: 'Senior ' + cleanRoleStr, company: getTier2DefaultComp(d.careerDomain), city: 'Bengaluru / Hybrid', salary: d.expectedLpaRange || 'Salary not disclosed' });
+        fillTier('t3', t3Data || { role: cleanRoleStr + ' Specialist', company: getTier3DefaultComp(d.careerDomain), city: 'Hyderabad / Remote', salary: d.expectedLpaRange || 'Salary not disclosed' });
 
         const grid = $('job-cards-grid');
         if (!grid) return;
@@ -1333,7 +1335,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                     company: comp,
                     title: title,
                     location: j.location || j.city || 'Bengaluru / Remote',
-                    salary: j.salary || j.expectedSalary || d.expectedLpaRange || '15-25 LPA',
+                    salary: j.salary || j.expectedSalary || d.expectedLpaRange || 'Salary not disclosed',
                     matchPercentage: j.matchPercentage || j.matchScore || Math.min(96, Math.max(72, (d.atsScore || 85))),
                     url: (j.url && j.url !== '#') ? j.url : `https://www.google.com/search?q=${encodeURIComponent(comp + ' ' + title + ' careers')}`,
                     source: j.source || 'Live AI Engine',
@@ -3313,7 +3315,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
         } else if (q.includes('interview') || q.includes('question') || q.includes('prep')) {
             return `For ${role} interviews in ${domain}, practice the STAR method (Situation, Task, Action, Result) for behavioral questions and prepare architecture trade-off discussions for your technical rounds.`;
         } else if (q.includes('salary') || q.includes('pay') || q.includes('lpa')) {
-            return `Based on live Indian tech benchmarks for ${role} positions, expected compensation ranges from ${d ? d.expectedLpaRange || '₹15 - ₹28 LPA' : '₹15 - ₹28 LPA'}. Mastery of ${skills} gives you significant leverage during salary negotiations.`;
+            return `The AI salary prediction for your ${role} profile is ${d ? (d.expectedLpaRange || 'being recalculated') : 'being calculated'}. It is based on your resume evidence and available market signals.`;
         } else if (q.includes('skill') || q.includes('learn') || q.includes('gap')) {
             return `To target Tier-1 tech firms (Google, Microsoft, Razorpay), strengthen your distributed systems design, microservices architecture, and cloud deployment pipelines alongside ${skills}.`;
         } else if (q.includes('job') || q.includes('apply') || q.includes('company')) {
@@ -3610,7 +3612,7 @@ Provide a direct, high-value, actionable, professional career recommendation in 
   "yearsOfExperience": 3,
   "experienceLevel": "Mid-Level",
   "education": "Degree Name",
-  "expectedLpaRange": "12 - 20 LPA",
+  "expectedLpaRange": "AI estimate pending",
   "salaryUsd": "$15,000 - $25,000 USD/yr",
   "confidenceScore": 92,
   "AI_STATUS": "PROCESSED BY META LLAMA 3.3 70B",
@@ -3666,7 +3668,7 @@ ${(resumeText || '').substring(0, 3500)}`;
         return parseResumeClientSide(fileName, resumeText);
     }
 
-    async function callGeminiDirectlyClientSide(resumeText, apiKey) {
+    async function callAIDirectlyClientSide(resumeText, apiKey) {
         if (!apiKey) {
             apiKey = ['AIzaSy', 'AhyyewnbiNdbDiPryKmf', 'CfFzFBCAjy9oM'].join('');
         }
@@ -3694,7 +3696,7 @@ ${(resumeText || '').substring(0, 3500)}`;
   "experienceLevel": "MID_LEVEL",
   "careerLevel": "MID_LEVEL",
   "education": "Highest Degree",
-  "expectedLpaRange": "₹12.0 LPA - ₹18.0 LPA",
+  "expectedLpaRange": "AI estimate pending",
   "salaryMin": 12,
   "salaryMax": 18,
   "salaryCurrency": "INR",
@@ -3703,7 +3705,7 @@ ${(resumeText || '').substring(0, 3500)}`;
   "strategicForecast": "2-3 sentence strategic forecast",
   "AI_STATUS": "ACTIVE",
   "RAG_STATUS": "ACTIVE",
-  "aiModelUsed": "Gemini 2.5 Flash (Direct AI Pipeline)",
+  "aiModelUsed": "AI 2.5 Flash (Direct AI Pipeline)",
   "topSkills": ["Skill1", "Skill2", "Skill3"],
   "skills": ["Skill1", "Skill2", "Skill3", "Skill4"],
   "missingSkills": ["Cloud Architecture", "Distributed Systems"],
@@ -3808,7 +3810,7 @@ ${resumeText.substring(0, 12000)}`;
             const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
             const parsed = JSON.parse(clean);
-            parsed.aiModelUsed = 'Google Gemini 2.5 Flash (Direct AI)';
+            parsed.aiModelUsed = 'Google AI 2.5 Flash (Direct AI)';
             return parsed;
         }
     }
@@ -4058,12 +4060,13 @@ ${resumeText.substring(0, 12000)}`;
         const atsScore = Math.min(96, Math.max(68, score));
 
         // 7. Salary LPA & USD
-        let baseLpaMin = 7 + yearsOfExperience * 2.8;
-        let baseLpaMax = 14 + yearsOfExperience * 4.8;
-        const baseMinStr = baseLpaMin.toFixed(1);
-        const baseMaxStr = baseLpaMax.toFixed(1);
-        const expectedLpaRange = `${baseMinStr} - ${baseMaxStr} LPA`;
-        const salaryUsd = `$ ${Math.round(baseLpaMin * 1.2)}K - ${Math.round(baseLpaMax * 1.3)}K USD`;
+        // 7. Salary is supplied by the backend dedicated AI salary predictor.
+        const baseLpaMin = null;
+        const baseLpaMax = null;
+        const baseMinStr = '';
+        const baseMaxStr = '';
+        const expectedLpaRange = '';
+        const salaryUsd = '';
 
         // 8. Line-by-Line Evidence Citations
         const citations = [
@@ -4108,8 +4111,8 @@ ${resumeText.substring(0, 12000)}`;
 
         // 11. Tier 1, Tier 2, Tier 3 Company Recommendations
         const tier1 = [
-            { company: getTier1DefaultComp(primaryDomain), role: `Senior ${role}`, expectedSalary: `₹${(baseLpaMax + 10).toFixed(1)} - ₹${(baseLpaMax + 22).toFixed(1)} LPA`, matchScore: Math.min(98, atsScore + 3) },
-            { company: 'Microsoft IDC / Google IN', role: `Software Engineer II`, expectedSalary: `₹${(baseLpaMax + 8).toFixed(1)} - ₹${(baseLpaMax + 18).toFixed(1)} LPA`, matchScore: Math.min(96, atsScore + 1) }
+            { company: getTier1DefaultComp(primaryDomain), role: `Senior ${role}`, expectedSalary: expectedLpaRange || 'AI estimate pending', matchScore: Math.min(98, atsScore + 3) },
+            { company: 'Microsoft IDC / Google IN', role: `Software Engineer II`, expectedSalary: expectedLpaRange || 'AI estimate pending', matchScore: Math.min(96, atsScore + 1) }
         ];
 
         const tier2 = [
@@ -4118,7 +4121,7 @@ ${resumeText.substring(0, 12000)}`;
         ];
 
         const tier3 = [
-            { company: getTier3DefaultComp(primaryDomain), role: `Associate ${role}`, expectedSalary: `₹${(baseLpaMin - 2).toFixed(1)} - ₹${(baseLpaMin + 4).toFixed(1)} LPA`, matchScore: Math.max(70, atsScore - 8) }
+            { company: getTier3DefaultComp(primaryDomain), role: `Associate ${role}`, expectedSalary: expectedLpaRange || 'AI estimate pending', matchScore: Math.max(70, atsScore - 8) }
         ];
 
         // 12. Live Jobs
@@ -4127,7 +4130,7 @@ ${resumeText.substring(0, 12000)}`;
                 title: `Senior ${role}`,
                 company: 'Razorpay',
                 location: 'Bengaluru, India',
-                salary: `₹${(baseLpaMax + 4).toFixed(1)} LPA`,
+                salary: expectedLpaRange || 'AI estimate pending',
                 matchPercentage: Math.min(97, atsScore + 3),
                 url: 'https://careers.razorpay.com',
                 source: 'Adzuna India',
@@ -4147,7 +4150,7 @@ ${resumeText.substring(0, 12000)}`;
                 title: `Lead ${role}`,
                 company: 'Swiggy',
                 location: 'Bengaluru, India',
-                salary: `₹${(baseLpaMax + 6).toFixed(1)} LPA`,
+                salary: expectedLpaRange || 'AI estimate pending',
                 matchPercentage: Math.max(78, atsScore - 3),
                 url: 'https://careers.swiggy.com',
                 source: 'Adzuna India',
@@ -4210,8 +4213,8 @@ ${resumeText.substring(0, 12000)}`;
             careerLevel: levelCode,
             education: lowerText.includes('m.tech') || lowerText.includes('master') ? 'Master of Technology / Science' : 'Bachelor of Engineering / Technology',
             expectedLpaRange: expectedLpaRange,
-            salaryMin: Math.round(baseLpaMin),
-            salaryMax: Math.round(baseLpaMax),
+            salaryMin: null,
+            salaryMax: null,
             salaryCurrency: 'INR',
             salaryUsd: salaryUsd,
             professionalSummary: (extractedSummary && extractedSummary.length >= 25) ? extractedSummary : `${name} is an aspiring ${role} specializing in ${primaryDomain}. Proven track record using ${finalSkills.slice(0, 4).join(', ')}, focused on building high-performance, resilient engineering systems.`,
@@ -4256,9 +4259,9 @@ ${resumeText.substring(0, 12000)}`;
             recommendedCompanies: ['Razorpay', 'Zoho', 'Swiggy', 'Atlassian', 'GitLab', 'Google India', 'Microsoft India'],
             retrievedJobOpportunities: retrievedJobOpportunities,
             careerGrowthTimeline: [
-                { stage: '0-6 months', title: `Core / Senior ${role}`, expectedSalaryProgression: `${baseMinStr} - ${(baseLpaMin + 4).toFixed(1)} LPA`, recommendedCertifications: 'AWS Certified Solutions Architect / System Design', roadmapNotes: 'Master production architecture and system optimization.' },
-                { stage: '6-18 months', title: `Lead ${role}`, expectedSalaryProgression: `${(baseLpaMin + 5).toFixed(1)} - ${(baseLpaMax + 4).toFixed(1)} LPA`, recommendedCertifications: 'Certified Kubernetes Administrator (CKA)', roadmapNotes: 'Drive core module design and cross-functional team delivery.' },
-                { stage: '2-3 years', title: `Staff / Principal ${role}`, expectedSalaryProgression: `${(baseLpaMax + 5).toFixed(1)} - ${(baseLpaMax + 15).toFixed(1)} LPA`, recommendedCertifications: 'Executive Tech Leadership & Enterprise System Design', roadmapNotes: 'Drive engineering strategy, platform design, and organization hiring.' }
+                { stage: '0-6 months', title: `Core / Senior ${role}`, expectedSalaryProgression: expectedLpaRange || 'AI estimate pending', recommendedCertifications: 'AWS Certified Solutions Architect / System Design', roadmapNotes: 'Master production architecture and system optimization.' },
+                { stage: '6-18 months', title: `Lead ${role}`, expectedSalaryProgression: expectedLpaRange || 'AI estimate pending', recommendedCertifications: 'Certified Kubernetes Administrator (CKA)', roadmapNotes: 'Drive core module design and cross-functional team delivery.' },
+                { stage: '2-3 years', title: `Staff / Principal ${role}`, expectedSalaryProgression: expectedLpaRange || 'AI estimate pending', recommendedCertifications: 'Executive Tech Leadership & Enterprise System Design', roadmapNotes: 'Drive engineering strategy, platform design, and organization hiring.' }
             ],
             interviewPreparation: {
                 technicalQuestions: [
@@ -4508,7 +4511,7 @@ ${resumeText.substring(0, 12000)}`;
                     keywordOptimizationScore: 98,
                     achievementScore: 94
                 },
-                aiModelUsed: "Gemini 2.5 Flash",
+                aiModelUsed: "AI 2.5 Flash",
                 executionTimeMs: 1250,
                 dashboardJson: `{\n  "name": "Dr. Priya Nair",\n  "role": "AI / ML Specialist & Data Scientist",\n  "atsScore": 95\n}`
             },
