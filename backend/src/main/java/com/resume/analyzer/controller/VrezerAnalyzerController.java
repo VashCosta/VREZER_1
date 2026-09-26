@@ -8,7 +8,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/analyzer")
@@ -29,7 +38,7 @@ public class VrezerAnalyzerController {
     @GetMapping("/version")
     public ResponseEntity<Map<String, Object>> getVersion() {
         Map<String, Object> version = new LinkedHashMap<>();
-        version.put("commit", "ebc12e0");
+        version.put("commit", "bf48aeac");
         version.put("status", "ONLINE");
         version.put("environment", System.getenv("SPRING_PROFILES_ACTIVE") != null ? System.getenv("SPRING_PROFILES_ACTIVE") : "production");
         version.put("backendVersion", "VREZER 3.0 Production Build");
@@ -68,6 +77,133 @@ public class VrezerAnalyzerController {
                 "message", "Extraction error: " + e.getMessage()
             ));
         }
+    }
+
+    // Production async upload pipeline: queue -> process -> poll status.
+    private static final int ASYNC_MAX_FILE_BYTES = 20 * 1024 * 1024;
+    private static final long ASYNC_JOB_TTL_MS = 20L * 60L * 1000L;
+    private static final int ASYNC_MAX_TRACKED_JOBS = 50;
+    private final ConcurrentMap<String, AsyncAnalysisJob> asyncJobs = new ConcurrentHashMap<>();
+    private final ExecutorService asyncAnalysisExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "vrezer-analysis-worker");
+        t.setDaemon(true);
+        return t;
+    });
+
+    @PostMapping("/analyze-file-async")
+    public ResponseEntity<Map<String, Object>> queueFileAnalysis(@RequestParam("file") MultipartFile file) {
+        cleanupAsyncJobs();
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "error", "No resume file was provided."));
+        }
+        if (file.getSize() > ASYNC_MAX_FILE_BYTES) {
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "error", "Resume file is too large. Maximum supported size is 20 MB."));
+        }
+        if (asyncJobs.size() >= ASYNC_MAX_TRACKED_JOBS) {
+            return ResponseEntity.status(429).body(Map.of("status", "ERROR", "error", "VREZER analysis queue is temporarily full. Please retry shortly."));
+        }
+        final byte[] fileBytes;
+        try {
+            fileBytes = file.getBytes();
+        } catch (IOException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "ERROR", "error", "Could not read the uploaded resume: " + e.getMessage()));
+        }
+        String jobId = "job_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        AsyncAnalysisJob job = new AsyncAnalysisJob(jobId, file.getOriginalFilename(), System.currentTimeMillis());
+        asyncJobs.put(jobId, job);
+        try {
+            asyncAnalysisExecutor.submit(() -> processAsyncAnalysis(job, fileBytes, file.getContentType()));
+        } catch (RuntimeException ex) {
+            asyncJobs.remove(jobId);
+            return ResponseEntity.status(503).body(Map.of("status", "ERROR", "error", "VREZER analysis worker is unavailable. Please retry."));
+        }
+        return ResponseEntity.accepted().body(Map.of("status", "QUEUED", "jobId", jobId, "message", "Resume accepted. VREZER analysis is running server-side."));
+    }
+
+    @GetMapping("/analyze-file-status/{jobId}")
+    public ResponseEntity<Map<String, Object>> getAsyncAnalysisStatus(@PathVariable String jobId) {
+        cleanupAsyncJobs();
+        AsyncAnalysisJob job = asyncJobs.get(jobId);
+        if (job == null) {
+            return ResponseEntity.status(404).body(Map.of("status", "ERROR", "error", "Analysis job was not found or has expired."));
+        }
+        return ResponseEntity.ok(job.toResponse());
+    }
+
+    private void processAsyncAnalysis(AsyncAnalysisJob job, byte[] fileBytes, String contentType) {
+        job.status = "PROCESSING";
+        job.message = "Extracting resume content…";
+        try {
+            String filename = job.filename != null && !job.filename.isBlank() ? job.filename : "resume.pdf";
+            MultipartFile inMemoryFile = new InMemoryMultipartFile("file", filename,
+                    contentType != null ? contentType : "application/octet-stream", fileBytes);
+            String extractedText = fileParsingService.extractText(inMemoryFile);
+            if (extractedText == null || extractedText.trim().length() < 20) {
+                throw new IllegalArgumentException("The uploaded resume could not be read reliably. Please upload a clearer PDF/DOCX file.");
+            }
+            job.message = "Running AI + RAG career intelligence…";
+            Map<String, Object> dossier = vrezerAiAgentService.analyzeResumeWithAiAgent(extractedText, "", null);
+            if (dossier == null || dossier.isEmpty()) throw new IllegalStateException("VREZER returned an empty analysis dossier.");
+            job.result = dossier;
+            job.status = "SUCCESS";
+            job.message = "Analysis complete.";
+            job.completedAt = System.currentTimeMillis();
+        } catch (OutOfMemoryError oom) {
+            job.status = "ERROR";
+            job.message = "Resume processing exceeded the available server memory. Please upload a smaller or simpler document.";
+            job.completedAt = System.currentTimeMillis();
+            System.err.println("[ASYNC ANALYSIS] OutOfMemoryError while processing " + job.filename);
+        } catch (Exception e) {
+            job.status = "ERROR";
+            job.message = e.getMessage() != null && !e.getMessage().isBlank() ? e.getMessage() : e.getClass().getSimpleName() + " occurred during analysis.";
+            job.completedAt = System.currentTimeMillis();
+            System.err.println("[ASYNC ANALYSIS] Job " + job.id + " failed: " + job.message);
+            e.printStackTrace();
+        }
+    }
+
+    private void cleanupAsyncJobs() {
+        long cutoff = System.currentTimeMillis() - ASYNC_JOB_TTL_MS;
+        for (Map.Entry<String, AsyncAnalysisJob> entry : asyncJobs.entrySet()) {
+            AsyncAnalysisJob job = entry.getValue();
+            long lastTouched = job.completedAt > 0 ? job.completedAt : job.createdAt;
+            if (lastTouched < cutoff) asyncJobs.remove(entry.getKey(), job);
+        }
+    }
+
+    private static final class AsyncAnalysisJob {
+        final String id;
+        final String filename;
+        final long createdAt;
+        volatile long completedAt;
+        volatile String status = "QUEUED";
+        volatile String message = "Waiting for the VREZER analysis worker…";
+        volatile Map<String, Object> result;
+        AsyncAnalysisJob(String id, String filename, long createdAt) { this.id = id; this.filename = filename; this.createdAt = createdAt; }
+        Map<String, Object> toResponse() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("status", status); out.put("jobId", id); out.put("filename", filename); out.put("message", message);
+            if ("SUCCESS".equals(status) && result != null) out.putAll(result);
+            if ("ERROR".equals(status)) out.put("error", message);
+            return out;
+        }
+    }
+
+    private static final class InMemoryMultipartFile implements MultipartFile {
+        private final String name, originalFilename, contentType;
+        private final byte[] bytes;
+        InMemoryMultipartFile(String name, String originalFilename, String contentType, byte[] bytes) {
+            this.name = name; this.originalFilename = originalFilename; this.contentType = contentType; this.bytes = bytes != null ? bytes : new byte[0];
+        }
+        @Override public String getName() { return name; }
+        @Override public String getOriginalFilename() { return originalFilename; }
+        @Override public String getContentType() { return contentType; }
+        @Override public boolean isEmpty() { return bytes.length == 0; }
+        @Override public long getSize() { return bytes.length; }
+        @Override public byte[] getBytes() { return bytes.clone(); }
+        @Override public InputStream getInputStream() { return new java.io.ByteArrayInputStream(bytes); }
+        @Override public void transferTo(File dest) throws IOException { Files.write(dest.toPath(), bytes); }
+        @Override public void transferTo(Path dest) throws IOException { Files.write(dest, bytes); }
     }
 
     @PostMapping("/jobs")
