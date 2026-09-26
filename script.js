@@ -417,32 +417,61 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
         async function fetchJson(url, options, timeoutMs) {
             let lastError = null;
-            for (let attempt = 1; attempt <= 2; attempt++) {
+            const attempts = 3;
+            const effectiveTimeout = Math.max(300000, Number(timeoutMs) || 300000);
+
+            for (let attempt = 1; attempt <= attempts; attempt++) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                let didTimeout = false;
+                const timeoutId = setTimeout(() => {
+                    didTimeout = true;
+                    controller.abort();
+                }, effectiveTimeout);
+
                 try {
                     const res = await fetch(url, {
                         ...options,
                         cache: 'no-store',
-                        signal: controller.signal
+                        signal: controller.signal,
+                        keepalive: false
                     });
+
                     const body = await res.text();
                     let parsed = {};
-                    try { parsed = body ? JSON.parse(body) : {}; }
-                    catch (_) { throw new Error(body || ('Backend returned HTTP ' + res.status)); }
+                    try {
+                        parsed = body ? JSON.parse(body) : {};
+                    } catch (_) {
+                        throw new Error(body || ('Backend returned HTTP ' + res.status));
+                    }
 
                     if (!res.ok || parsed.status === 'ERROR' || parsed.error) {
-                        throw new Error(parsed.error || parsed.message || ('Backend returned HTTP ' + res.status));
+                        throw new Error(
+                            parsed.error ||
+                            parsed.message ||
+                            ('Backend returned HTTP ' + res.status)
+                        );
                     }
                     return parsed;
-                } catch (e) {
-                    lastError = e;
-                    console.warn('[VREZER] request attempt ' + attempt + ' failed:', e);
-                    if (attempt < 2) await sleep(1500);
+
+                } catch (err) {
+                    let message;
+                    if (didTimeout || (err && err.name === 'AbortError')) {
+                        message = 'The production backend took too long to respond. Retrying safely…';
+                    } else {
+                        message = (err && err.message) ? err.message : String(err || 'Backend request failed.');
+                    }
+
+                    lastError = new Error(message);
+                    console.warn('[VREZER] request attempt ' + attempt + ' failed:', err);
+
+                    if (attempt < attempts) {
+                        await sleep(2500);
+                    }
                 } finally {
                     clearTimeout(timeoutId);
                 }
             }
+
             throw lastError || new Error('Backend request failed.');
         }
 
@@ -471,7 +500,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 const extracted = await fetchJson(
                     baseUrl + '/api/analyzer/extract',
                     { method: 'POST', body: fd, headers },
-                    180000
+                    300000
                 );
 
                 let resumeText = extracted.text || '';
@@ -490,6 +519,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 if ($('load-phase')) $('load-phase').textContent = 'Phase 2 / 5';
                 if (loadMsg) loadMsg.textContent = 'Phase 2/5: Sending extracted resume to AI engine…';
 
+                if (loadMsg) loadMsg.textContent = 'Phase 3/5: AI analysis is running on the production engine…';
                 data = await fetchJson(
                     baseUrl + '/api/analyzer/analyze',
                     {
@@ -501,7 +531,7 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                             apiKey: customKey
                         })
                     },
-                    180000
+                    360000
                 );
             }
 
