@@ -182,12 +182,10 @@ public class VrezerAiAgentService {
     private String llamaUrl;
 
     private static final String[][] GEMINI_MODELS = {
-        { "gemini-2.5-flash",         "v1beta" },
-        { "gemini-2.0-flash",         "v1beta" },
-        { "gemini-1.5-flash-latest",  "v1beta" },
-        { "gemini-2.5-pro",           "v1beta" },
-        { "gemini-3.5-pro",           "v1beta" },
-        { "gemini-3.5-flash",         "v1beta" }
+        { "gemini-3.8-flash",      "v1beta" },
+        { "gemini-3.5-flash",      "v1beta" },
+        { "gemini-3.5-flash-lite", "v1beta" },
+        { "gemini-2.5-flash",      "v1beta" }
     };
 
     private static final String[] LLAMA_MODELS = {
@@ -891,7 +889,10 @@ public class VrezerAiAgentService {
                 Map<String, Object> content  = Map.of("parts", List.of(textPart));
 
                 Map<String, Object> genConfig = new LinkedHashMap<>();
-                genConfig.put("temperature", 0.2);
+                // Gemini 3.8 rejects legacy sampling parameters such as temperature.
+                if (!model.startsWith("gemini-3.8")) {
+                    genConfig.put("temperature", 0.2);
+                }
                 genConfig.put("maxOutputTokens", 8192);
                 if ("v1beta".equals(version)) {
                     genConfig.put("responseMimeType", "application/json");
