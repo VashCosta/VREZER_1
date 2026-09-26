@@ -33,7 +33,7 @@ public class PdfExtractorService {
     @Value("${app.gemini.api-key:}")
     private String geminiApiKey;
 
-    @Value("${GEMINI_PDF_MODEL:gemini-2.5-flash}")
+    @Value("${GEMINI_PDF_MODEL:gemini-3.8-flash}")
     private String geminiPdfModel;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -111,7 +111,7 @@ public class PdfExtractorService {
 
         try {
             String model = (geminiPdfModel == null || geminiPdfModel.isBlank())
-                    ? "gemini-2.5-flash"
+                    ? "gemini-3.8-flash"
                     : geminiPdfModel.trim();
 
             String encoded = Base64.getEncoder().encodeToString(pdfBytes);
