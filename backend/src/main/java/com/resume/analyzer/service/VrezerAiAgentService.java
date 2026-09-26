@@ -1272,10 +1272,10 @@ public class VrezerAiAgentService {
         out.put("maxLpa", roundSalary(max));
         out.put("medianLpa", roundSalary(median));
         out.put("currency", "INR");
-        out.put("basis", String.valueOf(m.getOrDefault(
-                "basis",
-                "Candidate-specific Gemini estimate anchored to retrieved market evidence"
-        )));
+        Object basisValue = m.containsKey("basis")
+                ? m.get("basis")
+                : "Candidate-specific Gemini estimate anchored to retrieved market evidence";
+        out.put("basis", String.valueOf(basisValue));
         return out;
     }
 
