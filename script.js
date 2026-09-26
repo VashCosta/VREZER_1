@@ -148,26 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initSpiderParticles();
 
-    // ── Production backend pre-warm ─────────────────────
-    // Start waking the Render service as soon as the Pages UI opens so the
-    // user is not forced to wait for a cold start after clicking Analyze.
-    let productionWarmPromise = null;
-
-    function ensureProductionWarm() {
-        if (productionWarmPromise) return productionWarmPromise;
-        productionWarmPromise = warmProductionBackend().catch(err => {
-            productionWarmPromise = null;
-            throw err;
-        });
-        return productionWarmPromise;
-    }
-
-    setTimeout(() => {
-        ensureProductionWarm().catch(() => {
-            // A later Analyze click will retry the warm-up automatically.
-        });
-    }, 350);
-
     // ── Theme Switcher ─────────────────────────────
     document.body.classList.add('dark');
     if (themeBtn) {
@@ -537,15 +517,22 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             if (loadMsg) loadMsg.textContent = 'Analysis complete. Building your career intelligence dashboard…';
 
             setTimeout(() => {
+                let renderError = null;
                 try {
                     renderDash(data);
                 } catch (e) {
+                    renderError = e;
                     console.error('[VREZER DASHBOARD] renderDash error:', e);
-                    throw e;
+                } finally {
+                    // Never leave the user stuck on the loading screen because an
+                    // optional dashboard panel failed to render.
+                    show(dashSect);
+                    hide(loadSect, uploadSect);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    if (renderError) {
+                        setTicker('Analysis complete · Dashboard loaded with limited optional panels');
+                    }
                 }
-                show(dashSect);
-                hide(loadSect, uploadSect);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
             }, 250);
         } catch (err) {
             console.error('[VREZER] Analysis error:', err);
@@ -1012,6 +999,28 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
                 fn();
             } catch (e) {
                 console.error('[VREZER DASHBOARD] ' + label + ' render failed:', e);
+                const errorMap = {
+                    'Career Prediction': 'ai-prediction',
+                    'Overview': 'tab-overview',
+                    'AI Profile': 'tab-profile',
+                    'ATS Intelligence': 'tab-ats',
+                    'Skill Intelligence': 'tab-skills',
+                    'Live Jobs': 'tab-jobs',
+                    'Company Explorer': 'tab-market',
+                    'Market Intelligence': 'tab-market',
+                    'Career Recommendations': 'tab-career',
+                    'Interview Intelligence': 'tab-interview',
+                    'Resume Improvement': 'tab-improvement',
+                    'Analytics': 'tab-analytics'
+                };
+                const host = $(errorMap[label]);
+                if (host && !host.querySelector('.vrezer-render-warning')) {
+                    const note = document.createElement('div');
+                    note.className = 'vrezer-render-warning';
+                    note.textContent = label + ' panel could not be rendered from the returned dossier.';
+                    note.style.cssText = 'margin:0 0 1rem;padding:.75rem 1rem;border:1px solid rgba(255,0,60,.35);border-radius:10px;background:rgba(255,0,60,.08);color:#ff8aa5;font-size:.82rem;';
+                    host.prepend(note);
+                }
             }
         };
         renderSection('Career Prediction', () => renderCareerPrediction(d));
@@ -1075,12 +1084,17 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
 
     // ── 1. HERO METRICS STRIP ──────────────────────────
     function renderHeroMetrics(d) {
-        setText('hm-ats', (d.atsScore != null) ? (d.atsScore + '%') : 'Not available');
-        setText('hm-ai-score', (d.profileStrength != null ? d.profileStrength : (d.confidenceScore != null ? d.confidenceScore : null)) != null ? ((d.profileStrength != null ? d.profileStrength : d.confidenceScore) + '%') : 'Not available');
-        setText('hm-domain', d.careerDomain || 'Technology');
-        setText('hm-level', d.experienceLevel || d.careerLevel || 'Mid-Level');
-        setText('hm-status', (d.atsScore || 85) >= 80 ? '✅ ATS Ready' : '⚠️ Needs Fix');
-        setText('hm-confidence', (d.confidenceScore != null) ? (d.confidenceScore + '%') : 'Not available');
+        const ats = d.atsScore != null ? Number(d.atsScore) : null;
+        const aiScore = d.profileStrength != null ? Number(d.profileStrength) :
+            (d.confidenceScore != null ? Number(d.confidenceScore) : null);
+        const conf = d.confidenceScore != null ? Number(d.confidenceScore) : null;
+
+        setText('hm-ats', Number.isFinite(ats) ? ats + '%' : 'Not available');
+        setText('hm-ai-score', Number.isFinite(aiScore) ? aiScore + '%' : 'Not available');
+        setText('hm-domain', d.careerDomain || 'Not available');
+        setText('hm-level', d.experienceLevel || d.careerLevel || 'Not available');
+        setText('hm-status', Number.isFinite(ats) ? (ats >= 80 ? 'ATS Ready' : 'Needs Improvement') : 'Not available');
+        setText('hm-confidence', Number.isFinite(conf) ? conf + '%' : 'Not available');
     }
 
     // ── 2. OVERVIEW GAUGES & CHARTS ────────────────────
@@ -1951,29 +1965,41 @@ B.E. in Mechanical Engineering | College of Engineering Pune (COEP) | 2016 - 202
             `;
         }
 
-        // Career Growth Timeline
+        // Career Growth Timeline — use only stages returned by the AI dossier.
         const tl = $('career-timeline');
         if (tl) {
-            const stages = d.careerGrowthTimeline || [
-                { stage: 'CURRENT', title: d.role || 'Senior SDE', expectedSalaryProgression: '₹22 - ₹30 LPA', roadmapNotes: 'Solidify core architecture & system design leadership.' },
-                { stage: '12-18 MONTHS', title: 'Staff Engineer / Tech Lead', expectedSalaryProgression: '₹35 - ₹48 LPA', roadmapNotes: 'Drive cross-service architecture & lead engineering teams.' },
-                { stage: '3-5 YEARS', title: 'Principal Architect', expectedSalaryProgression: '₹55 - ₹80 LPA', roadmapNotes: 'Set company-wide technology strategy and platform standards.' }
-            ];
+            const rawStages = Array.isArray(d.careerGrowthTimeline) ? d.careerGrowthTimeline : [];
+            const stages = rawStages.map((item, idx) => {
+                if (typeof item === 'string') {
+                    return {
+                        stage: idx === 0 ? 'CURRENT' : (idx === 1 ? '12–18 MONTHS' : 'FUTURE'),
+                        title: item,
+                        expectedSalaryProgression: '',
+                        roadmapNotes: ''
+                    };
+                }
+                const x = item && typeof item === 'object' ? item : {};
+                return {
+                    stage: toTextString(x.stage || x.period || x.timeframe || x.phase) || (idx === 0 ? 'CURRENT' : 'FUTURE'),
+                    title: toTextString(x.title || x.role || x.position || x.targetRole) || 'Career stage',
+                    expectedSalaryProgression: toTextString(x.expectedSalaryProgression || x.salary || x.salaryRange || x.expectedSalary),
+                    roadmapNotes: toTextString(x.roadmapNotes || x.notes || x.description || x.focus)
+                };
+            }).filter(x => x.title);
 
-            tl.innerHTML = stages.map(rawStage => {
-                const stage = (rawStage && typeof rawStage === 'object') ? rawStage : { title: String(rawStage || 'Career Stage') };
-                return `
+            tl.innerHTML = stages.length
+                ? stages.slice(0, 6).map(st => `
                     <div class="timeline-item">
                         <div class="tl-dot"><i class="fa-solid fa-rocket"></i></div>
                         <div class="tl-content">
-                            <div class="tl-stage">${toTextString(stage.stage || 'ROADMAP')}</div>
-                            <div class="tl-title">${toTextString(stage.title || d.role || 'Career Growth Stage')}</div>
-                            <div class="tl-sal">${toTextString(stage.expectedSalaryProgression || stage.salary || 'Salary data unavailable')}</div>
-                            <div class="tl-notes">${toTextString(stage.roadmapNotes || stage.notes || '')}</div>
+                            <div class="tl-stage">${st.stage}</div>
+                            <div class="tl-title">${st.title}</div>
+                            ${st.expectedSalaryProgression ? `<div class="tl-sal">${st.expectedSalaryProgression}</div>` : ''}
+                            ${st.roadmapNotes ? `<div class="tl-notes">${st.roadmapNotes}</div>` : ''}
                         </div>
                     </div>
-                `;
-            }).join('');
+                `).join('')
+                : '<div class="empty-state">Career growth timeline is unavailable for this resume.</div>';
         }
 
         // Learning Roadmap
@@ -4714,44 +4740,73 @@ ${resumeText.substring(0, 12000)}`;
     function hide(...els) { els.forEach(el => el && el.classList.add('hidden')); }
     function countUp(id, target) {
         const el = $(id); if (!el) return;
+        const numericTarget = Number.isFinite(Number(target)) ? Math.max(0, Number(target)) : 0;
         let c = 0;
-        const iv = setInterval(() => { c = Math.min(c + Math.ceil(target / 30), target); el.textContent = c; if (c >= target) clearInterval(iv); }, 30);
+        const step = Math.max(1, Math.ceil(numericTarget / 30));
+        const iv = setInterval(() => {
+            c = Math.min(c + step, numericTarget);
+            el.textContent = c;
+            if (c >= numericTarget) clearInterval(iv);
+        }, 30);
+    }
+
+    function hasChartJs() {
+        return typeof window.Chart === 'function';
     }
 
     function makeDonut(id, v1, v2, c1, c2) {
-        if (typeof Chart === 'undefined') return;
-        const ctx = $(id); if (!ctx) return;
+        const ctx = $(id); if (!ctx || !hasChartJs()) return;
+        const a = Number.isFinite(Number(v1)) ? Math.max(0, Number(v1)) : 0;
+        const b = Number.isFinite(Number(v2)) ? Math.max(0, Number(v2)) : 0;
         if (charts[id]) charts[id].destroy();
         charts[id] = new Chart(ctx, {
             type: 'doughnut',
-            data: { datasets: [{ data: [v1, v2], backgroundColor: [c1, c2], borderWidth: 0, borderRadius: 8 }] },
+            data: { datasets: [{ data: [a, b], backgroundColor: [c1, c2], borderWidth: 0, borderRadius: 8 }] },
             options: { cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 1000 } }
         });
     }
 
     function makeRadar(skills) {
-        if (typeof Chart === 'undefined') return;
-        const ctx = $('radar-chart'); if (!ctx) return;
+        const ctx = $('radar-chart'); if (!ctx || !hasChartJs()) return;
+        const labels = (Array.isArray(skills) ? skills : []).slice(0, 5).map(toTextString).filter(Boolean);
+        if (!labels.length) return;
         if (charts.radar) charts.radar.destroy();
         charts.radar = new Chart(ctx, {
             type: 'radar',
-            data: { 
-                labels: (skills || []).slice(0, 5),
-                datasets: [{ data: [92, 85, 88, 78, 85], backgroundColor: 'rgba(255,0,60,0.15)', borderColor: '#ff003c', borderWidth: 2, pointBackgroundColor: '#ff003c' }] 
+            data: {
+                labels,
+                datasets: [{
+                    data: labels.map((_, idx) => Math.max(45, 92 - idx * 6)),
+                    backgroundColor: 'rgba(255,0,60,0.15)',
+                    borderColor: '#ff003c',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ff003c'
+                }]
             },
             options: { scales: { r: { min: 0, max: 100, ticks: { display: false } } }, plugins: { legend: { display: false } } }
         });
     }
 
     function makeBar(ats) {
-        if (typeof Chart === 'undefined') return;
-        const ctx = $('bar-chart'); if (!ctx) return;
+        const ctx = $('bar-chart'); if (!ctx || !hasChartJs()) return;
+        const base = Number.isFinite(Number(ats)) ? Math.max(0, Math.min(100, Number(ats))) : 0;
         if (charts.bar) charts.bar.destroy();
         charts.bar = new Chart(ctx, {
             type: 'bar',
-            data: { 
+            data: {
                 labels: ['ATS Match', 'Keywords', 'Format', 'Experience', 'Skills', 'Growth'],
-                datasets: [{ data: [ats, ats - 4, ats + 2, ats - 2, ats + 5, ats + 1], backgroundColor: ['#ff003c', '#ff416c', '#ff6b8b', '#dc2626', '#ef4444', '#f87171'], borderRadius: 6 }] 
+                datasets: [{
+                    data: [
+                        base,
+                        Math.max(0, base - 4),
+                        Math.min(100, base + 2),
+                        Math.max(0, base - 2),
+                        Math.min(100, base + 5),
+                        Math.min(100, base + 1)
+                    ],
+                    backgroundColor: ['#ff003c', '#ff416c', '#ff6b8b', '#dc2626', '#ef4444', '#f87171'],
+                    borderRadius: 6
+                }]
             },
             options: { indexAxis: 'y', scales: { x: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }
         });
