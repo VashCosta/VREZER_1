@@ -132,7 +132,7 @@ public class ResumeIntelligenceEngine {
         Map<String, String> domainsMap = detectPrimaryAndSecondaryDomains(text, techSkills, progLangs, frameworks, degree, specialization);
         String primaryDomain = domainsMap.get("primaryDomain");
         String secondaryDomain = domainsMap.get("secondaryDomain");
-        String careerDomainCombined = domainsMap.get("careerDomain");
+        String careerDomainCombined = domainsMap.get("primaryDomain");
         
         // 8. Target Roles & Objective
         String careerObjective = extractCareerObjective(text);
@@ -402,104 +402,284 @@ public class ResumeIntelligenceEngine {
     /**
      * Dual-Domain Detection — returns Primary and Secondary domains.
      */
-    public Map<String, String> detectPrimaryAndSecondaryDomains(String fullText, List<String> skills, List<String> progLangs, List<String> frameworks, String degree, String spec) {
-        String lower = fullText.toLowerCase();
-        String skillsStr = (skills != null ? String.join(" ", skills) : "").toLowerCase();
-        String combined = lower + " " + skillsStr + " " + (degree != null ? degree.toLowerCase() : "") + " " + (spec != null ? spec.toLowerCase() : "");
+    /**
+     * Deterministic career-domain classifier.
+     *
+     * The primary domain is derived only from resume evidence. LLM output must
+     * never be allowed to replace this value because small model/provider
+     * differences can otherwise make the same resume jump between domains.
+     *
+     * Evidence hierarchy:
+     *   1) exact domain phrases in resume text
+     *   2) extracted technical/domain skills
+     *   3) explicit specialization/degree context
+     *
+     * Generic degree text is not duplicated into the score, so an academic
+     * stream such as "AI & Data Science" cannot overpower a clearly evidenced
+     * career direction such as Digital Marketing.
+     */
+    public Map<String, String> detectPrimaryAndSecondaryDomains(
+            String fullText,
+            List<String> skills,
+            List<String> progLangs,
+            List<String> frameworks,
+            String degree,
+            String spec) {
 
-        Map<String, Integer> domainScores = new LinkedHashMap<>();
+        String resume = fullText == null ? "" : fullText.toLowerCase(Locale.ROOT);
+        String skillsText = skills == null ? "" : String.join(" ", skills).toLowerCase(Locale.ROOT);
 
-        domainScores.put("Mechanical Engineering", scoreDomain(combined, new String[]{
-            "mechanical", "solidworks", "ansys", "fea", "cad", "catia", "thermodynamics", "fluid mechanics",
-            "gd&t", "manufacturing", "mechatronics", "hydraulics", "hvac", "cnc", "cnc machining"
+        // Do not double-count degree/specification that is already present in the
+        // resume text. They are retained only as a small tie-break signal.
+        String combined = (resume + " " + skillsText).trim();
+
+        Map<String, Integer> scores = new LinkedHashMap<>();
+
+        scores.put("Mechanical Engineering", scoreDomain(combined, new String[]{
+                "mechanical engineering", "mechanical design", "solidworks", "ansys", "fea",
+                "cad", "catia", "thermodynamics", "fluid mechanics", "gd&t",
+                "manufacturing", "mechatronics", "hydraulics", "hvac", "cnc"
         }));
 
-        domainScores.put("Civil Engineering", scoreDomain(combined, new String[]{
-            "civil engineering", "staad", "staad.pro", "revit", "bim", "primavera", "surveying", "concrete design",
-            "structural analysis", "construction management"
+        scores.put("Civil Engineering", scoreDomain(combined, new String[]{
+                "civil engineering", "structural engineering", "staad", "staad.pro", "revit",
+                "bim", "primavera", "surveying", "concrete design", "structural analysis",
+                "construction management", "geotechnical"
         }));
 
-        domainScores.put("Electrical & Electronics", scoreDomain(combined, new String[]{
-            "electrical engineering", "electronics engineering", "embedded c", "plc", "scada", "microcontrollers",
-            "circuit design", "vlsi", "verilog", "vhdl", "pcb design", "matlab", "simulink", "iot"
+        scores.put("Electrical & Electronics", scoreDomain(combined, new String[]{
+                "electrical engineering", "electronics engineering", "embedded c", "plc",
+                "scada", "microcontrollers", "circuit design", "vlsi", "verilog", "vhdl",
+                "pcb design", "matlab", "simulink", "iot", "fpga"
         }));
 
-        domainScores.put("Finance & Accounting", scoreDomain(combined, new String[]{
-            "finance", "accounting", "chartered accountant", "ca", "valuation", "dcf", "lbo", "audit", "taxation",
-            "gst", "tally", "equity research", "financial modeling", "corporate finance", "ledger"
+        scores.put("Finance & Accounting", scoreDomain(combined, new String[]{
+                "finance", "accounting", "chartered accountant", "valuation", "dcf", "lbo",
+                "audit", "taxation", "gst", "tally", "equity research", "financial modeling",
+                "corporate finance", "ledger", "banking"
         }));
 
-        domainScores.put("Human Resources", scoreDomain(combined, new String[]{
-            "human resources", "hrbp", "talent acquisition", "recruiting", "onboarding", "hris", "payroll",
-            "employee relations", "people analytics", "labor laws"
+        scores.put("Human Resources", scoreDomain(combined, new String[]{
+                "human resources", "hrbp", "talent acquisition", "recruiting", "onboarding",
+                "hris", "payroll", "employee relations", "people analytics", "labor laws"
         }));
 
-        domainScores.put("Sales & Business Development", scoreDomain(combined, new String[]{
-            "sales", "business development", "b2b sales", "account management", "lead generation", "crm",
-            "salesforce crm", "hubspot crm", "pipeline management", "inside sales"
+        scores.put("Sales & Business Development", scoreDomain(combined, new String[]{
+                "sales", "business development", "b2b sales", "account management",
+                "lead generation", "crm", "salesforce", "pipeline management", "inside sales"
         }));
 
-        domainScores.put("Digital Marketing", scoreDomain(combined, new String[]{
-            "seo", "sem", "google ads", "meta ads", "facebook ads", "content marketing", "social media marketing",
-            "ga4", "google analytics", "hubspot", "marketo", "growth marketing", "performance marketing",
-            "copywriting", "a/b testing", "conversion rate", "cro", "campaign", "email marketing", "adwords",
-            "digital marketing", "search engine optimization", "content strategy", "growth hacking", "ppc"
+        scores.put("Digital Marketing", scoreDomain(combined, new String[]{
+                "digital marketing", "search engine optimization", "seo", "sem", "google ads",
+                "meta ads", "facebook ads", "social media marketing", "content marketing",
+                "google analytics", "ga4", "hubspot", "marketo", "growth marketing",
+                "performance marketing", "copywriting", "a/b testing", "conversion rate",
+                "cro", "campaign", "email marketing", "adwords", "content strategy",
+                "growth hacking", "ppc"
         }));
 
-        domainScores.put("UI/UX Design", scoreDomain(combined, new String[]{
-            "figma", "adobe xd", "sketch", "invision", "wireframing", "prototyping", "user research",
-            "usability testing", "design system", "ui/ux", "user experience", "user interface"
+        scores.put("UI/UX Design", scoreDomain(combined, new String[]{
+                "ui/ux", "figma", "adobe xd", "sketch", "invision", "wireframing",
+                "prototyping", "user research", "usability testing", "design system",
+                "user experience", "user interface", "product design", "interaction design"
         }));
 
-        domainScores.put("AI & Machine Learning", scoreDomain(combined, new String[]{
-            "machine learning", "deep learning", "pytorch", "tensorflow", "nlp", "natural language processing",
-            "computer vision", "llm", "large language model", "transformers", "hugging face", "langchain",
-            "rag", "vector database", "qdrant", "scikit-learn", "data science", "keras", "generative ai"
+        scores.put("AI & Machine Learning", scoreDomain(combined, new String[]{
+                "machine learning", "deep learning", "pytorch", "tensorflow", "nlp",
+                "natural language processing", "computer vision", "large language model",
+                "llm", "transformers", "hugging face", "langchain", "rag", "vector database",
+                "qdrant", "scikit-learn", "data science", "keras", "generative ai", "mlops"
         }));
 
-        domainScores.put("Data & Business Analytics", scoreDomain(combined, new String[]{
-            "power bi", "tableau", "excel", "dax", "power query", "business intelligence", "sql queries",
-            "data analysis", "data analyst", "data visualization", "business analyst", "etl"
+        scores.put("Data & Business Analytics", scoreDomain(combined, new String[]{
+                "power bi", "tableau", "excel", "dax", "power query", "business intelligence",
+                "sql queries", "data analysis", "data analyst", "data visualization",
+                "business analyst", "etl", "analytics"
         }));
 
-        domainScores.put("Cybersecurity", scoreDomain(combined, new String[]{
-            "cybersecurity", "penetration testing", "ethical hacking", "soc analyst", "siem", "incident response",
-            "vulnerability assessment", "wireshark", "metasploit", "cryptography"
+        scores.put("Cybersecurity", scoreDomain(combined, new String[]{
+                "cybersecurity", "penetration testing", "ethical hacking", "soc analyst",
+                "siem", "incident response", "vulnerability assessment", "wireshark",
+                "metasploit", "cryptography", "zero trust", "security engineer"
         }));
 
-        domainScores.put("Backend Development", scoreDomain(combined, new String[]{
-            "spring boot", "spring mvc", "hibernate", "jpa", "rest api", "microservices", "java backend",
-            "django", "fastapi", "express.js", "node.js backend", "golang", "grpc", "postgresql", "mysql", "redis", "kafka", "java"
+        scores.put("Backend Development", scoreDomain(combined, new String[]{
+                "backend development", "spring boot", "spring mvc", "hibernate", "jpa",
+                "rest api", "microservices", "java backend", "django", "fastapi",
+                "express.js", "node.js backend", "golang", "grpc", "postgresql", "mysql",
+                "redis", "kafka", "java"
         }));
 
-        domainScores.put("Cloud & DevOps", scoreDomain(combined, new String[]{
-            "devops", "kubernetes", "docker", "terraform", "ansible", "jenkins", "ci/cd", "aws", "azure", "gcp"
+        scores.put("Cloud & DevOps", scoreDomain(combined, new String[]{
+                "devops", "kubernetes", "docker", "terraform", "ansible", "jenkins",
+                "ci/cd", "aws", "azure", "gcp", "helm", "argocd", "site reliability",
+                "sre", "github actions"
         }));
 
-        domainScores.put("Frontend Development", scoreDomain(combined, new String[]{
-            "react", "react.js", "vue", "vue.js", "angular", "next.js", "tailwind", "tailwindcss", "html5", "css3",
-            "typescript", "javascript", "redux"
+        scores.put("Frontend Development", scoreDomain(combined, new String[]{
+                "frontend development", "react", "react.js", "vue", "vue.js", "angular",
+                "next.js", "tailwind", "tailwindcss", "html5", "css3", "typescript",
+                "javascript", "redux"
         }));
 
-        List<Map.Entry<String, Integer>> sorted = domainScores.entrySet().stream()
+        scores.put("Data Engineering", scoreDomain(combined, new String[]{
+                "data engineer", "spark", "hadoop", "kafka", "airflow", "dbt", "snowflake",
+                "bigquery", "etl", "pipeline", "databricks", "redshift"
+        }));
+
+        scores.put("Mobile Development", scoreDomain(combined, new String[]{
+                "android", "ios", "flutter", "react native", "kotlin", "swift",
+                "mobile app", "xcode", "play store", "app store"
+        }));
+
+        scores.put("Blockchain & Web3", scoreDomain(combined, new String[]{
+                "blockchain", "solidity", "web3", "ethereum", "smart contract", "defi",
+                "nft", "metamask", "truffle", "hardhat"
+        }));
+
+        scores.put("Healthcare", scoreDomain(combined, new String[]{
+                "patient care", "nursing", "clinical", "pharmacology", "ehr", "emr",
+                "diagnosis", "triage", "physician", "hospital", "mbbs", "bpharm"
+        }));
+
+        scores.put("Education & Teaching", scoreDomain(combined, new String[]{
+                "teacher", "curriculum", "lesson plan", "classroom", "pedagogy", "lms",
+                "e-learning", "assessment", "professor", "instructor"
+        }));
+
+        scores.put("Legal", scoreDomain(combined, new String[]{
+                "legal", "attorney", "lawyer", "contracts", "compliance", "litigation",
+                "corporate law", "intellectual property", "paralegal", "llb"
+        }));
+
+        scores.put("Supply Chain & Logistics", scoreDomain(combined, new String[]{
+                "supply chain", "logistics", "procurement", "inventory", "warehouse",
+                "erp", "sap", "vendor management", "six sigma", "lean"
+        }));
+
+        // Skill-list signals are stronger than incidental mentions in prose.
+        if (skills != null && !skills.isEmpty()) {
+            boostDomainBySkills(scores, skillsText);
+        }
+
+        // Explicit career-intent wording gets a deterministic extra boost.
+        applyCareerIntentBoosts(scores, resume);
+
+        // Specialization is a tie-breaker only; it cannot dominate resume evidence.
+        if (spec != null && !spec.isBlank()) {
+            applyLowWeightContextBoost(scores, spec.toLowerCase(Locale.ROOT));
+        }
+        if (degree != null && !degree.isBlank()) {
+            applyLowWeightContextBoost(scores, degree.toLowerCase(Locale.ROOT));
+        }
+
+        List<Map.Entry<String, Integer>> sorted = scores.entrySet().stream()
                 .filter(e -> e.getValue() > 0)
-                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                .sorted((a, b) -> {
+                    int byScore = Integer.compare(b.getValue(), a.getValue());
+                    return byScore != 0 ? byScore : a.getKey().compareToIgnoreCase(b.getKey());
+                })
                 .toList();
 
-        String primary = !sorted.isEmpty() ? sorted.get(0).getKey() : "Backend Development";
-        String secondary = (sorted.size() > 1 && sorted.get(1).getValue() >= 2 && !sorted.get(1).getKey().equalsIgnoreCase(primary)) ? sorted.get(1).getKey() : "";
-        if (secondary.isEmpty() || secondary.equalsIgnoreCase(primary)) {
-            if (primary.equals("Digital Marketing")) secondary = "Full Stack Development";
-            else if (primary.equals("Backend Development")) secondary = "AI & Data Science";
-            else if (primary.equals("AI & Machine Learning")) secondary = "Full Stack Development";
-            else secondary = "Cloud & DevOps";
+        String primary = sorted.isEmpty() ? "Professional & Domain Specialist" : sorted.get(0).getKey();
+
+        String secondary = "";
+        if (sorted.size() > 1) {
+            Map.Entry<String, Integer> runnerUp = sorted.get(1);
+            // Only expose a secondary domain when the runner-up has real evidence
+            // and is not merely tied by one incidental keyword.
+            int primaryScore = sorted.get(0).getValue();
+            if (runnerUp.getValue() >= 4 && runnerUp.getValue() >= Math.max(4, primaryScore - 6)) {
+                secondary = runnerUp.getKey();
+            }
         }
 
         Map<String, String> result = new LinkedHashMap<>();
         result.put("primaryDomain", primary);
         result.put("secondaryDomain", secondary);
-        result.put("careerDomain", primary.equals(secondary) ? primary : (primary + " & " + secondary));
+        // IMPORTANT: careerDomain is the canonical PRIMARY domain consumed by
+        // job retrieval and displayed on the dashboard. Secondary stays separate.
+        result.put("careerDomain", primary);
         return result;
+    }
+
+    private void boostDomainBySkills(Map<String, Integer> scores, String skillsText) {
+        if (skillsText == null || skillsText.isBlank()) return;
+        Map<String, String[]> skillAnchors = new LinkedHashMap<>();
+        skillAnchors.put("Digital Marketing", new String[]{"seo","sem","google ads","meta ads","social media marketing","content marketing","ga4","google analytics","performance marketing","ppc"});
+        skillAnchors.put("AI & Machine Learning", new String[]{"machine learning","deep learning","pytorch","tensorflow","nlp","computer vision","llm","langchain","rag","generative ai","scikit-learn"});
+        skillAnchors.put("Backend Development", new String[]{"spring boot","rest api","microservices","java backend","hibernate","jpa","postgresql","redis","kafka"});
+        skillAnchors.put("Frontend Development", new String[]{"react","react.js","vue","angular","next.js","tailwind","typescript","javascript"});
+        skillAnchors.put("Cloud & DevOps", new String[]{"aws","azure","gcp","docker","kubernetes","terraform","jenkins","ci/cd"});
+        skillAnchors.put("Data & Business Analytics", new String[]{"power bi","tableau","excel","dax","data analysis","business analyst"});
+        skillAnchors.put("Cybersecurity", new String[]{"cybersecurity","penetration testing","ethical hacking","siem","soc","wireshark","metasploit"});
+        skillAnchors.put("UI/UX Design", new String[]{"figma","adobe xd","sketch","wireframing","prototyping","user research"});
+        for (Map.Entry<String, String[]> entry : skillAnchors.entrySet()) {
+            int hits = 0;
+            for (String anchor : entry.getValue()) {
+                if (containsWholePhrase(skillsText, anchor)) hits++;
+            }
+            if (hits > 0) scores.merge(entry.getKey(), hits * 4, Integer::sum);
+        }
+    }
+
+    private void applyCareerIntentBoosts(Map<String, Integer> scores, String resume) {
+        String[] digitalMarketing = {"digital marketing", "performance marketing", "seo specialist", "seo executive", "google ads", "meta ads", "social media marketing", "growth marketing", "marketing specialist", "marketing executive"};
+        String[] backend = {"backend developer", "backend engineer", "java developer", "spring boot developer", "api engineer", "microservices engineer"};
+        String[] ai = {"machine learning engineer", "ai engineer", "ai/ml engineer", "ml engineer", "data scientist", "ai research scientist"};
+        String[] frontend = {"frontend developer", "frontend engineer", "react developer", "ui developer"};
+        String[] devops = {"devops engineer", "cloud engineer", "site reliability engineer", "sre", "cloud architect"};
+        String[] analytics = {"data analyst", "business analyst", "bi analyst", "business intelligence analyst"};
+        String[] design = {"ui/ux designer", "ux designer", "product designer", "ui designer"};
+        String[] security = {"cybersecurity analyst", "security analyst", "soc analyst", "security engineer", "penetration tester"};
+        String[] finance = {"financial analyst", "accountant", "auditor", "investment analyst", "finance analyst"};
+        String[] sales = {"sales executive", "sales manager", "business development executive", "account manager"};
+
+        boostForIntent(scores, "Digital Marketing", resume, digitalMarketing);
+        boostForIntent(scores, "Backend Development", resume, backend);
+        boostForIntent(scores, "AI & Machine Learning", resume, ai);
+        boostForIntent(scores, "Frontend Development", resume, frontend);
+        boostForIntent(scores, "Cloud & DevOps", resume, devops);
+        boostForIntent(scores, "Data & Business Analytics", resume, analytics);
+        boostForIntent(scores, "UI/UX Design", resume, design);
+        boostForIntent(scores, "Cybersecurity", resume, security);
+        boostForIntent(scores, "Finance & Accounting", resume, finance);
+        boostForIntent(scores, "Sales & Business Development", resume, sales);
+    }
+
+    private void boostForIntent(Map<String, Integer> scores, String domain, String resume, String[] phrases) {
+        int hits = 0;
+        for (String phrase : phrases) {
+            if (containsWholePhrase(resume, phrase)) hits++;
+        }
+        if (hits > 0) scores.merge(domain, hits * 7, Integer::sum);
+    }
+
+    private void applyLowWeightContextBoost(Map<String, Integer> scores, String context) {
+        Map<String, String[]> contextAnchors = new LinkedHashMap<>();
+        contextAnchors.put("Digital Marketing", new String[]{"marketing","seo"});
+        contextAnchors.put("AI & Machine Learning", new String[]{"artificial intelligence","machine learning","data science"});
+        contextAnchors.put("Backend Development", new String[]{"backend","software engineering"});
+        contextAnchors.put("Frontend Development", new String[]{"frontend","web development"});
+        contextAnchors.put("Cloud & DevOps", new String[]{"cloud","devops"});
+        contextAnchors.put("Finance & Accounting", new String[]{"finance","accounting"});
+        contextAnchors.put("Mechanical Engineering", new String[]{"mechanical engineering"});
+        contextAnchors.put("Civil Engineering", new String[]{"civil engineering"});
+        contextAnchors.put("Electrical & Electronics", new String[]{"electrical engineering","electronics engineering"});
+        for (Map.Entry<String, String[]> entry : contextAnchors.entrySet()) {
+            for (String anchor : entry.getValue()) {
+                if (containsWholePhrase(context, anchor)) {
+                    scores.merge(entry.getKey(), 2, Integer::sum);
+                }
+            }
+        }
+    }
+
+    private boolean containsWholePhrase(String text, String phrase) {
+        if (text == null || text.isBlank() || phrase == null || phrase.isBlank()) return false;
+        String normalized = " " + text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9+#./&-]+", " ").trim() + " ";
+        String target = " " + phrase.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9+#./&-]+", " ").trim() + " ";
+        return normalized.contains(target);
     }
 
     public String detectPrimaryCareerDomain(String fullText, List<String> skills, List<String> progLangs, List<String> frameworks, String degree, String spec) {
