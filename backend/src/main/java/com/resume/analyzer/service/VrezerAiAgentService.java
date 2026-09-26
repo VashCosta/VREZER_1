@@ -206,7 +206,8 @@ public class VrezerAiAgentService {
         "4. EXPLAINABLE SCORING & GROUNDING CONFIDENCE: Calculate confidenceScore (0-100) dynamically based on resume text density, verifiable dates/metrics, contact details, and skill-to-project evidence. Provide a 1-2 sentence confidenceExplanation detailing why that specific confidence score was assigned. Never return static default confidence numbers like 90 or 92 for all resumes.\n" +
         "5. UNIQUENESS & DYNAMISM: Different resumes must produce completely different output. Never return identical companies, scores, or roadmaps for dissimilar profiles.\n" +
         "6. RESUME EVIDENCE ONLY for profile fields: Skills, projects, education, experience, certifications — extract only from the resume text.\n" +
-        "7. RETURN ONLY RAW JSON. No markdown backticks, no prose. The first character must be '{'.\n" +
+        "7. SALARY: Return a candidate-specific expected annual salary estimate, not a generic label such as Industry Benchmark, Market Benchmark, Competitive Market Rate, or Salary data unavailable when sufficient retrieved salary evidence exists. Use the resume's domain, target role, experience, skills, projects, location, and retrieved salary postings to estimate the candidate's likely market range. This is an AI estimate, not a guaranteed offer.\n" +
+        "8. RETURN ONLY RAW JSON. No markdown backticks, no prose. The first character must be '{'.\n" +
         "═══════════════════════════════════════════════════════\n\n";
 
     private static final String MULTI_AGENT_SYSTEM_PROMPT =
@@ -234,10 +235,11 @@ public class VrezerAiAgentService {
         "  \"cgpa\": \"<exact CGPA/marks from resume or empty string>\",\n" +
         "  \"confidenceScore\": <dynamically calculated number 0-100 based on text depth and verifiable resume evidence>,\n" +
         "  \"confidenceExplanation\": \"<1-2 sentence rationale explaining why this confidence score was assigned based on resume evidence, text length, and metric grounding>\",\n" +
+        "  \"resumeSalaryEstimate\": { \"minLpa\": <number or null>, \"maxLpa\": <number or null>, \"medianLpa\": <number or null>, \"currency\": \"INR\", \"basis\": \"<resume-specific reasoning anchored to retrieved salary evidence>\" },\n" +
         "  \"profileStrength\": <number 0-100>,\n" +
         "  \"professionalSummary\": \"<3-4 sentence summary of candidate profile, domain, and key achievements>\",\n" +
         "  \"strategicForecast\": \"<4-5 sentence career growth trajectory tailored to candidate's domain>\",\n" +
-        "  \"dataDisclaimer\": \"Insights derived from resume analysis; salary benchmarks are market reference projections.\",\n" +
+        "  \"dataDisclaimer\": \"AI-generated candidate salary estimate based on this resume and retrieved market evidence; actual offers vary by employer and market.\",\n" +
         "  \"agentPipelineStatus\": { \"resumeParserAgent\": \"Completed\", \"atsAnalysisAgent\": \"Completed\", \"skillGapAgent\": \"Completed\", \"jobMatchAgent\": \"Completed\", \"careerAdvisorAgent\": \"Completed\", \"reportGeneratorAgent\": \"Completed\" },\n" +
         "  \"atsScore\": <number 0-100>,\n" +
         "  \"atsScoreText\": \"<EXCELLENT|GOOD|AVERAGE|NEEDS IMPROVEMENT>\",\n" +
@@ -1189,7 +1191,33 @@ public class VrezerAiAgentService {
             summary = name + " is a qualified specialist in " + domain + ". Verified technical competencies include " +
                     String.join(", ", (List<String>) result.getOrDefault("topSkills", List.of("core engineering skills"))) + ".";
         }
+
         result.put("professionalSummary", summary);
+
+        // Candidate-specific salary from Gemini. Generic benchmark labels are
+        // rejected so they cannot be displayed as the candidate's salary.
+        Map<String, Object> resumeSalary = normalizeResumeSalaryEstimate(result.get("resumeSalaryEstimate"));
+        if (resumeSalary != null) {
+            result.put("resumeSalaryEstimate", resumeSalary);
+            String candidateSalaryRange = formatSalaryRange(
+                    resumeSalary.get("minLpa"),
+                    resumeSalary.get("maxLpa")
+            );
+            if (!candidateSalaryRange.isBlank()) {
+                result.put("expectedLpaRange", candidateSalaryRange);
+                result.put("salaryCurrency", "INR");
+                result.put("salaryEstimateSource", "Gemini resume analysis + retrieved market evidence");
+                Object median = resumeSalary.get("medianLpa");
+                if (median instanceof Number) {
+                    result.put("expectedSalaryLpa", ((Number) median).doubleValue());
+                }
+                result.put("salaryUsd", "");
+            }
+        } else {
+            result.put("expectedLpaRange", "Salary data unavailable");
+            result.put("salaryUsd", "");
+            result.put("salaryEstimateSource", "No candidate-specific Gemini estimate returned");
+        }
 
         // Clean status and remove error
         result.put("status", "SUCCESS");
@@ -1217,6 +1245,61 @@ public class VrezerAiAgentService {
 
 
         return result;
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeResumeSalaryEstimate(Object raw) {
+        if (!(raw instanceof Map)) return null;
+        Map<?, ?> m = (Map<?, ?>) raw;
+
+        Double min = toPositiveDouble(m.get("minLpa"));
+        Double max = toPositiveDouble(m.get("maxLpa"));
+        Double median = toPositiveDouble(m.get("medianLpa"));
+
+        if (min == null && median == null && max == null) return null;
+        if (min == null) min = median != null ? median : max;
+        if (max == null) max = median != null ? median : min;
+        if (median == null) median = (min + max) / 2.0;
+        if (max < min) {
+            double tmp = min;
+            min = max;
+            max = tmp;
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("minLpa", roundSalary(min));
+        out.put("maxLpa", roundSalary(max));
+        out.put("medianLpa", roundSalary(median));
+        out.put("currency", "INR");
+        out.put("basis", String.valueOf(m.getOrDefault(
+                "basis",
+                "Candidate-specific Gemini estimate anchored to retrieved market evidence"
+        )));
+        return out;
+    }
+
+    private Double toPositiveDouble(Object value) {
+        if (value == null) return null;
+        try {
+            String s = String.valueOf(value).replace(",", "").trim();
+            if (s.isBlank()) return null;
+            double d = Double.parseDouble(s);
+            return d > 0 && d <= 500 ? d : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private double roundSalary(double value) {
+        return Math.round(value * 10.0) / 10.0;
+    }
+
+    private String formatSalaryRange(Object minObj, Object maxObj) {
+        Double min = toPositiveDouble(minObj);
+        Double max = toPositiveDouble(maxObj);
+        if (min == null || max == null) return "";
+        return String.format(Locale.US, "%.1f - %.1f LPA", min, max);
     }
 
     @SuppressWarnings("unchecked")
@@ -2412,8 +2495,9 @@ public class VrezerAiAgentService {
         result.put("primaryDomain", profile.getOrDefault("primaryDomain", domain));
         result.put("secondaryDomain", profile.getOrDefault("secondaryDomain", ""));
         result.put("careerDomain", profile.getOrDefault("careerDomain", domain));
-        result.put("expectedLpaRange", profile.getOrDefault("expectedLpaRange", "12 - 20 LPA"));
-        result.put("salaryUsd", profile.getOrDefault("salaryUsd", "$ 16K - 26K USD"));
+        result.put("expectedLpaRange", "Salary data unavailable");
+        result.put("salaryUsd", "");
+        result.put("salaryEstimateSource", "Gemini resume analysis required");
         result.put("careerLevel", expLevel);
         result.put("experience", profile.getOrDefault("experience", "Fresher / Entry Level"));
         result.put("yearsOfExperience", expYears);
