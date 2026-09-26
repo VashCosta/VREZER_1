@@ -109,82 +109,86 @@ public class PdfExtractorService {
             return "";
         }
 
-        try {
-            String model = (geminiPdfModel == null || geminiPdfModel.isBlank())
-                    ? "gemini-3.8-flash"
-                    : geminiPdfModel.trim();
+        final String[] models = new String[] {
+            (geminiPdfModel == null || geminiPdfModel.isBlank()) ? "gemini-3.8-flash" : geminiPdfModel.trim(),
+            "gemini-2.5-flash"
+        };
 
-            String encoded = Base64.getEncoder().encodeToString(pdfBytes);
+        String encoded = Base64.getEncoder().encodeToString(pdfBytes);
 
-            Map<String, Object> inlineData = new LinkedHashMap<>();
-            inlineData.put("mimeType", "application/pdf");
-            inlineData.put("data", encoded);
+        Map<String, Object> inlineData = new LinkedHashMap<>();
+        inlineData.put("mimeType", "application/pdf");
+        inlineData.put("data", encoded);
 
-            Map<String, Object> documentPart = new LinkedHashMap<>();
-            documentPart.put("inlineData", inlineData);
+        Map<String, Object> documentPart = new LinkedHashMap<>();
+        documentPart.put("inlineData", inlineData);
 
-            Map<String, Object> textPart = Map.of("text",
-                "Extract ALL readable resume content from this PDF. "
-              + "This may be a scanned/image-based resume. Preserve the candidate's exact "
-              + "name, email, phone, LinkedIn, GitHub, education, experience, internships, "
-              + "projects, skills, certifications, achievements, dates and URLs. "
-              + "Keep headings and bullet points in a clean plain-text layout. "
-              + "Do not summarize, classify, invent, or omit readable text. "
-              + "Return only the extracted resume text, with no markdown fences or commentary.");
+        Map<String, Object> textPart = Map.of("text",
+            "Extract ALL readable resume content from this PDF. "
+          + "This may be a scanned/image-based resume. Preserve the candidate's exact "
+          + "name, email, phone, LinkedIn, GitHub, education, experience, internships, "
+          + "projects, skills, certifications, achievements, dates and URLs. "
+          + "Keep headings and bullet points in a clean plain-text layout. "
+          + "Do not summarize, classify, invent, or omit readable text. "
+          + "Return only the extracted resume text, with no markdown fences or commentary.");
 
-            Map<String, Object> content = Map.of(
-                "parts", List.of(documentPart, textPart)
-            );
+        Map<String, Object> content = Map.of("parts", List.of(documentPart, textPart));
 
-            Map<String, Object> generationConfig = new LinkedHashMap<>();
-            generationConfig.put("temperature", 0.0);
-            generationConfig.put("maxOutputTokens", 7000);
+        for (String model : models) {
+            try {
+                Map<String, Object> generationConfig = new LinkedHashMap<>();
+                generationConfig.put("temperature", 0.0);
+                generationConfig.put("maxOutputTokens", 7000);
 
-            Map<String, Object> body = new LinkedHashMap<>();
-            body.put("contents", List.of(content));
-            body.put("generationConfig", generationConfig);
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("contents", List.of(content));
+                body.put("generationConfig", generationConfig);
 
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/"
-                    + model + ":generateContent?key=" + geminiApiKey.trim();
+                String url = "https://generativelanguage.googleapis.com/v1beta/models/"
+                        + model + ":generateContent?key=" + geminiApiKey.trim();
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
 
-            System.out.println("[PDF EXTRACTOR] Calling Gemini native PDF model: " + model);
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                url, new HttpEntity<>(body, headers), String.class);
+                System.out.println("[PDF EXTRACTOR] Calling Gemini native PDF model: " + model);
+                ResponseEntity<String> response = restTemplate.postForEntity(
+                    url, new HttpEntity<>(body, headers), String.class);
 
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                System.err.println("[PDF EXTRACTOR] Gemini PDF HTTP " + response.getStatusCode().value());
-                return "";
+                if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                    System.err.println("[PDF EXTRACTOR] Gemini PDF HTTP "
+                            + response.getStatusCode().value() + " on " + model + "; trying next model.");
+                    continue;
+                }
+
+                Map<?, ?> root = mapper.readValue(response.getBody(), Map.class);
+                Object candidatesObj = root.get("candidates");
+                if (!(candidatesObj instanceof List) || ((List<?>) candidatesObj).isEmpty()) continue;
+
+                Object first = ((List<?>) candidatesObj).get(0);
+                if (!(first instanceof Map)) continue;
+                Map<?, ?> candidate = (Map<?, ?>) first;
+
+                Object contentObj = candidate.get("content");
+                if (!(contentObj instanceof Map)) continue;
+                Map<?, ?> responseContent = (Map<?, ?>) contentObj;
+
+                Object partsObj = responseContent.get("parts");
+                if (!(partsObj instanceof List) || ((List<?>) partsObj).isEmpty()) continue;
+
+                Object part0 = ((List<?>) partsObj).get(0);
+                if (!(part0 instanceof Map)) continue;
+
+                Object textObj = ((Map<?, ?>) part0).get("text");
+                String extracted = textObj == null ? "" : String.valueOf(textObj).trim();
+                if (extracted.length() >= 80) {
+                    return extracted;
+                }
+            } catch (Exception e) {
+                System.err.println("[PDF EXTRACTOR] Gemini PDF vision failed on " + model + ": " + e.getMessage());
             }
-
-            Map<?, ?> root = mapper.readValue(response.getBody(), Map.class);
-            Object candidatesObj = root.get("candidates");
-            if (!(candidatesObj instanceof List) || ((List<?>) candidatesObj).isEmpty()) return "";
-
-            Object first = ((List<?>) candidatesObj).get(0);
-            if (!(first instanceof Map)) return "";
-            Map<?, ?> candidate = (Map<?, ?>) first;
-
-            Object contentObj = candidate.get("content");
-            if (!(contentObj instanceof Map)) return "";
-            Map<?, ?> responseContent = (Map<?, ?>) contentObj;
-
-            Object partsObj = responseContent.get("parts");
-            if (!(partsObj instanceof List) || ((List<?>) partsObj).isEmpty()) return "";
-
-            Object part0 = ((List<?>) partsObj).get(0);
-            if (!(part0 instanceof Map)) return "";
-
-            Object textObj = ((Map<?, ?>) part0).get("text");
-            return textObj == null ? "" : String.valueOf(textObj).trim();
-        } catch (Exception e) {
-            System.err.println("[PDF EXTRACTOR] Gemini PDF vision failed: " + e.getMessage());
-            return "";
         }
+        return "";
     }
-
     private boolean isUsableGeminiKey(String key) {
         if (key == null) return false;
         String k = key.trim();
