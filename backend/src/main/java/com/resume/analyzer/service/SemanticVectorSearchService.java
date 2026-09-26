@@ -19,7 +19,7 @@ import java.util.*;
 
 /**
  * Phase 5: RAG + Vector Semantic Search Service.
- * Computes semantic matching using vector embeddings fetched from the Gemini embedding API (models/text-embedding-004)
+ * Computes semantic matching using vector embeddings fetched from the Gemini embedding API (models/gemini-embedding-001)
  * or the OpenAI embedding API (text-embedding-3-small).
  * Supports optional indexing and retrieval via Qdrant or PostgreSQL pgvector.
  * Fallbacks to in-memory cosine similarity if database connections are unavailable.
@@ -95,7 +95,7 @@ public class SemanticVectorSearchService {
     }
 
     /**
-     * Generates vector embeddings via Gemini (text-embedding-004) or OpenAI (text-embedding-3-small).
+     * Generates vector embeddings via Gemini (gemini-embedding-001) or OpenAI (text-embedding-3-small).
      * Results are cached by EmbeddingCacheService (Caffeine, 24h TTL) when available.
      */
     public double[] getEmbedding(String text, String apiKey) {
@@ -184,12 +184,12 @@ public class SemanticVectorSearchService {
     private double[] getGeminiEmbedding(String text, String apiKey) {
         try {
             String cleanText = text.substring(0, Math.min(text.length(), 4000)).trim();
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=" + apiKey.trim();
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=" + apiKey.trim();
 
             Map<String, Object> textPart = Map.of("text", cleanText);
             Map<String, Object> content = Map.of("parts", List.of(textPart));
             Map<String, Object> requestBody = Map.of(
-                "model", "models/text-embedding-004",
+                "model", "models/gemini-embedding-001",
                 "content", content
             );
 
